@@ -765,7 +765,7 @@ export default function MarketingPanel({
   };
 
   // Cache jewelry analysis to avoid repeated API calls for 4 shots of same piece
-  const jewelryAnalysisCache = useRef<Record<string, { type: string; description: string; body_placement: string }>>({});
+  const jewelryAnalysisCache = useRef<Record<string, { type: string; description: string; body_placement: string; outfit_description: string | null }>>({});
 
   const analyzeJewelryCached = async (jewelryUrl: string) => {
     if (jewelryAnalysisCache.current[jewelryUrl]) return jewelryAnalysisCache.current[jewelryUrl];
@@ -776,8 +776,13 @@ export default function MarketingPanel({
     });
     const analysis = await res.json();
     const result = analysis.error
-      ? { type: "jewelry piece", description: "luxury jewelry", body_placement: "elegantly" }
-      : { type: analysis.type || "jewelry piece", description: analysis.description || "luxury jewelry", body_placement: analysis.body_placement || "elegantly" };
+      ? { type: "jewelry piece", description: "luxury jewelry", body_placement: "elegantly", outfit_description: null }
+      : {
+          type: analysis.type || "jewelry piece",
+          description: analysis.description || "luxury jewelry",
+          body_placement: analysis.body_placement || "elegantly",
+          outfit_description: analysis.outfit_description || null,
+        };
     logUsage?.("analyze-jewelry", { status: analysis.error ? "error" : "success" });
     jewelryAnalysisCache.current[jewelryUrl] = result;
     return result;
@@ -826,11 +831,14 @@ export default function MarketingPanel({
     numCharRefs: number,
     shotPrompt: string
   ): Promise<string> => {
-    const { type, description, body_placement } = await analyzeJewelryCached(jewelryUrl);
+    const { type, description, body_placement, outfit_description } = await analyzeJewelryCached(jewelryUrl);
 
     const hasOutfitRefs = outfitImages.length > 0;
+    // Determine outfit constraint source: explicit outfit refs > outfit captured from wearing source > nothing
     const outfitRefNote = hasOutfitRefs
-      ? `OUTFIT REFERENCE: Some reference images show the outfit the model must wear. Reproduce this outfit EXACTLY — same fabric, color, cut, fit, and style. `
+      ? `OUTFIT REFERENCE: Reference images between the character and the wearing source show the outfit the model must wear. Reproduce this outfit EXACTLY — same fabric, color, cut, fit, and style. `
+      : outfit_description
+      ? `OUTFIT REFERENCE: The wearing source reference shows the model in: "${outfit_description}". Reproduce this EXACT outfit — same fabric, color, cut, fit, and style — across every output. `
       : "";
 
     return (
@@ -840,6 +848,7 @@ export default function MarketingPanel({
       "Copy her appearance from the reference photos as precisely as a portrait photographer would. " +
       "\n\n" +
       outfitRefNote +
+      "\n\n" +
       "CAMERA & FRAMING — The following describes ONLY the camera angle, lens, lighting, and framing of this particular shot. It does NOT authorize you to change where or how the jewelry is worn, nor to re-style, re-place, flip, mirror, or re-angle the piece:\n" +
       shotPrompt +
       "\n\n" +
@@ -848,6 +857,7 @@ export default function MarketingPanel({
       "(HIGHEST PRIORITY — overrides every other instruction above)\n" +
       "═══════════════════════════════════════════════════════════\n" +
       `The LAST reference image is the GROUND TRUTH: a ${type} — ${description} — already worn by a model in the EXACT correct way. In the source the piece is worn ${body_placement}. ` +
+      "NOTE: The same wearing reference image also appears earlier in the reference sequence for additional visual grounding — the LAST occurrence is the authoritative copy.\n" +
       getSizePrompt(type, body_placement) +
       "\n" +
       "(1) JEWELRY IDENTITY — The output MUST show the SAME physical piece, not a similar one. Preserve every gemstone (exact count, cut, color, clarity, arrangement, setting), every metal detail (color, finish, engravings, prongs, chains, links, clasps), every facet, every proportion, every imperfection. This is the SAME object, photographed again — zero creative liberty on the product itself.\n" +
@@ -863,6 +873,15 @@ export default function MarketingPanel({
       "(5) CAMERA vs. WEARING — ONLY the camera angle, framing, lens, and lighting may change between shots. The way the jewelry is worn must NOT change. When the camera moves to a new angle, we must see the SAME worn piece from that new angle — NEVER a re-styled, re-placed, or re-oriented version.\n" +
       "(6) NO REINTERPRETATION — Do NOT reinterpret, restyle, re-place, flip, mirror, re-angle, resize, 'improve', 'balance', or 'complete' the jewelry or its placement. Treat the LAST reference image as the immutable ground truth for BOTH the product and how it is worn.\n" +
       "\n" +
+      (outfitRefNote
+        ? "═══════════════════════════════════════════════════════════\n" +
+          "ABSOLUTE RULE — OUTFIT / CLOTHING\n" +
+          "(HIGHEST PRIORITY — overrides any outfit description mentioned earlier)\n" +
+          "═══════════════════════════════════════════════════════════\n" +
+          (hasOutfitRefs
+            ? "The outfit reference images show the EXACT clothing the model must wear. Reproduce every detail — fabric, color, cut, fit, and style — identically across all four output shots. Do NOT substitute a different outfit.\n\n"
+            : `The wearing reference shows the model dressed in: "${outfit_description}". Reproduce this EXACT outfit — same fabric, color, cut, fit, and style — identically across all four output shots. Do NOT substitute a different outfit.\n\n`)
+        : "") +
       "The jewelry is the hero of the shot — prominently visible, in razor-sharp focus, and IDENTICAL to the source reference in both product identity and wearing style. " +
       "The final result must look like one frame from a cohesive luxury campaign series: same person, same outfit, SAME exact jewelry worn in the SAME exact way — only the camera changes."
     );
@@ -934,19 +953,37 @@ export default function MarketingPanel({
           }
 
           // ── Image mode: fire 4 shots per jewelry piece ──
-          // Build refs: character images + outfit images + jewelry image (up to 14)
-          const jewelrySlots = 1;
-          const outfitSlots = Math.min(outfitUrls.length, 3);
-          const charSlots = 14 - jewelrySlots - outfitSlots;
+          // Build refs: character images + outfit images + jewelry/wearing source (up to 14)
+          let refs: string[];
+          let numCharRefs: number;
 
-          let charRefs = [...characterUrls];
-          while (charRefs.length < charSlots && charRefs.length < characterUrls.length * 6) {
-            charRefs = [...charRefs, ...characterUrls];
+          if (template.id === "consistent-wearing") {
+            // For consistent-wearing the wearing source is the primary anchor for BOTH jewelry
+            // AND outfit. Cap character refs at 4 (no repetition) so they don't drown out the
+            // wearing source, and bookend the array with the wearing source so it appears both
+            // mid-sequence (extra visual weight) and last (matching the "LAST = ground truth" prompt).
+            // Layout: [char...(≤4), src.url, outfit...(≤4), src.url]  → max 10 slots, well within 14.
+            const charRefsWearing = characterUrls.slice(0, 4);
+            numCharRefs = charRefsWearing.length;
+            refs = [
+              ...charRefsWearing,
+              src.url,
+              ...outfitUrls.slice(0, 4),
+              src.url,
+            ].slice(0, 14);
+          } else {
+            // consistent-model: repeat character refs to fill slots, jewelry source goes last.
+            const jewelrySlots = 1;
+            const outfitSlots = Math.min(outfitUrls.length, 3);
+            const charSlots = 14 - jewelrySlots - outfitSlots;
+            let charRefs = [...characterUrls];
+            while (charRefs.length < charSlots && charRefs.length < characterUrls.length * 6) {
+              charRefs = [...charRefs, ...characterUrls];
+            }
+            charRefs = charRefs.slice(0, charSlots);
+            numCharRefs = charRefs.length;
+            refs = [...charRefs, ...outfitUrls.slice(0, outfitSlots), src.url].slice(0, 14);
           }
-          charRefs = charRefs.slice(0, charSlots);
-          const numCharRefs = charRefs.length;
-
-          const refs = [...charRefs, ...outfitUrls.slice(0, outfitSlots), src.url].slice(0, 14);
 
           // Build 4 shot prompts with outfit context
           const shots = buildShotPrompts();
