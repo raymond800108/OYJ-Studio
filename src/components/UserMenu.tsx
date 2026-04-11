@@ -1,8 +1,12 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { LogOut, User, CreditCard, ChevronDown } from "lucide-react";
+import { LogOut, User, CreditCard, ChevronDown, Infinity } from "lucide-react";
 import { useAuth } from "@/lib/useAuth";
+
+const ADMIN_EMAILS = ["raymond800108@gmail.com", "oyj.order@gmail.com", "olivia.sc.yao@gmail.com", "oyj.salon@gmail.com"];
+const isAdminEmail = (email: string | null | undefined) =>
+  !!email && ADMIN_EMAILS.includes(email.toLowerCase());
 
 export default function UserMenu() {
   const { user, loading, ready, openLogin, logout } = useAuth();
@@ -64,7 +68,7 @@ export default function UserMenu() {
         </span>
         <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-semibold">
           <CreditCard className="w-3 h-3" />
-          {user.credits}
+          {isAdminEmail(user.email) ? <Infinity className="w-3.5 h-3.5" /> : user.credits}
         </div>
         <ChevronDown className="w-3 h-3 text-muted" />
       </button>
@@ -95,7 +99,7 @@ export default function UserMenu() {
                 Credits
               </span>
               <span className="text-[10px] font-semibold text-amber-700">
-                {user.credits} remaining
+                {isAdminEmail(user.email) ? "∞ unlimited" : `${user.credits} remaining`}
               </span>
             </div>
           </div>

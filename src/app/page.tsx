@@ -85,8 +85,10 @@ interface Estimation {
 
 export default function Home() {
   const { lang, setLang, t } = useI18n();
-  const { entries: usageEntries, logUsage, clearUsage, summary: usageSummary, kvAvailable, refreshFromServer } = useUsageTracking();
   const { user, openLogin, refresh: refreshAuth, ready, loading: authLoading } = useAuth();
+  // Admin view mode: "self" | "all" | "<email>"
+  const [usageViewMode, setUsageViewMode] = useState<"self" | "all" | string>("self");
+  const { entries: usageEntries, logUsage, clearUsage, summary: usageSummary, kvAvailable, refreshFromServer } = useUsageTracking(user?.email, usageViewMode);
 
   // Detect auth_error=not_allowed from OAuth redirect
   const [authError, setAuthError] = useState<string | null>(null);
@@ -118,11 +120,10 @@ export default function Home() {
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
 
-  // Camera controls
-  const [rotateRightLeft, setRotateRightLeft] = useState(0);
-  const [moveForward, setMoveForward] = useState(0);
+  // Camera controls (2511 model: horizontal 0-360°, vertical -30 to 90°, zoom 0-10)
+  const [horizontalAngle, setHorizontalAngle] = useState(0);
   const [verticalAngle, setVerticalAngle] = useState(0);
-  const [wideAngle, setWideAngle] = useState(false);
+  const [zoom, setZoom] = useState(5);
 
   // Inpaint state
   const [maskDataUrl, setMaskDataUrl] = useState<string | null>(null);
@@ -264,10 +265,10 @@ export default function Home() {
               resultUrl: sourceUrl || "", // use source image as thumbnail for 3D
               mode: "3d" as const,
               settings: {
-                rotate: rotateRightLeft,
-                forward: moveForward,
+                rotate: horizontalAngle,
+                forward: zoom,
                 vertical: verticalAngle,
-                wide: wideAngle,
+                wide: false,
                 prompt: prompt || "3D Model",
               },
               timestamp: Date.now(),
@@ -400,10 +401,9 @@ export default function Home() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             image_url: imageUrl,
-            rotate_right_left: rotateRightLeft,
-            move_forward: moveForward,
+            horizontal_angle: horizontalAngle,
             vertical_angle: verticalAngle,
-            wide_angle_lens: wideAngle,
+            zoom: zoom,
             prompt: prompt || undefined,
             lora_scale: loraScale,
             num_inference_steps: steps,
@@ -414,7 +414,7 @@ export default function Home() {
           logUsage("camera-generate", { status: "error", detail: data.error });
           throw new Error(data.error);
         }
-        logUsage("camera-generate", { status: "success", detail: `rot=${rotateRightLeft} fwd=${moveForward} vert=${verticalAngle}` });
+        logUsage("camera-generate", { status: "success", detail: `h=${horizontalAngle}° v=${verticalAngle}° z=${zoom}` });
 
         generatedUrl =
           data.images?.[0]?.url || data.image?.url || data.output?.url;
@@ -434,10 +434,10 @@ export default function Home() {
           resultUrl: generatedUrl,
           mode: mode === "inpaint" ? "inpaint" as const : "camera" as const,
           settings: {
-            rotate: rotateRightLeft,
-            forward: moveForward,
+            rotate: horizontalAngle,
+            forward: zoom,
             vertical: verticalAngle,
-            wide: wideAngle,
+            wide: false,
             prompt,
           },
           timestamp: Date.now(),
@@ -464,11 +464,6 @@ export default function Home() {
 
   const handleHistorySelect = (item: HistoryItem) => {
     setResultUrl(item.resultUrl);
-    setRotateRightLeft(item.settings.rotate);
-    setMoveForward(item.settings.forward);
-    setVerticalAngle(item.settings.vertical);
-    setWideAngle(item.settings.wide);
-    setPrompt(item.settings.prompt);
   };
 
   const canGenerate =
@@ -570,7 +565,7 @@ export default function Home() {
               {lang === "zh" ? "登入開始使用" : "Sign in to get started"}
             </button>
             <p className="mt-3 text-xs text-muted">
-              {lang === "zh" ? "免費註冊即享 15 點額度" : "Sign up free with 15 credits"}
+              {lang === "zh" ? "免費註冊即享 100 點額度" : "Sign up free with 100 credits"}
             </p>
           </div>
         </main>
@@ -708,6 +703,9 @@ export default function Home() {
               onClear={clearUsage}
               kvAvailable={kvAvailable}
               onRefresh={refreshFromServer}
+              userEmail={user?.email}
+              viewMode={usageViewMode}
+              onViewModeChange={setUsageViewMode}
             />
           </div>
         ) : mode === "marketing" ? (
@@ -772,34 +770,47 @@ export default function Home() {
             {mode === "camera" && sourceUrl && (
               <div className="space-y-4">
                 <CameraOrbit
-                  rotateRightLeft={rotateRightLeft}
-                  moveForward={moveForward}
+                  horizontalAngle={horizontalAngle}
+                  zoom={zoom}
                   verticalAngle={verticalAngle}
                   sourceImageUrl={sourceUrl}
-                  onRotateChange={setRotateRightLeft}
-                  onMoveForwardChange={setMoveForward}
+                  onRotateChange={setHorizontalAngle}
+                  onMoveForwardChange={setZoom}
                   onVerticalAngleChange={setVerticalAngle}
                   disabled={loading}
                 />
 
-                {/* Compact presets row */}
+                <CameraControls
+                  horizontalAngle={horizontalAngle}
+                  zoom={zoom}
+                  verticalAngle={verticalAngle}
+                  onRotateChange={setHorizontalAngle}
+                  onMoveForwardChange={setZoom}
+                  onVerticalAngleChange={setVerticalAngle}
+                  disabled={loading}
+                />
+
+                {/* Quick presets */}
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[10px] uppercase tracking-wider text-muted">
                     {t("preset.presets")}
                   </span>
                   {[
-                    { label: t("preset.front"), r: 0, f: 0, v: 0 },
-                    { label: t("preset.left45"), r: -45, f: 0, v: 0 },
-                    { label: t("preset.right45"), r: 45, f: 0, v: 0 },
-                    { label: t("preset.topDown"), r: 0, f: 0, v: -1 },
-                    { label: t("preset.closeUp"), r: 0, f: 7, v: 0 },
-                    { label: t("preset.lowAngle"), r: 0, f: 2, v: 0.5 },
+                    { label: t("preset.front"), h: 0, v: 0, z: 5 },
+                    { label: t("preset.right45"), h: 45, v: 0, z: 5 },
+                    { label: t("preset.rightSide"), h: 90, v: 0, z: 5 },
+                    { label: t("preset.back"), h: 180, v: 0, z: 5 },
+                    { label: t("preset.leftSide"), h: 270, v: 0, z: 5 },
+                    { label: t("preset.left45"), h: 315, v: 0, z: 5 },
+                    { label: t("preset.topDown"), h: 0, v: 60, z: 5 },
+                    { label: t("preset.closeUp"), h: 0, v: 0, z: 2 },
+                    { label: t("preset.lowAngle"), h: 0, v: -30, z: 5 },
                   ].map((p) => (
                     <button
                       key={p.label}
                       onClick={() => {
-                        setRotateRightLeft(p.r);
-                        setMoveForward(p.f);
+                        setHorizontalAngle(p.h);
+                        setZoom(p.z);
                         setVerticalAngle(p.v);
                       }}
                       disabled={loading}
@@ -810,10 +821,9 @@ export default function Home() {
                   ))}
                   <button
                     onClick={() => {
-                      setRotateRightLeft(0);
-                      setMoveForward(0);
+                      setHorizontalAngle(0);
                       setVerticalAngle(0);
-                      setWideAngle(false);
+                      setZoom(5);
                     }}
                     disabled={loading}
                     className="px-2 py-1 rounded-md text-[11px] text-muted hover:text-foreground disabled:opacity-40"

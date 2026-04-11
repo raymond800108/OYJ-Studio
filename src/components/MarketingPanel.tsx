@@ -134,6 +134,14 @@ const TEMPLATES = [
     dynamic: true,
   },
   {
+    id: "consistent-wearing",
+    label: "Consistent Wearing",
+    icon: "💎",
+    description: "Source image shows jewelry already worn correctly — reproduce the EXACT wearing style with your model's face and clothes",
+    prompt: "__CONSISTENT_WEARING__",
+    dynamic: true,
+  },
+  {
     id: "white-background",
     label: "Clean White Studio",
     icon: "⬜",
@@ -807,14 +815,46 @@ export default function MarketingPanel({
     );
   };
 
+  // Build consistent wearing prompt: source image dictates the EXACT wearing style
+  const buildConsistentWearingPrompt = (
+    numCharRefs: number,
+    shotPrompt: string
+  ): string => {
+    const hasOutfitRefs = outfitImages.length > 0;
+    const outfitRefNote = hasOutfitRefs
+      ? `OUTFIT REFERENCE: Some reference images show the outfit the model must wear. Reproduce this outfit EXACTLY — same fabric, color, cut, fit, and style. `
+      : "";
+
+    return (
+      `ABSOLUTE RULE — CHARACTER IDENTITY: The first ${numCharRefs} reference image${numCharRefs > 1 ? "s" : ""} show the EXACT person who must appear in the generated image. ` +
+      "You MUST reproduce this SPECIFIC person — her EXACT face, facial bone structure, eye shape, nose, lips, jawline, skin tone, hair color, hair style, hair texture, and body type. " +
+      "This is NOT a generic model — she is a SPECIFIC real person and MUST be recognizable as the SAME individual across every generated image. " +
+      "Copy her appearance from the reference photos as precisely as a portrait photographer would. " +
+      "\n\n" +
+      outfitRefNote +
+      "ABSOLUTE RULE — JEWELRY & WEARING STYLE: The LAST reference image shows a model ALREADY wearing the jewelry piece in the EXACT correct way. " +
+      "You MUST reproduce the jewelry EXACTLY as shown — every gemstone, every metal detail, every facet, every proportion must match the source reference perfectly (same piece, not a similar one). " +
+      "You MUST also reproduce the WEARING STYLE EXACTLY — the same body placement, the same orientation of the piece, the same side, the same angle, the same position on the body, the same relationship between the jewelry and the skin/clothing/hair. " +
+      "If the source shows the earring on a specific ear lobe position, an anklet on a specific ankle, a ring on a specific finger, a brooch pinned at a specific angle, a necklace sitting at a specific length — replicate ALL of these placement details with zero deviation. " +
+      "Do NOT reinterpret, restyle, re-place, flip, mirror, or re-angle the jewelry. Treat the source image as the ground truth for how this piece is worn. " +
+      "The jewelry is the hero of the shot, prominently visible and in sharp focus. " +
+      "\n\n" +
+      shotPrompt +
+      "\n\n" +
+      "The final result must look like one shot from a cohesive luxury campaign series — same person, same outfit style, same exact jewelry worn in the exact same way, across all images."
+    );
+  };
+
   const handleGenerate = async () => {
     if (!selectedTemplate || sourceImages.length === 0) return;
 
     const template = TEMPLATES.find((t) => t.id === selectedTemplate);
     if (!template) return;
 
-    // Validate consistent model template requires character references
-    if (template.id === "consistent-model" && characterImages.length === 0) {
+    const isConsistentFlow = template.id === "consistent-model" || template.id === "consistent-wearing";
+
+    // Validate consistent templates require character references
+    if (isConsistentFlow && characterImages.length === 0) {
       setError(t("char.needRefs"));
       return;
     }
@@ -838,9 +878,9 @@ export default function MarketingPanel({
         throw new Error(t("mkt.noValidSources"));
       }
 
-      // Upload character images if needed for consistent model template
+      // Upload character images if needed for consistent templates
       let characterUrls: string[] = [];
-      if (template.id === "consistent-model") {
+      if (isConsistentFlow) {
         for (const ch of characterImages) {
           const hostedUrl = await uploadForReference(ch);
           if (hostedUrl) characterUrls.push(hostedUrl);
@@ -855,7 +895,7 @@ export default function MarketingPanel({
         let prompt: string;
         let imageRefs: string[];
 
-        if (template.id === "consistent-model") {
+        if (isConsistentFlow) {
           // Upload outfit images if any
           let outfitUrls: string[] = [];
           for (const ot of outfitImages) {
@@ -889,7 +929,9 @@ export default function MarketingPanel({
           const shots = buildShotPrompts();
 
           for (const shot of shots) {
-            const shotPrompt = await buildConsistentModelPrompt(src.url, numCharRefs, shot.scenePrompt);
+            const shotPrompt = template.id === "consistent-wearing"
+              ? buildConsistentWearingPrompt(numCharRefs, shot.scenePrompt)
+              : await buildConsistentModelPrompt(src.url, numCharRefs, shot.scenePrompt);
 
             const shotRes = await fetch("/api/kie", {
               method: "POST",
@@ -1071,7 +1113,7 @@ export default function MarketingPanel({
   };
 
   const canGenerate = !!selectedTemplate && sourceImages.length > 0 && !loading;
-  const isConsistentModel = selectedTemplate === "consistent-model";
+  const isConsistentModel = selectedTemplate === "consistent-model" || selectedTemplate === "consistent-wearing";
   const isConsistentModelVideo = isConsistentModel && contentType === "video";
   const ratios = contentType === "video" ? VIDEO_RATIOS : IMAGE_RATIOS;
   const completedCount = generatedImages.length;
@@ -1541,7 +1583,7 @@ export default function MarketingPanel({
       </div>
 
       {/* ── Character Model Reference ── */}
-      {(selectedTemplate === "consistent-model" || characterImages.length > 0) && (
+      {(selectedTemplate === "consistent-model" || selectedTemplate === "consistent-wearing" || characterImages.length > 0) && (
         <div className="rounded-2xl border border-border bg-card/50 p-4">
           <div className="flex items-center justify-between mb-2">
             <div>

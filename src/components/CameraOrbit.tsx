@@ -4,9 +4,9 @@ import { useCallback, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 
 interface CameraOrbitProps {
-  rotateRightLeft: number;
-  moveForward: number;
-  verticalAngle: number;
+  horizontalAngle: number;   // 0-360°
+  verticalAngle: number;     // -30 to 90°
+  zoom: number;              // 0-10
   sourceImageUrl: string | null;
   onRotateChange: (v: number) => void;
   onMoveForwardChange: (v: number) => void;
@@ -14,12 +14,18 @@ interface CameraOrbitProps {
   disabled?: boolean;
 }
 
-type DragTarget = "camera" | "distance" | null;
+type DragTarget = "azimuth" | "elevation" | "distance" | null;
+
+const COLOR = {
+  azimuth: "#06b6d4",
+  elevation: "#ec4899",
+  distance: "#f59e0b",
+} as const;
 
 export default function CameraOrbit({
-  rotateRightLeft,
-  moveForward,
+  horizontalAngle,
   verticalAngle,
+  zoom,
   sourceImageUrl,
   onRotateChange,
   onMoveForwardChange,
@@ -32,79 +38,89 @@ export default function CameraOrbit({
   const [hovered, setHovered] = useState<DragTarget>(null);
 
   const W = 560;
-  const H = 420;
+  const H = 400;
   const CX = W / 2;
-  const CY = H / 2 + 10;
+  const CY = H / 2 + 30;
 
-  // Dome parameters
-  const DOME_RX = 190; // horizontal radius of dome base ellipse
-  const DOME_RY = 65;  // vertical radius (perspective squeeze)
-  const DOME_HEIGHT = 170; // height of dome above base
+  const ORBIT_RX = 200;
+  const ORBIT_RY = 60;
+  const DOME_HEIGHT = 160;
 
-  // ── Map camera values to spherical coordinates on dome ──
-  // Rotation: -90..90 maps to azimuth angle on dome (0..PI)
-  // Vertical: -1..1 maps to elevation (0 = base, 1 = top viewed from bird's eye)
-  // We invert: -1 = top (bird's eye), 1 = bottom (worm's eye = base level)
-  const azimuth = ((rotateRightLeft + 90) / 180) * Math.PI; // 0..PI
-  const elevation = ((-verticalAngle + 1) / 2); // 0..1, 0=base, 1=top
+  // ── Map horizontal (0-360°) to full circle azimuth ──
+  // 0°=front (bottom of ellipse), 90°=right, 180°=back (top), 270°=left
+  const azRad = (horizontalAngle / 180) * Math.PI;
+  // In SVG: x = sin(az) goes right for 90°, y = cos(az) goes into screen
+  const azX = Math.sin(azRad);
+  const azZ = Math.cos(azRad);
 
-  // 3D position on dome surface (hemisphere)
-  // spherical to projected 2D with perspective
-  const phi = azimuth; // horizontal angle
-  const theta = elevation * (Math.PI / 2); // 0 = equator, PI/2 = north pole
+  // ── Map vertical (-30 to 90°) to elevation ──
+  // -30°=below eye level, 0°=eye level, 90°=directly above
+  const elevNorm = Math.max(0, (verticalAngle + 30) / 120); // 0..1
+  const elevRad = elevNorm * (Math.PI / 2);
 
-  const cosTheta = Math.cos(theta);
-  const sinTheta = Math.sin(theta);
-  const cosPhi = Math.cos(phi);
-  const sinPhi = Math.sin(phi);
+  const cosElev = Math.cos(elevRad);
+  const sinElev = Math.sin(elevRad);
 
-  // 3D coordinates (right-hand, y-up)
-  const x3d = cosTheta * cosPhi;
-  const y3d = sinTheta;
-  const z3d = cosTheta * sinPhi;
+  // 3D → 2D projection
+  // In SVG: bottom of ellipse = front (0°), top = back (180°)
+  const camX = CX + azX * cosElev * ORBIT_RX;
+  const camY = CY - sinElev * DOME_HEIGHT + azZ * cosElev * ORBIT_RY;
 
-  // Project to 2D with simple perspective
-  const camX = CX + x3d * DOME_RX;
-  const camY = CY - y3d * DOME_HEIGHT - z3d * DOME_RY;
-
-  // Camera "look at" direction — line from camera to center object
+  // Camera look-at direction
   const lookDx = CX - camX;
-  const lookDy = CY - 30 - camY; // aim slightly above center
-  const lookLen = Math.sqrt(lookDx * lookDx + lookDy * lookDy);
+  const lookDy = CY - 30 - camY;
+  const lookLen = Math.sqrt(lookDx * lookDx + lookDy * lookDy) || 1;
   const lookAngle = Math.atan2(lookDy, lookDx) * (180 / Math.PI);
 
-  // Distance handle: along a line from camera toward object
-  const distNorm = moveForward / 10; // 0..1
+  // Zoom handle along sight line
+  const zoomNorm = zoom / 10;
   const distLineLen = Math.min(lookLen * 0.6, 80);
   const ndx = lookDx / lookLen;
   const ndy = lookDy / lookLen;
-  const distHandleX = camX + ndx * distLineLen * distNorm;
-  const distHandleY = camY + ndy * distLineLen * distNorm;
+  const distHandleX = camX + ndx * distLineLen * zoomNorm;
+  const distHandleY = camY + ndy * distLineLen * zoomNorm;
 
-  // Dome wireframe rings (latitude lines)
-  const latRings: { rx: number; ry: number; cy: number; opacity: number }[] = [];
-  for (let i = 0; i <= 4; i++) {
-    const t = i / 4; // 0=base, 1=top
-    const ringTheta = t * (Math.PI / 2);
-    const ringCosTheta = Math.cos(ringTheta);
-    const ringRx = DOME_RX * ringCosTheta;
-    const ringRy = DOME_RY * ringCosTheta;
-    const ringCy = CY - Math.sin(ringTheta) * DOME_HEIGHT;
-    latRings.push({ rx: ringRx, ry: ringRy, cy: ringCy, opacity: 0.15 + t * 0.15 });
+  // Azimuth handle on orbit ring
+  const azHandleX = CX + Math.sin(azRad) * ORBIT_RX;
+  const azHandleY = CY + Math.cos(azRad) * ORBIT_RY;
+
+  // Elevation arc (pink)
+  const elevArcPoints: string[] = [];
+  if (elevRad > 0.05) {
+    for (let i = 0; i <= 20; i++) {
+      const t = (i / 20) * elevRad;
+      const ex = CX + azX * Math.cos(t) * ORBIT_RX;
+      const ey = CY - Math.sin(t) * DOME_HEIGHT + azZ * Math.cos(t) * ORBIT_RY;
+      elevArcPoints.push(`${i === 0 ? "M" : "L"} ${ex.toFixed(1)} ${ey.toFixed(1)}`);
+    }
   }
 
-  // Dome meridian lines (longitude)
-  const meridians: { path: string; opacity: number }[] = [];
+  // Full orbit ring
+  const orbitPath = `M ${CX} ${CY - ORBIT_RY} A ${ORBIT_RX} ${ORBIT_RY} 0 1 1 ${CX} ${CY + ORBIT_RY} A ${ORBIT_RX} ${ORBIT_RY} 0 1 1 ${CX} ${CY - ORBIT_RY}`;
+
+  // Grid lines
+  const gridLines: { x1: number; y1: number; x2: number; y2: number }[] = [];
+  for (let i = -3; i <= 3; i++) {
+    const gx = CX + (i / 3) * ORBIT_RX;
+    gridLines.push({ x1: gx, y1: CY - ORBIT_RY, x2: gx, y2: CY + ORBIT_RY });
+  }
+  for (let i = -2; i <= 2; i++) {
+    const gy = CY + (i / 2) * ORBIT_RY;
+    gridLines.push({ x1: CX - ORBIT_RX, y1: gy, x2: CX + ORBIT_RX, y2: gy });
+  }
+
+  // Dome meridians
+  const meridians: string[] = [];
   for (let i = 0; i < 8; i++) {
-    const mPhi = (i / 8) * Math.PI;
+    const mAz = (i / 8) * 2 * Math.PI;
     const points: string[] = [];
     for (let j = 0; j <= 20; j++) {
-      const mTheta = (j / 20) * (Math.PI / 2);
-      const mx = CX + Math.cos(mTheta) * Math.cos(mPhi) * DOME_RX;
-      const my = CY - Math.sin(mTheta) * DOME_HEIGHT - Math.cos(mTheta) * Math.sin(mPhi) * DOME_RY;
+      const mElev = (j / 20) * (Math.PI / 2);
+      const mx = CX + Math.sin(mAz) * Math.cos(mElev) * ORBIT_RX;
+      const my = CY - Math.sin(mElev) * DOME_HEIGHT + Math.cos(mAz) * Math.cos(mElev) * ORBIT_RY;
       points.push(`${j === 0 ? "M" : "L"} ${mx.toFixed(1)} ${my.toFixed(1)}`);
     }
-    meridians.push({ path: points.join(" "), opacity: 0.12 });
+    meridians.push(points.join(" "));
   }
 
   const getSVGPoint = useCallback(
@@ -112,11 +128,9 @@ export default function CameraOrbit({
       const svg = svgRef.current;
       if (!svg) return { x: 0, y: 0 };
       const rect = svg.getBoundingClientRect();
-      const scaleX = W / rect.width;
-      const scaleY = H / rect.height;
       return {
-        x: (e.clientX - rect.left) * scaleX,
-        y: (e.clientY - rect.top) * scaleY,
+        x: (e.clientX - rect.left) * (W / rect.width),
+        y: (e.clientY - rect.top) * (H / rect.height),
       };
     },
     [W, H]
@@ -138,29 +152,31 @@ export default function CameraOrbit({
       if (!dragging || disabled) return;
       const pt = getSVGPoint(e);
 
-      if (dragging === "camera") {
-        // Map mouse position to azimuth (horizontal) and elevation (vertical)
-        // Azimuth: x position relative to dome center
+      if (dragging === "azimuth") {
+        // Map mouse to azimuth angle (full 360°)
+        // Bottom of ellipse = 0° (front), top = 180° (back)
         const dx = pt.x - CX;
-        // Clamp to dome width
-        const clampedDx = Math.max(-DOME_RX, Math.min(DOME_RX, dx));
-        // Map to angle: acos gives 0..PI
-        const newAzimuth = Math.acos(clampedDx / DOME_RX);
-        // Convert azimuth to rotation: 0..PI -> -90..90
-        const newRotation = (newAzimuth / Math.PI) * 180 - 90;
-        onRotateChange(Math.round(newRotation / 5) * 5);
+        const dy = pt.y - CY;
+        let angle = Math.atan2(dx, dy) * (180 / Math.PI);
+        if (angle < 0) angle += 360;
+        onRotateChange(Math.round(angle / 5) * 5 % 360);
+      } else if (dragging === "elevation") {
+        // Azimuth from mouse X
+        const dx = pt.x - CX;
+        const dy = pt.y - CY;
+        let angle = Math.atan2(dx, dy) * (180 / Math.PI);
+        if (angle < 0) angle += 360;
+        onRotateChange(Math.round(angle / 5) * 5 % 360);
 
-        // Elevation from y position
-        // Higher on screen = higher elevation
-        const baseY = CY; // dome base
-        const topY = CY - DOME_HEIGHT; // dome top
+        // Elevation from mouse Y
+        const baseY = CY;
+        const topY = CY - DOME_HEIGHT;
         const relY = (baseY - pt.y) / (baseY - topY);
         const clampedElev = Math.max(0, Math.min(1, relY));
-        // Convert to verticalAngle: elevation 0..1 -> verticalAngle 1..-1
-        const newVertical = -(clampedElev * 2 - 1);
-        onVerticalAngleChange(Math.round(newVertical * 10) / 10);
+        // Map 0..1 to -30..90
+        const newVert = Math.round((-30 + clampedElev * 120) / 5) * 5;
+        onVerticalAngleChange(Math.max(-30, Math.min(90, newVert)));
       } else if (dragging === "distance") {
-        // Project mouse position onto the look-direction line
         const dxLine = pt.x - camX;
         const dyLine = pt.y - camY;
         const proj = (dxLine * ndx + dyLine * ndy) / distLineLen;
@@ -168,309 +184,173 @@ export default function CameraOrbit({
         onMoveForwardChange(Math.round(clamped * 20) / 2);
       }
     },
-    [dragging, disabled, getSVGPoint, CX, CY, DOME_RX, DOME_HEIGHT, ndx, ndy, camX, camY, distLineLen, onRotateChange, onVerticalAngleChange, onMoveForwardChange]
+    [dragging, disabled, getSVGPoint, CX, CY, DOME_HEIGHT, ndx, ndy, camX, camY, distLineLen, onRotateChange, onVerticalAngleChange, onMoveForwardChange]
   );
 
-  const handlePointerUp = useCallback(() => {
-    setDragging(null);
-  }, []);
+  const handlePointerUp = useCallback(() => setDragging(null), []);
 
-  // Info label
-  let actionLabel = "";
-  if (dragging === "camera") {
-    const hDir = rotateRightLeft > 0 ? t("orbit.right") : rotateRightLeft < 0 ? t("orbit.left") : t("orbit.center");
-    const vDir = verticalAngle < 0 ? t("orbit.birdsEye") : verticalAngle > 0 ? t("orbit.lowAngle") : t("orbit.eyeLevel");
-    actionLabel = `${Math.abs(rotateRightLeft)}° ${hDir} · ${vDir}`;
-  } else if (dragging === "distance") {
-    actionLabel = `Zoom: ${moveForward.toFixed(1)}×`;
-  } else if (hovered === "camera") {
-    actionLabel = t("orbit.dragCamera");
-  } else if (hovered === "distance") {
-    actionLabel = t("orbit.dragZoom");
-  }
-
-  const cameraActive = dragging === "camera" || hovered === "camera";
+  const azActive = dragging === "azimuth" || hovered === "azimuth";
+  const elActive = dragging === "elevation" || hovered === "elevation";
   const distActive = dragging === "distance" || hovered === "distance";
 
+  // Azimuth label
+  let azLabel = "Front";
+  if (horizontalAngle >= 23 && horizontalAngle < 68) azLabel = "Front-Right";
+  else if (horizontalAngle >= 68 && horizontalAngle < 113) azLabel = "Right";
+  else if (horizontalAngle >= 113 && horizontalAngle < 158) azLabel = "Back-Right";
+  else if (horizontalAngle >= 158 && horizontalAngle < 203) azLabel = "Back";
+  else if (horizontalAngle >= 203 && horizontalAngle < 248) azLabel = "Back-Left";
+  else if (horizontalAngle >= 248 && horizontalAngle < 293) azLabel = "Left";
+  else if (horizontalAngle >= 293 && horizontalAngle < 338) azLabel = "Front-Left";
+
   return (
-    <div className="relative w-full rounded-2xl bg-white border border-border overflow-hidden shadow-sm">
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${W} ${H}`}
-        className="w-full select-none"
-        style={{ touchAction: "none" }}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
-      >
-        <defs>
-          <filter id="dome-shadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="3" stdDeviation="6" floodColor="#000" floodOpacity="0.08" />
-          </filter>
-          <filter id="cam-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="5" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <filter id="img-shadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="4" stdDeviation="8" floodColor="#000" floodOpacity="0.12" />
-          </filter>
-          <clipPath id="img-clip">
-            <rect x={CX - 50} y={CY - 80} width="100" height="110" rx="6" />
-          </clipPath>
-          {/* Gradient for dome */}
-          <radialGradient id="dome-fill" cx="50%" cy="30%" r="70%">
-            <stop offset="0%" stopColor="#f5f4f2" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="#e8e6e3" stopOpacity="0.15" />
-          </radialGradient>
-          {/* Gradient for base shadow */}
-          <radialGradient id="base-shadow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#000" stopOpacity="0.06" />
-            <stop offset="100%" stopColor="#000" stopOpacity="0" />
-          </radialGradient>
-        </defs>
+    <div className="space-y-2">
+      {/* Legend */}
+      <div className="flex items-center gap-4 px-1">
+        <span className="text-xs font-medium text-foreground/70">Drag the colored handles:</span>
+        <span className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: COLOR.azimuth }}>
+          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLOR.azimuth }} />
+          Horizontal
+        </span>
+        <span className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: COLOR.elevation }}>
+          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLOR.elevation }} />
+          Vertical
+        </span>
+        <span className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: COLOR.distance }}>
+          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLOR.distance }} />
+          Zoom
+        </span>
+      </div>
 
-        {/* Base shadow ellipse */}
-        <ellipse cx={CX} cy={CY + 15} rx={DOME_RX + 20} ry={DOME_RY + 10} fill="url(#base-shadow)" />
-
-        {/* Dome wireframe — meridians (back half, behind object) */}
-        {meridians.map((m, i) => (
-          <path
-            key={`m-${i}`}
-            d={m.path}
-            fill="none"
-            stroke="#c4c0ba"
-            strokeWidth="0.7"
-            opacity={m.opacity}
-            strokeDasharray="4 3"
-          />
-        ))}
-
-        {/* Dome wireframe — latitude rings */}
-        {latRings.map((ring, i) => (
-          <ellipse
-            key={`lat-${i}`}
-            cx={CX}
-            cy={ring.cy}
-            rx={ring.rx}
-            ry={ring.ry}
-            fill="none"
-            stroke="#c4c0ba"
-            strokeWidth="0.7"
-            opacity={ring.opacity}
-            strokeDasharray={i === 0 ? "none" : "4 3"}
-          />
-        ))}
-
-        {/* Base ellipse (solid) */}
-        <ellipse
-          cx={CX}
-          cy={CY}
-          rx={DOME_RX}
-          ry={DOME_RY}
-          fill="none"
-          stroke="#d4d1cd"
-          strokeWidth="1.2"
-        />
-
-        {/* Product image at center of dome */}
-        {sourceImageUrl ? (
-          <g filter="url(#img-shadow)">
-            <image
-              href={sourceImageUrl}
-              x={CX - 50}
-              y={CY - 80}
-              width="100"
-              height="110"
-              clipPath="url(#img-clip)"
-              preserveAspectRatio="xMidYMid slice"
-            />
-            <rect
-              x={CX - 50}
-              y={CY - 80}
-              width="100"
-              height="110"
-              rx="6"
-              fill="none"
-              stroke="#d4d1cd"
-              strokeWidth="1"
-            />
-          </g>
-        ) : (
-          <g>
-            <rect
-              x={CX - 40}
-              y={CY - 60}
-              width="80"
-              height="90"
-              rx="6"
-              fill="#f5f4f2"
-              stroke="#d4d1cd"
-              strokeWidth="1"
-            />
-            <text x={CX} y={CY} textAnchor="middle" fontSize="10" fill="#9a958e" fontFamily="sans-serif">
-              {t("orbit.product")}
-            </text>
-          </g>
-        )}
-
-        {/* Sight line from camera to object */}
-        <line
-          x1={camX}
-          y1={camY}
-          x2={CX}
-          y2={CY - 30}
-          stroke={cameraActive ? "#1a1a1a" : "#9a958e"}
-          strokeWidth={cameraActive ? 1.5 : 1}
-          opacity={cameraActive ? 0.5 : 0.25}
-          strokeDasharray="5 4"
-        />
-
-        {/* Distance zoom line (from camera outward along sight line) */}
-        <line
-          x1={camX}
-          y1={camY}
-          x2={camX + ndx * distLineLen}
-          y2={camY + ndy * distLineLen}
-          stroke={distActive ? "#fbbf24" : "#d4d1cd"}
-          strokeWidth={distActive ? 2.5 : 1.5}
-          opacity={distActive ? 0.8 : 0.4}
-          strokeLinecap="round"
-        />
-
-        {/* Distance handle */}
-        <g
-          onPointerDown={handlePointerDown("distance")}
-          onPointerEnter={() => setHovered("distance")}
-          onPointerLeave={() => setHovered(null)}
-          style={{ cursor: disabled ? "default" : "grab" }}
+      <div className="relative w-full rounded-2xl bg-stone-50 border border-border overflow-hidden">
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${W} ${H}`}
+          className="w-full select-none"
+          style={{ touchAction: "none" }}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
         >
-          <circle cx={distHandleX} cy={distHandleY} r={20} fill="transparent" />
-          <circle
-            cx={distHandleX}
-            cy={distHandleY}
-            r={distActive ? 8 : 6}
-            fill="#fbbf24"
-            stroke="#fff"
-            strokeWidth="2"
-            opacity={distActive ? 1 : 0.7}
-          />
-          {distActive && (
-            <circle cx={distHandleX} cy={distHandleY} r="14" fill="#fbbf24" opacity="0.12" />
-          )}
-        </g>
+          <defs>
+            <filter id="handle-shadow" x="-50%" y="-50%" width="200%" height="200%">
+              <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000" floodOpacity="0.15" />
+            </filter>
+            <filter id="img-shadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="4" stdDeviation="8" floodColor="#000" floodOpacity="0.1" />
+            </filter>
+            <clipPath id="img-clip">
+              <rect x={CX - 48} y={CY - 78} width="96" height="108" rx="6" />
+            </clipPath>
+            <radialGradient id="ground-fade" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#000" stopOpacity="0.04" />
+              <stop offset="100%" stopColor="#000" stopOpacity="0" />
+            </radialGradient>
+          </defs>
 
-        {/* Camera icon on dome */}
-        <g
-          onPointerDown={handlePointerDown("camera")}
-          onPointerEnter={() => setHovered("camera")}
-          onPointerLeave={() => setHovered(null)}
-          style={{ cursor: disabled ? "default" : "grab" }}
-        >
-          {/* Large invisible hit area */}
-          <circle cx={camX} cy={camY} r={24} fill="transparent" />
+          {/* Grid */}
+          {gridLines.map((g, i) => (
+            <line key={`grid-${i}`} x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2}
+              stroke="#d4d1cd" strokeWidth="0.5" opacity="0.3" />
+          ))}
 
-          {/* Glow ring */}
-          {cameraActive && (
-            <circle
-              cx={camX}
-              cy={camY}
-              r={22}
-              fill="none"
-              stroke="#1a1a1a"
-              strokeWidth="1.5"
-              opacity="0.15"
-              filter="url(#cam-glow)"
-            />
+          <ellipse cx={CX} cy={CY + 10} rx={ORBIT_RX + 30} ry={ORBIT_RY + 15} fill="url(#ground-fade)" />
+
+          {/* Dome meridians */}
+          {meridians.map((path, i) => (
+            <path key={`mer-${i}`} d={path} fill="none" stroke="#d4d1cd" strokeWidth="0.5" opacity="0.2" strokeDasharray="4 4" />
+          ))}
+
+          {/* Orbit ring (teal, full 360°) */}
+          <ellipse cx={CX} cy={CY} rx={ORBIT_RX} ry={ORBIT_RY}
+            fill="none" stroke={COLOR.azimuth} strokeWidth={azActive ? 3 : 2} opacity={azActive ? 0.8 : 0.5} />
+
+          {/* Elevation arc (pink) */}
+          {elevArcPoints.length > 0 && (
+            <path d={elevArcPoints.join(" ")} fill="none"
+              stroke={COLOR.elevation} strokeWidth={elActive ? 3.5 : 2.5}
+              opacity={elActive ? 0.9 : 0.6} strokeLinecap="round" />
           )}
 
-          {/* Camera body */}
-          <g transform={`translate(${camX}, ${camY}) rotate(${lookAngle})`}>
-            {/* Main body */}
-            <rect
-              x={-14}
-              y={-10}
-              width={28}
-              height={20}
-              rx={4}
-              fill={cameraActive ? "#1a1a1a" : "#3a3a3a"}
-              stroke="#fff"
-              strokeWidth="2"
-            />
-            {/* Lens */}
-            <circle
-              cx={0}
-              cy={0}
-              r={6}
-              fill="none"
-              stroke={cameraActive ? "#fbbf24" : "#666"}
-              strokeWidth="2"
-            />
-            <circle
-              cx={0}
-              cy={0}
-              r={3}
-              fill={cameraActive ? "#fbbf24" : "#888"}
-            />
-            {/* Flash/viewfinder bump */}
-            <rect
-              x={8}
-              y={-14}
-              width={6}
-              height={6}
-              rx={1.5}
-              fill={cameraActive ? "#1a1a1a" : "#3a3a3a"}
-              stroke="#fff"
-              strokeWidth="1"
-            />
-          </g>
-        </g>
+          {/* Product image */}
+          {sourceImageUrl ? (
+            <g filter="url(#img-shadow)">
+              <image href={sourceImageUrl} x={CX - 48} y={CY - 78} width="96" height="108"
+                clipPath="url(#img-clip)" preserveAspectRatio="xMidYMid slice" />
+              <rect x={CX - 48} y={CY - 78} width="96" height="108" rx="6"
+                fill="none" stroke="#e5e3e0" strokeWidth="1" />
+            </g>
+          ) : (
+            <g>
+              <rect x={CX - 40} y={CY - 60} width="80" height="90" rx="6"
+                fill="#f5f4f2" stroke="#d4d1cd" strokeWidth="1" />
+              <text x={CX} y={CY} textAnchor="middle" fontSize="10" fill="#9a958e" fontFamily="sans-serif">
+                {t("orbit.product")}
+              </text>
+            </g>
+          )}
 
-        {/* Info labels - current values */}
-        <g>
-          {/* Rotation value */}
-          <text
-            x={CX}
-            y={CY + DOME_RY + 28}
-            textAnchor="middle"
-            fontSize="10"
-            fill="#9a958e"
-            fontFamily="sans-serif"
+          {/* Sight line */}
+          <line x1={camX} y1={camY} x2={CX} y2={CY - 30}
+            stroke="#9a958e" strokeWidth="1" opacity="0.3" strokeDasharray="5 4" />
+
+          {/* Zoom line (amber) */}
+          <line x1={camX} y1={camY} x2={camX + ndx * distLineLen} y2={camY + ndy * distLineLen}
+            stroke={COLOR.distance} strokeWidth={distActive ? 3 : 2} opacity={distActive ? 0.8 : 0.4}
+            strokeLinecap="round" />
+
+          {/* Azimuth handle (teal, on orbit ring) */}
+          <g
+            onPointerDown={handlePointerDown("azimuth")}
+            onPointerEnter={() => setHovered("azimuth")}
+            onPointerLeave={() => setHovered(null)}
+            style={{ cursor: disabled ? "default" : "grab" }}
           >
-            {rotateRightLeft > 0 ? `+${rotateRightLeft}` : rotateRightLeft}° {t("orbit.rotation")} · {
-              verticalAngle < -0.3 ? t("orbit.birdsEye") : verticalAngle > 0.3 ? t("orbit.lowAngle") : t("orbit.eyeLevel")
-            } · {moveForward.toFixed(1)}× {t("orbit.zoom")}
-          </text>
-        </g>
-
-        {/* Action label at bottom */}
-        {actionLabel && (
-          <g>
-            <rect
-              x={CX - 100}
-              y={H - 38}
-              width="200"
-              height="28"
-              rx="14"
-              fill="#f5f4f2"
-              stroke="#e8e6e3"
-              strokeWidth="1"
-            />
-            <text
-              x={CX}
-              y={H - 20}
-              textAnchor="middle"
-              fontSize="11"
-              fill="#1a1a1a"
-              fontFamily="monospace"
-            >
-              {actionLabel}
-            </text>
+            <circle cx={azHandleX} cy={azHandleY} r={22} fill="transparent" />
+            {azActive && <circle cx={azHandleX} cy={azHandleY} r={16} fill={COLOR.azimuth} opacity="0.12" />}
+            <circle cx={azHandleX} cy={azHandleY} r={azActive ? 9 : 7}
+              fill={COLOR.azimuth} stroke="#fff" strokeWidth="2.5" filter="url(#handle-shadow)" />
           </g>
-        )}
-      </svg>
+
+          {/* Distance handle (amber) */}
+          <g
+            onPointerDown={handlePointerDown("distance")}
+            onPointerEnter={() => setHovered("distance")}
+            onPointerLeave={() => setHovered(null)}
+            style={{ cursor: disabled ? "default" : "grab" }}
+          >
+            <circle cx={distHandleX} cy={distHandleY} r={20} fill="transparent" />
+            {distActive && <circle cx={distHandleX} cy={distHandleY} r={14} fill={COLOR.distance} opacity="0.15" />}
+            <circle cx={distHandleX} cy={distHandleY} r={distActive ? 8 : 6}
+              fill={COLOR.distance} stroke="#fff" strokeWidth="2.5" filter="url(#handle-shadow)" />
+          </g>
+
+          {/* Camera / Elevation handle (pink) */}
+          <g
+            onPointerDown={handlePointerDown("elevation")}
+            onPointerEnter={() => setHovered("elevation")}
+            onPointerLeave={() => setHovered(null)}
+            style={{ cursor: disabled ? "default" : "grab" }}
+          >
+            <circle cx={camX} cy={camY} r={26} fill="transparent" />
+            {elActive && <circle cx={camX} cy={camY} r={22} fill={COLOR.elevation} opacity="0.1" />}
+            <g transform={`translate(${camX}, ${camY}) rotate(${lookAngle})`}>
+              <rect x={-14} y={-10} width={28} height={20} rx={4}
+                fill={elActive ? "#1a1a1a" : "#3a3a3a"} stroke="#fff" strokeWidth="2" filter="url(#handle-shadow)" />
+              <circle cx={0} cy={0} r={6} fill="none" stroke={COLOR.elevation} strokeWidth="2" />
+              <circle cx={0} cy={0} r={3} fill={COLOR.elevation} />
+              <rect x={8} y={-14} width={6} height={6} rx={1.5}
+                fill={elActive ? "#1a1a1a" : "#3a3a3a"} stroke="#fff" strokeWidth="1" />
+            </g>
+          </g>
+
+          {/* Value labels */}
+          <text x={CX} y={CY + ORBIT_RY + 30} textAnchor="middle" fontSize="11"
+            fill="#78716c" fontFamily="monospace" fontWeight="500">
+            {horizontalAngle}° {azLabel} · {verticalAngle}° · {zoom.toFixed(1)}x zoom
+          </text>
+        </svg>
+      </div>
     </div>
   );
 }

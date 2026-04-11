@@ -25,7 +25,7 @@ interface SessionPayload {
 
 const COOKIE_NAME = "ce-session";
 const SESSION_TTL = 60 * 60 * 24 * 7; // 7 days in seconds
-const FREE_CREDITS = 15;
+const FREE_CREDITS = 100;
 
 function getSecretKey() {
   const secret = process.env.SESSION_SECRET;

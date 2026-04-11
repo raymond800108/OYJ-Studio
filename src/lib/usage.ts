@@ -30,6 +30,8 @@ export interface UsageEntry {
   tokensOut?: number;
   status: "success" | "error";
   detail?: string;
+  /** User email — set server-side when saving to Redis */
+  userEmail?: string;
 }
 
 export interface UsageSummary {
@@ -45,77 +47,101 @@ export interface UsageSummary {
 /* ─── Approximate pricing per call ──────────────────────────────── */
 
 export const PRICE_TABLE: Record<ApiAction, { service: ApiService; model: string; costUsd: number }> = {
-  "camera-generate": { service: "fal", model: "qwen-image-edit-2509-lora", costUsd: 0.03 },
-  "inpaint": { service: "fal", model: "flux-lora-inpainting", costUsd: 0.04 },
+  "camera-generate": { service: "fal", model: "qwen-image-edit-2511-multiple-angles", costUsd: 0.15 },
+  "inpaint": { service: "fal", model: "flux-pro-v1-fill", costUsd: 0.50 },
   "upload": { service: "fal", model: "storage", costUsd: 0 },
-  "image-generate": { service: "kie", model: "nano-banana-2", costUsd: 0.04 },
-  "video-generate": { service: "kie", model: "kling-2.6", costUsd: 0.30 },
-  "3d-generate": { service: "meshy", model: "meshy-6", costUsd: 0.20 },
-  "analyze-jewelry": { service: "openai", model: "gpt-4o", costUsd: 0.01 },
-  "analyze-character": { service: "openai", model: "gpt-4o", costUsd: 0.02 },
-  "analyze-outfit": { service: "openai", model: "gpt-4o", costUsd: 0.02 },
-  "estimate": { service: "openai", model: "gpt-4o", costUsd: 0.015 },
+  "image-generate": { service: "kie", model: "nano-banana-2", costUsd: 0.20 },
+  "video-generate": { service: "kie", model: "kling-2.6", costUsd: 1.50 },
+  "3d-generate": { service: "meshy", model: "meshy-6", costUsd: 1.00 },
+  "analyze-jewelry": { service: "openai", model: "gpt-4o", costUsd: 0.05 },
+  "analyze-character": { service: "openai", model: "gpt-4o", costUsd: 0.10 },
+  "analyze-outfit": { service: "openai", model: "gpt-4o", costUsd: 0.10 },
+  "estimate": { service: "openai", model: "gpt-4o", costUsd: 0.075 },
 };
 
 /* ─── localStorage fallback ─────────────────────────────────────── */
 
-const LOCAL_KEY = "ce-usage";
+const LOCAL_KEY_BASE = "ce-usage";
 
-function loadLocal(): UsageEntry[] {
+function getLocalKey(userEmail?: string | null): string {
+  const email = userEmail?.toLowerCase();
+  return email ? `${LOCAL_KEY_BASE}:${email}` : `${LOCAL_KEY_BASE}:anon`;
+}
+
+function loadLocal(userEmail?: string | null): UsageEntry[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(LOCAL_KEY);
+    const raw = localStorage.getItem(getLocalKey(userEmail));
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
   }
 }
 
-function saveLocal(entries: UsageEntry[]) {
+function saveLocal(entries: UsageEntry[], userEmail?: string | null) {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(entries.slice(0, 500)));
+    localStorage.setItem(getLocalKey(userEmail), JSON.stringify(entries.slice(0, 500)));
   } catch { /* ignore */ }
 }
 
 /* ─── Hook ──────────────────────────────────────────────────────── */
 
-export function useUsageTracking() {
+const ADMIN_EMAIL = "raymond800108@gmail.com";
+
+/**
+ * viewMode:
+ *   "self"         → current user's own entries (default)
+ *   "all"          → admin only: all users aggregated
+ *   email string   → admin only: specific user's entries
+ */
+export function useUsageTracking(
+  userEmail?: string | null,
+  viewMode: "self" | "all" | string = "self"
+) {
   const [entries, setEntries] = useState<UsageEntry[]>([]);
   const [kvAvailable, setKvAvailable] = useState<boolean | null>(null);
-  const fetchedRef = useRef(false);
 
-  // On mount: fetch from server, fall back to localStorage
+  const isAdmin = userEmail?.toLowerCase() === ADMIN_EMAIL;
+  // Non-admin is locked to "self"
+  const effectiveMode = isAdmin ? viewMode : "self";
+  const isAdminView = effectiveMode !== "self";
+
+  // Refetch whenever user email or view mode changes
   useEffect(() => {
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
-
+    let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/usage");
+        let url = "/api/usage";
+        if (effectiveMode === "all") {
+          url = "/api/usage?scope=all";
+        } else if (effectiveMode !== "self") {
+          url = `/api/usage?scope=user&email=${encodeURIComponent(effectiveMode)}`;
+        }
+        const res = await fetch(url);
         const data = await res.json();
 
+        if (cancelled) return;
+
         if (data.source === "kv" && Array.isArray(data.entries)) {
-          // KV entries come back as JSON strings — parse them
           const parsed: UsageEntry[] = data.entries.map((e: string | UsageEntry) =>
             typeof e === "string" ? JSON.parse(e) : e
           );
           setEntries(parsed);
           setKvAvailable(true);
-          // Also sync to localStorage as cache
-          saveLocal(parsed);
+          if (!isAdminView) saveLocal(parsed, userEmail);
         } else {
-          // KV not configured — use localStorage
           setKvAvailable(false);
-          setEntries(loadLocal());
+          setEntries(isAdminView ? [] : loadLocal(userEmail));
         }
       } catch {
-        // Network error — use localStorage
+        if (cancelled) return;
         setKvAvailable(false);
-        setEntries(loadLocal());
+        setEntries(isAdminView ? [] : loadLocal(userEmail));
       }
     })();
-  }, []);
+    return () => { cancelled = true; };
+  }, [userEmail, effectiveMode, isAdminView]);
 
   const logUsage = useCallback(
     (
@@ -145,7 +171,7 @@ export function useUsageTracking() {
       // Optimistic update
       setEntries((prev) => {
         const next = [entry, ...prev];
-        saveLocal(next);
+        saveLocal(next, userEmail);
         return next;
       });
 
@@ -160,33 +186,39 @@ export function useUsageTracking() {
 
       return entry;
     },
-    []
+    [userEmail]
   );
 
   const clearUsage = useCallback(() => {
     setEntries([]);
-    saveLocal([]);
-    // Clear server data too
-    fetch("/api/usage", { method: "DELETE" }).catch(() => {});
-  }, []);
+    if (!isAdminView) saveLocal([], userEmail);
+    // Clear server data: for admin view a specific user, clear that user; for all, clear all; for self, clear self
+    let url = "/api/usage";
+    if (effectiveMode === "all") url = "/api/usage?scope=all";
+    else if (effectiveMode !== "self") url = `/api/usage?scope=user&email=${encodeURIComponent(effectiveMode)}`;
+    fetch(url, { method: "DELETE" }).catch(() => {});
+  }, [userEmail, effectiveMode, isAdminView]);
 
   // Refresh from server (for manual refresh)
   const refreshFromServer = useCallback(async () => {
     try {
-      const res = await fetch("/api/usage");
+      let url = "/api/usage";
+      if (effectiveMode === "all") url = "/api/usage?scope=all";
+      else if (effectiveMode !== "self") url = `/api/usage?scope=user&email=${encodeURIComponent(effectiveMode)}`;
+      const res = await fetch(url);
       const data = await res.json();
       if (data.source === "kv" && Array.isArray(data.entries)) {
         const parsed: UsageEntry[] = data.entries.map((e: string | UsageEntry) =>
           typeof e === "string" ? JSON.parse(e) : e
         );
         setEntries(parsed);
-        saveLocal(parsed);
+        if (!isAdminView) saveLocal(parsed, userEmail);
         setKvAvailable(true);
       }
     } catch {
       // keep current data
     }
-  }, []);
+  }, [userEmail, effectiveMode, isAdminView]);
 
   const summary: UsageSummary = computeSummary(entries);
 

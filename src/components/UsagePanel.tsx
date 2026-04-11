@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Trash2,
   TrendingUp,
@@ -15,6 +15,8 @@ import {
   RefreshCw,
   Cloud,
   HardDrive,
+  Users,
+  User,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import type { TKey } from "@/lib/i18n";
@@ -26,6 +28,9 @@ interface UsagePanelProps {
   onClear: () => void;
   kvAvailable: boolean | null;
   onRefresh: () => void;
+  userEmail?: string | null;
+  viewMode?: "self" | "all" | string;
+  onViewModeChange?: (v: "self" | "all" | string) => void;
 }
 
 /* ─── Service display config ───────────────────────────────────── */
@@ -87,10 +92,28 @@ function relativeTime(ts: number, lang: string): string {
 
 /* ─── Component ────────────────────────────────────────────────── */
 
-export default function UsagePanel({ entries, summary, onClear, kvAvailable, onRefresh }: UsagePanelProps) {
+const ADMIN_EMAIL = "raymond800108@gmail.com";
+
+export default function UsagePanel({ entries, summary, onClear, kvAvailable, onRefresh, userEmail, viewMode = "self", onViewModeChange }: UsagePanelProps) {
   const { lang, t } = useI18n();
   const [showLog, setShowLog] = useState(false);
   const [logLimit, setLogLimit] = useState(20);
+  const isAdmin = userEmail?.toLowerCase() === ADMIN_EMAIL;
+  const viewAllUsers = viewMode === "all";
+  const isSpecificUserView = viewMode !== "self" && viewMode !== "all";
+
+  // Admin: list of users with entry counts (for dropdown)
+  const [userList, setUserList] = useState<{ email: string; count: number }[]>([]);
+  useEffect(() => {
+    if (!isAdmin) return;
+    (async () => {
+      try {
+        const res = await fetch("/api/usage?scope=list-users");
+        const data = await res.json();
+        if (Array.isArray(data.users)) setUserList(data.users);
+      } catch { /* ignore */ }
+    })();
+  }, [isAdmin, viewMode]);
 
   // Daily cost chart data (last 7 days)
   const dailyCosts = useMemo(() => {
@@ -138,14 +161,52 @@ export default function UsagePanel({ entries, summary, onClear, kvAvailable, onR
             </div>
           )}
         </div>
-        <button
-          onClick={onRefresh}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] text-muted hover:text-foreground border border-border hover:border-foreground/20 transition-colors"
-        >
-          <RefreshCw className="w-3 h-3" />
-          {t("usage.refresh" as TKey)}
-        </button>
+        <div className="flex items-center gap-2">
+          {isAdmin && onViewModeChange && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full border border-border bg-card">
+              {viewMode === "self" ? (
+                <User className="w-3 h-3 text-muted" />
+              ) : viewMode === "all" ? (
+                <Users className="w-3 h-3 text-muted" />
+              ) : (
+                <User className="w-3 h-3 text-muted" />
+              )}
+              <select
+                value={viewMode}
+                onChange={(e) => onViewModeChange(e.target.value)}
+                className="text-[11px] bg-transparent outline-none cursor-pointer pr-1"
+              >
+                <option value="self">{lang === "zh" ? "我的用量" : "My Usage"}</option>
+                <option value="all">{lang === "zh" ? "所有用戶" : "All Users"}</option>
+                {userList.length > 0 && (
+                  <optgroup label={lang === "zh" ? "— 依帳戶 —" : "— By Account —"}>
+                    {userList.map((u) => (
+                      <option key={u.email} value={u.email}>
+                        {u.email} ({u.count})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </div>
+          )}
+          <button
+            onClick={onRefresh}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] text-muted hover:text-foreground border border-border hover:border-foreground/20 transition-colors"
+          >
+            <RefreshCw className="w-3 h-3" />
+            {t("usage.refresh" as TKey)}
+          </button>
+        </div>
       </div>
+
+      {/* Admin: viewing indicator banner */}
+      {isAdmin && isSpecificUserView && (
+        <div className="px-4 py-2 rounded-xl bg-blue-50 border border-blue-200 text-[11px] text-blue-800 flex items-center gap-2">
+          <User className="w-3.5 h-3.5" />
+          {lang === "zh" ? "正在查看：" : "Viewing usage for:"} <span className="font-mono font-semibold">{viewMode}</span>
+        </div>
+      )}
 
       {/* ── Stat cards ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -257,6 +318,49 @@ export default function UsagePanel({ entries, summary, onClear, kvAvailable, onR
         })}
       </div>
 
+      {/* ── By user breakdown (admin only when viewing all) ── */}
+      {isAdmin && viewAllUsers && (
+        <div className="p-4 rounded-2xl bg-card border border-border">
+          <h3 className="text-xs font-semibold mb-3 flex items-center gap-2">
+            <Users className="w-3.5 h-3.5 text-muted" />
+            {lang === "zh" ? "各用戶用量" : "By User"}
+          </h3>
+          <div className="space-y-1.5">
+            {(() => {
+              const byUser = new Map<string, { calls: number; cost: number }>();
+              for (const e of entries) {
+                const u = e.userEmail || "(unknown)";
+                const cur = byUser.get(u) || { calls: 0, cost: 0 };
+                cur.calls += 1;
+                cur.cost += e.costUsd;
+                byUser.set(u, cur);
+              }
+              const rows = Array.from(byUser.entries()).sort(([, a], [, b]) => b.cost - a.cost);
+              if (rows.length === 0) {
+                return <p className="text-xs text-muted text-center py-4">{t("usage.noData" as TKey)}</p>;
+              }
+              const maxCost = Math.max(...rows.map(([, v]) => v.cost), 0.0001);
+              return rows.map(([email, data]) => {
+                const pct = (data.cost / maxCost) * 100;
+                return (
+                  <div key={email} className="flex items-center gap-3">
+                    <span className="text-[11px] w-48 truncate font-mono">{email}</span>
+                    <div className="flex-1 h-2 rounded-full bg-border overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-foreground/30 transition-all"
+                        style={{ width: `${Math.max(pct, 2)}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] font-mono text-muted w-12 text-right">{data.calls}x</span>
+                    <span className="text-[10px] font-mono w-14 text-right">{formatCost(data.cost)}</span>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* ── By action breakdown ── */}
       <div className="p-4 rounded-2xl bg-card border border-border">
         <h3 className="text-xs font-semibold mb-3">{t("usage.byAction" as TKey)}</h3>
@@ -319,6 +423,11 @@ export default function UsagePanel({ entries, summary, onClear, kvAvailable, onR
                         <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS[entry.service]}`}>
                           {SERVICE_LABELS[entry.service]}
                         </span>
+                        {isAdmin && viewAllUsers && entry.userEmail && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-600 border border-stone-200 font-mono truncate max-w-[160px]">
+                            {entry.userEmail}
+                          </span>
+                        )}
                       </div>
                       {entry.detail && (
                         <p className="text-[10px] text-muted truncate mt-0.5">{entry.detail}</p>
@@ -356,7 +465,7 @@ export default function UsagePanel({ entries, summary, onClear, kvAvailable, onR
         <p className="text-[10px] text-muted/60 max-w-md">
           {t("usage.disclaimer" as TKey)}
         </p>
-        {entries.length > 0 && (
+        {entries.length > 0 && userEmail?.toLowerCase() === ADMIN_EMAIL && (
           <button
             onClick={onClear}
             className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] text-red-500 hover:bg-red-50 border border-red-200 transition-colors"

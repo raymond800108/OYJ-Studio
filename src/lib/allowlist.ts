@@ -13,6 +13,9 @@ const HARDCODED_EMAILS: string[] = [
   // Add allowed emails here, e.g.:
   "olivia.sc.yao@gmail.com",
   "raymond800108@gmail.com",
+  "longefity@gmail.com",
+  "oyj.order@gmail.com",
+  "oyj.salon@gmail.com"
 ];
 
 export function isEmailAllowed(email: string | null): boolean {

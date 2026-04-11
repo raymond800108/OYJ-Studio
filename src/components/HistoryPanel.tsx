@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, Trash2, Box, Camera, Video } from "lucide-react";
+import { Clock, Trash2, Box, Camera, Video, X, Download, Maximize2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
 export interface HistoryItem {
@@ -90,14 +90,25 @@ export default function HistoryPanel({
   onClear,
 }: HistoryPanelProps) {
   const { t } = useI18n();
+  const [lightbox, setLightbox] = useState<HistoryItem | null>(null);
 
   if (items.length === 0) return null;
 
   const handleDragStart = (e: React.DragEvent, item: HistoryItem) => {
-    // Set the result image URL as transferable data
     e.dataTransfer.setData("text/plain", item.resultUrl);
     e.dataTransfer.setData("application/x-history-item", JSON.stringify(item));
     e.dataTransfer.effectAllowed = "copy";
+  };
+
+  const handleDownload = async (url: string) => {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = `content-engine-${Date.now()}.png`;
+    a.click();
+    URL.revokeObjectURL(blobUrl);
   };
 
   return (
@@ -127,11 +138,14 @@ export default function HistoryPanel({
             key={item.id}
             draggable
             onDragStart={(e) => handleDragStart(e, item)}
-            onClick={() => onSelect(item)}
-            className="group relative rounded-xl overflow-hidden border border-border hover:border-foreground/30 transition-all shadow-sm bg-card cursor-grab active:cursor-grabbing"
+            onClick={() => setLightbox(item)}
+            className="group relative rounded-xl overflow-hidden border border-border hover:border-foreground/30 transition-all shadow-sm bg-card cursor-pointer"
           >
             <HistoryThumbnail src={item.resultUrl} mode={item.mode} />
             <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute top-2 right-2">
+                <Maximize2 className="w-3.5 h-3.5 text-foreground/70" />
+              </div>
               <div className="absolute bottom-2 left-2 right-2">
                 <p className="text-[10px] text-foreground/80 truncate">
                   {item.mode === "3d"
@@ -145,6 +159,69 @@ export default function HistoryPanel({
           </div>
         ))}
       </div>
+
+      {/* Lightbox modal */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => setLightbox(null)}
+        >
+          <div
+            className="relative max-w-[90vw] max-h-[90vh] rounded-2xl overflow-hidden bg-card shadow-2xl border border-border"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={() => setLightbox(null)}
+              className="absolute top-3 right-3 z-10 p-2 rounded-full bg-background/80 backdrop-blur-sm border border-border hover:bg-background transition-colors"
+            >
+              <X className="w-4 h-4 text-foreground" />
+            </button>
+
+            {/* Image */}
+            {lightbox.mode === "video" ? (
+              <video
+                src={lightbox.resultUrl}
+                className="max-w-[90vw] max-h-[80vh] object-contain"
+                controls
+                autoPlay
+                muted
+                playsInline
+                crossOrigin="anonymous"
+              />
+            ) : (
+              <img
+                src={lightbox.resultUrl}
+                alt="Generated"
+                className="max-w-[90vw] max-h-[80vh] object-contain"
+                crossOrigin="anonymous"
+                referrerPolicy="no-referrer"
+              />
+            )}
+
+            {/* Bottom bar with info and actions */}
+            <div className="flex items-center justify-between px-4 py-3 bg-card border-t border-border">
+              <div className="text-xs text-muted">
+                {lightbox.mode === "3d"
+                  ? t("history.3dModel")
+                  : lightbox.mode === "video"
+                  ? t("history.video")
+                  : `${lightbox.settings.rotate}° horizontal · ${lightbox.settings.forward} zoom · ${lightbox.settings.vertical}° vertical`}
+                <span className="ml-2 text-muted/50">
+                  {new Date(lightbox.timestamp).toLocaleTimeString()}
+                </span>
+              </div>
+              <button
+                onClick={() => handleDownload(lightbox.resultUrl)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-foreground text-background text-xs font-medium hover:opacity-90 transition-opacity"
+              >
+                <Download className="w-3.5 h-3.5" />
+                {t("result.download")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

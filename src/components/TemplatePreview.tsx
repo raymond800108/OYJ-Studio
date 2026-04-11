@@ -20,6 +20,7 @@ function getGradient(id: string): string {
     "moss-rock": "linear-gradient(135deg, #3a5a3a 0%, #6b8e6b 50%, #c8d8c8 100%)",
     "high-end-model": "linear-gradient(135deg, #1a1a1a 0%, #333333 50%, #4a4a4a 100%)",
     "consistent-model": "linear-gradient(135deg, #2a2a3a 0%, #3a3a5a 50%, #4a4a6a 100%)",
+    "consistent-wearing": "linear-gradient(135deg, #2a1a3a 0%, #4a2a5a 50%, #6a3a7a 100%)",
     "clean-white-studio": "linear-gradient(135deg, #ffffff 0%, #f5f5f5 50%, #ffffff 100%)",
     "ugc-model": "linear-gradient(135deg, #ffecd2 0%, #fcb69f 50%, #ff9a9e 100%)",
   };
@@ -41,7 +42,7 @@ function extractTags(description: string): string[] {
 function isDark(id: string): boolean {
   return [
     "elemental-artistic", "detail-closeup", "dark-dramatic", "high-end-model",
-    "consistent-model", "packaging-box",
+    "consistent-model", "consistent-wearing", "packaging-box",
   ].includes(id);
 }
 

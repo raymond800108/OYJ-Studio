@@ -41,8 +41,12 @@ export async function requireAuth(
     };
   }
 
+  // Admin gets unlimited credits — skip deduction
+  const ADMIN_EMAILS = ["raymond800108@gmail.com", "oyj.order@gmail.com", "olivia.sc.yao@gmail.com", "oyj.salon@gmail.com"];
+  const isAdmin = user.email ? ADMIN_EMAILS.includes(user.email.toLowerCase()) : false;
+
   // Check and deduct credits if action specified
-  if (action) {
+  if (action && !isAdmin) {
     const cost = getCreditsForAction(action);
     if (cost > 0) {
       if (user.credits < cost) {

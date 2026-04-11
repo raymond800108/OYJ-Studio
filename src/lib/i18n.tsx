@@ -41,6 +41,9 @@ const dict = {
   "preset.front": { en: "Front", zh: "正面" },
   "preset.left45": { en: "Left 45°", zh: "左 45°" },
   "preset.right45": { en: "Right 45°", zh: "右 45°" },
+  "preset.leftSide": { en: "Left 90°", zh: "左側" },
+  "preset.rightSide": { en: "Right 90°", zh: "右側" },
+  "preset.back": { en: "Back", zh: "背面" },
   "preset.topDown": { en: "Top-Down", zh: "俯視" },
   "preset.closeUp": { en: "Close-Up", zh: "特寫" },
   "preset.lowAngle": { en: "Low Angle", zh: "低角度" },
@@ -137,10 +140,9 @@ const dict = {
   // ── Camera Controls (slider panel) ──
   "controls.quickPresets": { en: "Quick Presets", zh: "快捷預設" },
   "controls.fineTune": { en: "Fine-Tune", zh: "微調" },
-  "controls.rotation": { en: "Rotation", zh: "旋轉" },
-  "controls.moveForward": { en: "Move Forward", zh: "前移" },
+  "controls.horizontalAngle": { en: "Horizontal Angle", zh: "水平角度" },
   "controls.verticalAngle": { en: "Vertical Angle", zh: "垂直角度" },
-  "controls.wideAngle": { en: "Wide-Angle Lens", zh: "廣角鏡頭" },
+  "controls.zoom": { en: "Zoom", zh: "縮放" },
 
   // ── Camera Orbit ──
   "orbit.product": { en: "Product", zh: "產品" },
@@ -251,6 +253,7 @@ const dict = {
   "tmpl.vintage-inspired": { en: "Vintage Heritage", zh: "復古傳承" },
   "tmpl.moss-rock": { en: "Moss & Rock", zh: "苔蘚岩石" },
   "tmpl.consistent-model": { en: "Consistent Model", zh: "一致模特" },
+  "tmpl.consistent-wearing": { en: "Consistent Wearing", zh: "一致佩戴" },
   "tmpl.white-background": { en: "Clean White Studio", zh: "純白背景" },
 
   // ── Template descriptions ──
@@ -266,6 +269,7 @@ const dict = {
   "desc.vintage-inspired": { en: "Classic heritage setting with aged linen, warm tones and old-world elegance", zh: "經典傳承場景，做舊亞麻布，暖色調與復古優雅" },
   "desc.moss-rock": { en: "Nestled on moss-covered rock with soft cream background, editorial top view", zh: "嵌於苔蘚岩石上，柔和奶油色背景，編輯俯視角度" },
   "desc.consistent-model": { en: "Same model character wears all your jewelry \u2014 upload character reference first", zh: "同一模特角色佩戴所有珠寶 \u2014 請先上傳角色參考" },
+  "desc.consistent-wearing": { en: "Source image shows jewelry already worn correctly \u2014 reproduce the EXACT wearing style with your model's face and clothes", zh: "來源圖已正確佩戴珠寶 \u2014 以您的模特臉孔與服裝完美複製該佩戴方式" },
   "desc.white-background": { en: "Transforms any messy photo into a clean white background product shot", zh: "將雜亂照片轉換為純白背景產品圖" },
 
   // ── Aspect ratio labels ──

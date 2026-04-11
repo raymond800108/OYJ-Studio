@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     fal.config({ credentials: falKey });
 
     const body = await req.json();
-    const { image_url, mask_url, prompt, strength, num_inference_steps } = body;
+    const { image_url, mask_url, prompt } = body;
 
     if (!image_url || !mask_url) {
       return NextResponse.json(
@@ -35,16 +35,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // FLUX.1 [pro] Fill — mask-based inpainting
+    // https://fal.ai/models/fal-ai/flux-pro/v1/fill
     const input: Record<string, unknown> = {
       image_url,
       mask_url,
       prompt,
-      strength: strength ?? 0.85,
-      num_inference_steps: num_inference_steps ?? 28,
-      guidance_scale: 3.5,
       num_images: 1,
       output_format: "png",
-      enable_safety_checker: true,
+      safety_tolerance: "6",
+      enhance_prompt: false,
     };
 
     console.log("[inpaint] Sending to fal.ai:", JSON.stringify({
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       mask_url: input.mask_url?.toString().slice(0, 50) + "...",
     }, null, 2));
 
-    const result = await fal.subscribe("fal-ai/flux-lora/inpainting", {
+    const result = await fal.subscribe("fal-ai/flux-pro/v1/fill", {
       input: input as Record<string, unknown> & { prompt: string; image_url: string; mask_url: string },
     });
 

@@ -18,7 +18,7 @@ export const ACTION_CREDITS: Record<ApiAction, number> = {
 /* ─── Plan credit allotments (monthly) ──────────────────────────── */
 
 export const PLAN_CREDITS: Record<string, number> = {
-  free: 15,
+  free: 100,
   starter: 80,
   pro: 200,
   business: 600,
