@@ -815,11 +815,19 @@ export default function MarketingPanel({
     );
   };
 
-  // Build consistent wearing prompt: source image dictates the EXACT wearing style
-  const buildConsistentWearingPrompt = (
+  // Build consistent wearing prompt: source image dictates the EXACT wearing style.
+  // Unlike consistent-model, here the source image already shows the piece being
+  // worn correctly, so we (a) analyze the piece for structured text grounding,
+  // (b) put the wearing rule LAST so later instructions dominate, and
+  // (c) explicitly decouple "camera angle" from "wearing placement" so the shot
+  // prompt can't be misread as authorization to re-place the jewelry.
+  const buildConsistentWearingPrompt = async (
+    jewelryUrl: string,
     numCharRefs: number,
     shotPrompt: string
-  ): string => {
+  ): Promise<string> => {
+    const { type, description, body_placement } = await analyzeJewelryCached(jewelryUrl);
+
     const hasOutfitRefs = outfitImages.length > 0;
     const outfitRefNote = hasOutfitRefs
       ? `OUTFIT REFERENCE: Some reference images show the outfit the model must wear. Reproduce this outfit EXACTLY — same fabric, color, cut, fit, and style. `
@@ -832,16 +840,31 @@ export default function MarketingPanel({
       "Copy her appearance from the reference photos as precisely as a portrait photographer would. " +
       "\n\n" +
       outfitRefNote +
-      "ABSOLUTE RULE — JEWELRY & WEARING STYLE: The LAST reference image shows a model ALREADY wearing the jewelry piece in the EXACT correct way. " +
-      "You MUST reproduce the jewelry EXACTLY as shown — every gemstone, every metal detail, every facet, every proportion must match the source reference perfectly (same piece, not a similar one). " +
-      "You MUST also reproduce the WEARING STYLE EXACTLY — the same body placement, the same orientation of the piece, the same side, the same angle, the same position on the body, the same relationship between the jewelry and the skin/clothing/hair. " +
-      "If the source shows the earring on a specific ear lobe position, an anklet on a specific ankle, a ring on a specific finger, a brooch pinned at a specific angle, a necklace sitting at a specific length — replicate ALL of these placement details with zero deviation. " +
-      "Do NOT reinterpret, restyle, re-place, flip, mirror, or re-angle the jewelry. Treat the source image as the ground truth for how this piece is worn. " +
-      "The jewelry is the hero of the shot, prominently visible and in sharp focus. " +
-      "\n\n" +
+      "CAMERA & FRAMING — The following describes ONLY the camera angle, lens, lighting, and framing of this particular shot. It does NOT authorize you to change where or how the jewelry is worn, nor to re-style, re-place, flip, mirror, or re-angle the piece:\n" +
       shotPrompt +
       "\n\n" +
-      "The final result must look like one shot from a cohesive luxury campaign series — same person, same outfit style, same exact jewelry worn in the exact same way, across all images."
+      "═══════════════════════════════════════════════════════════\n" +
+      "ABSOLUTE RULE — JEWELRY IDENTITY & WEARING STYLE\n" +
+      "(HIGHEST PRIORITY — overrides every other instruction above)\n" +
+      "═══════════════════════════════════════════════════════════\n" +
+      `The LAST reference image is the GROUND TRUTH: a ${type} — ${description} — already worn by a model in the EXACT correct way. In the source the piece is worn ${body_placement}. ` +
+      getSizePrompt(type, body_placement) +
+      "\n" +
+      "(1) JEWELRY IDENTITY — The output MUST show the SAME physical piece, not a similar one. Preserve every gemstone (exact count, cut, color, clarity, arrangement, setting), every metal detail (color, finish, engravings, prongs, chains, links, clasps), every facet, every proportion, every imperfection. This is the SAME object, photographed again — zero creative liberty on the product itself.\n" +
+      "(2) WEARING PLACEMENT — The jewelry must appear on the EXACT same body part, the EXACT same side (left vs right), and the EXACT same sub-position as the source reference. " +
+      "If the source shows an earring on a specific ear and lobe position → same ear, same lobe position. " +
+      "If the source shows a ring on a specific finger of a specific hand → same finger, same hand. " +
+      "If the source shows a bracelet on a specific wrist at a specific position → same wrist, same position. " +
+      "If the source shows a necklace at a specific drop length → same drop length on the same side of the collarbone / sternum. " +
+      "If the source shows a brooch pinned at a specific angle on a specific side → same angle, same side. " +
+      "If the source shows an anklet on a specific ankle → same ankle.\n" +
+      "(3) WEARING ORIENTATION — The orientation of the piece relative to the body must be IDENTICAL: same up/down, same front/back, same rotation, same tilt. Do NOT flip, mirror, rotate, or re-angle the piece to suit the new camera.\n" +
+      "(4) CONTACT & DRAPE — The way the piece interacts with skin, hair, and clothing must match the source: same tuck of hair behind/over the piece, same drape of chains, same resting line on the collarbone, same pressure and contact points against the skin or fabric.\n" +
+      "(5) CAMERA vs. WEARING — ONLY the camera angle, framing, lens, and lighting may change between shots. The way the jewelry is worn must NOT change. When the camera moves to a new angle, we must see the SAME worn piece from that new angle — NEVER a re-styled, re-placed, or re-oriented version.\n" +
+      "(6) NO REINTERPRETATION — Do NOT reinterpret, restyle, re-place, flip, mirror, re-angle, resize, 'improve', 'balance', or 'complete' the jewelry or its placement. Treat the LAST reference image as the immutable ground truth for BOTH the product and how it is worn.\n" +
+      "\n" +
+      "The jewelry is the hero of the shot — prominently visible, in razor-sharp focus, and IDENTICAL to the source reference in both product identity and wearing style. " +
+      "The final result must look like one frame from a cohesive luxury campaign series: same person, same outfit, SAME exact jewelry worn in the SAME exact way — only the camera changes."
     );
   };
 
@@ -930,7 +953,7 @@ export default function MarketingPanel({
 
           for (const shot of shots) {
             const shotPrompt = template.id === "consistent-wearing"
-              ? buildConsistentWearingPrompt(numCharRefs, shot.scenePrompt)
+              ? await buildConsistentWearingPrompt(src.url, numCharRefs, shot.scenePrompt)
               : await buildConsistentModelPrompt(src.url, numCharRefs, shot.scenePrompt);
 
             const shotRes = await fetch("/api/kie", {
