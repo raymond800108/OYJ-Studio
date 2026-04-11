@@ -788,6 +788,24 @@ export default function MarketingPanel({
     return result;
   };
 
+  // Cache character analysis — keyed on sorted URL list so same set of refs always hits cache
+  const characterAnalysisCache = useRef<Record<string, string>>({});
+
+  const analyzeCharacterCached = async (charUrls: string[]): Promise<string> => {
+    const cacheKey = [...charUrls].sort().join("|");
+    if (characterAnalysisCache.current[cacheKey]) return characterAnalysisCache.current[cacheKey];
+    const res = await fetch("/api/analyze-character", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image_urls: charUrls.slice(0, 4) }),
+    });
+    const analysis = await res.json();
+    const prose: string = analysis.prose || "an elegant model";
+    logUsage?.("analyze-character", { status: analysis.error ? "error" : "success" });
+    characterAnalysisCache.current[cacheKey] = prose;
+    return prose;
+  };
+
   // Build consistent model prompt for a specific shot type
   const buildConsistentModelPrompt = async (
     jewelryUrl: string,
@@ -820,70 +838,66 @@ export default function MarketingPanel({
     );
   };
 
-  // Build consistent wearing prompt: source image dictates the EXACT wearing style.
-  // Unlike consistent-model, here the source image already shows the piece being
-  // worn correctly, so we (a) analyze the piece for structured text grounding,
-  // (b) put the wearing rule LAST so later instructions dominate, and
-  // (c) explicitly decouple "camera angle" from "wearing placement" so the shot
-  // prompt can't be misread as authorization to re-place the jewelry.
+  // Build consistent wearing prompt.
+  // Strategy: the ref array is dominated 4× by the wearing source (visual anchor for
+  // jewelry + outfit + placement). Face identity is injected as text via analyze-character
+  // prose so it does not compete visually with the wearing source.
   const buildConsistentWearingPrompt = async (
     jewelryUrl: string,
-    numCharRefs: number,
+    charProse: string,
     shotPrompt: string
   ): Promise<string> => {
     const { type, description, body_placement, outfit_description } = await analyzeJewelryCached(jewelryUrl);
 
+    // Outfit constraint: explicit outfit ref images > description extracted from wearing source
     const hasOutfitRefs = outfitImages.length > 0;
-    // Determine outfit constraint source: explicit outfit refs > outfit captured from wearing source > nothing
-    const outfitRefNote = hasOutfitRefs
-      ? `OUTFIT REFERENCE: Reference images between the character and the wearing source show the outfit the model must wear. Reproduce this outfit EXACTLY — same fabric, color, cut, fit, and style. `
+    const outfitText = hasOutfitRefs
+      ? "the EXACT outfit visible in the outfit reference images (some of the last images in the reference set) — same fabric, color, cut, fit, and style"
       : outfit_description
-      ? `OUTFIT REFERENCE: The wearing source reference shows the model in: "${outfit_description}". Reproduce this EXACT outfit — same fabric, color, cut, fit, and style — across every output. `
-      : "";
+      ? `the EXACT outfit shown in the reference images: "${outfit_description}" — same fabric, color, cut, fit, and style`
+      : "the same outfit as shown in the reference images";
 
     return (
-      `ABSOLUTE RULE — CHARACTER IDENTITY: The first ${numCharRefs} reference image${numCharRefs > 1 ? "s" : ""} show the EXACT person who must appear in the generated image. ` +
-      "You MUST reproduce this SPECIFIC person — her EXACT face, facial bone structure, eye shape, nose, lips, jawline, skin tone, hair color, hair style, hair texture, and body type. " +
-      "This is NOT a generic model — she is a SPECIFIC real person and MUST be recognizable as the SAME individual across every generated image. " +
-      "Copy her appearance from the reference photos as precisely as a portrait photographer would. " +
-      "\n\n" +
-      outfitRefNote +
-      "\n\n" +
-      "CAMERA & FRAMING — The following describes ONLY the camera angle, lens, lighting, and framing of this particular shot. It does NOT authorize you to change where or how the jewelry is worn, nor to re-style, re-place, flip, mirror, or re-angle the piece:\n" +
-      shotPrompt +
-      "\n\n" +
+      "VISUAL TEMPLATE — The reference images in image_input establish the complete visual ground truth for this shot: " +
+      "the jewelry piece, exactly how it is worn on the body, and the outfit the model is dressed in. " +
+      "Reproduce all of these EXACTLY as shown — do not invent, substitute, re-style, or modify any element.\n\n" +
+
       "═══════════════════════════════════════════════════════════\n" +
-      "ABSOLUTE RULE — JEWELRY IDENTITY & WEARING STYLE\n" +
-      "(HIGHEST PRIORITY — overrides every other instruction above)\n" +
+      "FACE SUBSTITUTION\n" +
       "═══════════════════════════════════════════════════════════\n" +
-      `The LAST reference image is the GROUND TRUTH: a ${type} — ${description} — already worn by a model in the EXACT correct way. In the source the piece is worn ${body_placement}. ` +
-      "NOTE: The same wearing reference image also appears earlier in the reference sequence for additional visual grounding — the LAST occurrence is the authoritative copy.\n" +
+      "The faces in the reference images belong to a PLACEHOLDER model. " +
+      "Replace the face with the following SPECIFIC person — reproduce her appearance precisely:\n" +
+      charProse + "\n\n" +
+
+      "═══════════════════════════════════════════════════════════\n" +
+      "CAMERA & FRAMING\n" +
+      "═══════════════════════════════════════════════════════════\n" +
+      "The following defines ONLY the camera angle, lens, lighting, and framing for this shot. " +
+      "It does NOT authorize changing the jewelry, wearing placement, or outfit in any way:\n" +
+      shotPrompt + "\n\n" +
+
+      "═══════════════════════════════════════════════════════════\n" +
+      "ABSOLUTE RULE — JEWELRY IDENTITY & WEARING STYLE (HIGHEST PRIORITY)\n" +
+      "═══════════════════════════════════════════════════════════\n" +
+      `The reference images show a ${type} — ${description} — worn ${body_placement}. ` +
       getSizePrompt(type, body_placement) +
       "\n" +
-      "(1) JEWELRY IDENTITY — The output MUST show the SAME physical piece, not a similar one. Preserve every gemstone (exact count, cut, color, clarity, arrangement, setting), every metal detail (color, finish, engravings, prongs, chains, links, clasps), every facet, every proportion, every imperfection. This is the SAME object, photographed again — zero creative liberty on the product itself.\n" +
-      "(2) WEARING PLACEMENT — The jewelry must appear on the EXACT same body part, the EXACT same side (left vs right), and the EXACT same sub-position as the source reference. " +
-      "If the source shows an earring on a specific ear and lobe position → same ear, same lobe position. " +
-      "If the source shows a ring on a specific finger of a specific hand → same finger, same hand. " +
-      "If the source shows a bracelet on a specific wrist at a specific position → same wrist, same position. " +
-      "If the source shows a necklace at a specific drop length → same drop length on the same side of the collarbone / sternum. " +
-      "If the source shows a brooch pinned at a specific angle on a specific side → same angle, same side. " +
-      "If the source shows an anklet on a specific ankle → same ankle.\n" +
-      "(3) WEARING ORIENTATION — The orientation of the piece relative to the body must be IDENTICAL: same up/down, same front/back, same rotation, same tilt. Do NOT flip, mirror, rotate, or re-angle the piece to suit the new camera.\n" +
-      "(4) CONTACT & DRAPE — The way the piece interacts with skin, hair, and clothing must match the source: same tuck of hair behind/over the piece, same drape of chains, same resting line on the collarbone, same pressure and contact points against the skin or fabric.\n" +
-      "(5) CAMERA vs. WEARING — ONLY the camera angle, framing, lens, and lighting may change between shots. The way the jewelry is worn must NOT change. When the camera moves to a new angle, we must see the SAME worn piece from that new angle — NEVER a re-styled, re-placed, or re-oriented version.\n" +
-      "(6) NO REINTERPRETATION — Do NOT reinterpret, restyle, re-place, flip, mirror, re-angle, resize, 'improve', 'balance', or 'complete' the jewelry or its placement. Treat the LAST reference image as the immutable ground truth for BOTH the product and how it is worn.\n" +
-      "\n" +
-      (outfitRefNote
-        ? "═══════════════════════════════════════════════════════════\n" +
-          "ABSOLUTE RULE — OUTFIT / CLOTHING\n" +
-          "(HIGHEST PRIORITY — overrides any outfit description mentioned earlier)\n" +
-          "═══════════════════════════════════════════════════════════\n" +
-          (hasOutfitRefs
-            ? "The outfit reference images show the EXACT clothing the model must wear. Reproduce every detail — fabric, color, cut, fit, and style — identically across all four output shots. Do NOT substitute a different outfit.\n\n"
-            : `The wearing reference shows the model dressed in: "${outfit_description}". Reproduce this EXACT outfit — same fabric, color, cut, fit, and style — identically across all four output shots. Do NOT substitute a different outfit.\n\n`)
-        : "") +
-      "The jewelry is the hero of the shot — prominently visible, in razor-sharp focus, and IDENTICAL to the source reference in both product identity and wearing style. " +
-      "The final result must look like one frame from a cohesive luxury campaign series: same person, same outfit, SAME exact jewelry worn in the SAME exact way — only the camera changes."
+      "(1) JEWELRY IDENTITY — Reproduce the SAME physical piece: every gemstone (count, cut, color, clarity, arrangement, setting), every metal detail (color, finish, engravings, prongs, links, clasps), every proportion. Zero creative liberty on the product.\n" +
+      "(2) WEARING PLACEMENT — The piece must be on the EXACT same body part and side as the reference. " +
+      "Earring: same ear, same lobe position. Ring: same finger, same hand. Bracelet: same wrist. " +
+      "Necklace: same drop length on the same side. Brooch: same angle, same side. Anklet: same ankle.\n" +
+      "(3) WEARING ORIENTATION — Same rotation, tilt, and facing as the reference. Do NOT flip, mirror, or re-angle the piece for the new camera.\n" +
+      "(4) CONTACT & DRAPE — The piece's interaction with skin, hair, and clothing must match the reference: same chain drape, same collarbone rest, same hair tuck.\n" +
+      "(5) ONLY the camera angle, framing, lens, and lighting may change. The wearing style is fixed.\n\n" +
+
+      "═══════════════════════════════════════════════════════════\n" +
+      "ABSOLUTE RULE — OUTFIT / CLOTHING (HIGHEST PRIORITY)\n" +
+      "═══════════════════════════════════════════════════════════\n" +
+      `The model must wear ${outfitText}. ` +
+      "Do NOT substitute a different outfit. Reproduce every fabric, color, cut, and fit detail identically across all four shots.\n\n" +
+
+      "The jewelry is the hero — prominently visible, in razor-sharp focus, identical to the reference in both product and wearing style. " +
+      "The final result must look like one frame from a cohesive luxury campaign: same outfit, same jewelry worn identically — only the camera angle changes."
     );
   };
 
@@ -958,19 +972,16 @@ export default function MarketingPanel({
           let numCharRefs: number;
 
           if (template.id === "consistent-wearing") {
-            // For consistent-wearing the wearing source is the primary anchor for BOTH jewelry
-            // AND outfit. Cap character refs at 4 (no repetition) so they don't drown out the
-            // wearing source, and bookend the array with the wearing source so it appears both
-            // mid-sequence (extra visual weight) and last (matching the "LAST = ground truth" prompt).
-            // Layout: [char...(≤4), src.url, outfit...(≤4), src.url]  → max 10 slots, well within 14.
-            const charRefsWearing = characterUrls.slice(0, 4);
-            numCharRefs = charRefsWearing.length;
+            // Wearing source dominates visually (4×) so the model locks onto the jewelry,
+            // outfit, and wearing placement from those images. At most 2 character ref images
+            // go at the end — just enough for broad face-type context. Face identity is
+            // primarily delivered via analyze-character prose text, not visual refs.
+            // Layout: [src.url ×4, char1?, char2?]  → max 6 images
             refs = [
-              ...charRefsWearing,
-              src.url,
-              ...outfitUrls.slice(0, 4),
-              src.url,
-            ].slice(0, 14);
+              src.url, src.url, src.url, src.url,
+              ...characterUrls.slice(0, 2),
+            ];
+            numCharRefs = 0; // unused for consistent-wearing (charProse used instead)
           } else {
             // consistent-model: repeat character refs to fill slots, jewelry source goes last.
             const jewelrySlots = 1;
@@ -988,9 +999,14 @@ export default function MarketingPanel({
           // Build 4 shot prompts with outfit context
           const shots = buildShotPrompts();
 
+          // For consistent-wearing: get text-based face description (used instead of visual char refs)
+          const charProse = template.id === "consistent-wearing" && characterUrls.length > 0
+            ? await analyzeCharacterCached(characterUrls)
+            : "";
+
           for (const shot of shots) {
             const shotPrompt = template.id === "consistent-wearing"
-              ? await buildConsistentWearingPrompt(src.url, numCharRefs, shot.scenePrompt)
+              ? await buildConsistentWearingPrompt(src.url, charProse, shot.scenePrompt)
               : await buildConsistentModelPrompt(src.url, numCharRefs, shot.scenePrompt);
 
             const shotRes = await fetch("/api/kie", {
