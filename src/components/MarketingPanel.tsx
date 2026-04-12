@@ -884,58 +884,49 @@ export default function MarketingPanel({
   };
 
   // Build consistent wearing prompt.
-  // CRITICAL: We deliberately avoid describing the jewelry in text — any description invites
-  // the model to re-synthesize the piece from words instead of copying pixels. The source
-  // image is repeated multiple times in image_input so the model treats it as ground truth.
+  // Generates a NEW professional photo (not a copy/paste) while preserving
+  // the same jewelry piece, wearing style, and outfit from the source reference.
   const buildConsistentWearingPrompt = (
     charProse: string,
     shotPrompt: string,
-    numCharRefs: number
+    numCharRefs: number,
+    hasOutfitRefs: boolean
   ): string => {
     const hasFaceRefs = numCharRefs > 0;
+
+    const outfitRule = hasOutfitRefs
+      ? "OUTFIT: The model must wear the outfit shown in the OUTFIT REFERENCE IMAGES (provided separately from the wearing source). " +
+        "Reproduce that outfit exactly — same garment type, fabric, color, cut, fit, neckline, sleeves, and accessories across all shots."
+      : "OUTFIT: The model must wear the same style of clothing visible in the wearing source reference. " +
+        "Keep the same garment type, fabric color, neckline, and overall style across all four shots.";
+
     return (
-      "TASK TYPE: This is a REFERENCE-COPY task, not a creative generation task. " +
-      "The first reference images in image_input are the SAME source image of a model wearing a jewelry piece — this image is the GROUND TRUTH. " +
-      "Your job is to reproduce that exact scene from a different camera angle, substituting ONLY the face.\n\n" +
+      "Generate a NEW, high-quality professional photograph — NOT a copy, NOT an edit, NOT an inpaint of the reference. " +
+      "This must look like a freshly shot photo with no blending artifacts, no pasted regions, and no compositing seams. " +
+      "The reference images guide WHAT the model wears and HOW she wears it, but the output must be a clean, original generation.\n\n" +
 
-      "═══════════════════════════════════════════════════════════\n" +
-      "HARD COPY RULES — ZERO DEVIATION\n" +
-      "═══════════════════════════════════════════════════════════\n" +
-      "(A) JEWELRY PIECE — The jewelry in your output MUST be pixel-identical to the jewelry in the source reference. " +
-      "Do NOT invent a new piece. Do NOT redesign, simplify, embellish, or re-color it. " +
-      "Same gemstone count, same gemstone cut, same gemstone color, same gemstone arrangement, same metal color, same metal finish, same prongs, same setting, same links/chains, same clasps, same engravings, same proportions, same thickness. " +
-      "Treat it as photographing the SAME physical object from a new angle — not generating a similar-looking piece.\n\n" +
+      "JEWELRY — WHAT TO PRESERVE:\n" +
+      "The wearing source reference shows a specific jewelry piece already on the model. Your output must feature the SAME jewelry piece: " +
+      "same design, same gemstones (count, color, cut, arrangement), same metal (color, finish), same proportions. " +
+      "It must be worn on the SAME body part, the SAME side, at the SAME position. " +
+      "If the source shows an earring on the right ear at a specific lobe position, your output must also show it on the right ear at that position. " +
+      "Do not flip, mirror, or reposition the piece. Do not invent a different piece.\n\n" +
 
-      "(B) WEARING PLACEMENT & ORIENTATION — The piece must be on the EXACT same body part, the EXACT same side, at the EXACT same position and rotation as in the source reference. " +
-      "If the source shows an earring on the left ear at a specific lobe position, your output must show the earring on the left ear at that same lobe position. " +
-      "Do NOT flip, mirror, reposition, or re-angle the piece for the new camera. The piece stays fixed on the body — only the camera moves around it.\n\n" +
+      outfitRule + "\n\n" +
 
-      "(C) OUTFIT / CLOTHING — The model must wear the EXACT same outfit as in the source reference. " +
-      "Same garment(s), same fabric, same color, same cut, same fit, same neckline, same sleeves, same accessories. " +
-      "Do NOT substitute a different outfit. Do NOT restyle. This is non-negotiable and must be consistent across all four generated shots.\n\n" +
-
-      "(D) POSE & BODY — The model's pose, body position, and posture should stay consistent with the source reference. " +
-      "Only camera position/angle changes. The model is not re-posing for each shot — the camera is moving around a static scene.\n\n" +
-
-      "═══════════════════════════════════════════════════════════\n" +
-      "FACE SUBSTITUTION — THE ONLY THING THAT CHANGES\n" +
-      "═══════════════════════════════════════════════════════════\n" +
+      "FACE — WHAT CHANGES:\n" +
       (hasFaceRefs
-        ? "The final reference image(s) at the END of image_input show the SPECIFIC person whose face must appear in the output. " +
-          "Replace the face of the model in the source reference with this person's face. " +
-          "Match her EXACT facial bone structure, eye shape, nose, lips, jawline, skin tone, hair color, hair style, and hair texture from these end-of-set reference images. "
-        : "Replace the face of the model in the source reference with the following SPECIFIC person: ") +
+        ? `The last ${numCharRefs} reference image${numCharRefs > 1 ? "s" : ""} in image_input show the SPECIFIC person whose face must appear in the output. ` +
+          "Reproduce her exact facial features — bone structure, eye shape, nose, lips, jawline, skin tone, hair color, hair style, and hair texture. "
+        : "Use the following person's appearance for the face: ") +
       (charProse ? charProse + " " : "") +
-      "Keep the rest of the body, skin tone, outfit, jewelry, and wearing position exactly as in the source reference.\n\n" +
+      "This person replaces the face in the wearing source — everything else (jewelry, placement, outfit) stays.\n\n" +
 
-      "═══════════════════════════════════════════════════════════\n" +
-      "CAMERA ADJUSTMENT FOR THIS SHOT\n" +
-      "═══════════════════════════════════════════════════════════\n" +
-      "This shot ONLY adjusts camera angle, framing, lens, and lighting. It does NOT authorize changing jewelry, outfit, pose, or wearing position in any way:\n" +
+      "CAMERA FOR THIS SHOT:\n" +
       shotPrompt + "\n\n" +
 
-      "FINAL REMINDER: The jewelry, outfit, and wearing style come 100% from the source reference images — never from imagination or text. " +
-      "Only the face is substituted, and only the camera angle changes. Any deviation from the source jewelry or source outfit is a failure."
+      "QUALITY: The output must be a seamless, artifact-free professional photograph — no visible compositing, no inpainting halos, no blending edges. " +
+      "Generate the entire image as one cohesive shot."
     );
   };
 
@@ -1011,15 +1002,17 @@ export default function MarketingPanel({
 
           if (template.id === "consistent-wearing") {
             // Kie nano-banana-pro cap: 8 reference images total.
-            // Strategy: dominate with source image (jewelry + outfit + pose anchor),
-            // put face refs at the END so the "FACE SUBSTITUTION" prompt can point at them.
-            // Layout: [src ×5, char ×3]  → 8 images max
+            // Budget: source ×3 (anchor jewelry/wearing), outfit ×1-2, char ×2-3 (face)
+            // Layout: [src ×N, outfit?, outfit?, char, char, char?]
+            const MAX_REFS = 8;
+            const outfitSlots = Math.min(outfitUrls.length, 2);
             const charTail = characterUrls.slice(0, 3);
-            const srcCount = Math.max(1, 8 - charTail.length);
+            const srcCount = Math.max(1, MAX_REFS - outfitSlots - charTail.length);
             refs = [
-              ...Array(srcCount).fill(src.url),
+              ...Array(srcCount).fill(src.url) as string[],
+              ...outfitUrls.slice(0, outfitSlots),
               ...charTail,
-            ];
+            ].slice(0, MAX_REFS);
             numCharRefs = charTail.length;
           } else {
             // consistent-model: Kie nano-banana-pro caps at 8 refs total.
@@ -1050,7 +1043,7 @@ export default function MarketingPanel({
 
           for (const shot of shots) {
             const shotPrompt = template.id === "consistent-wearing"
-              ? buildConsistentWearingPrompt(charProse, shot.scenePrompt, numCharRefs)
+              ? buildConsistentWearingPrompt(charProse, shot.scenePrompt, numCharRefs, outfitUrls.length > 0)
               : await buildConsistentModelPrompt(src.url, numCharRefs, shot.scenePrompt);
 
             const shotRes = await fetch("/api/kie", {
