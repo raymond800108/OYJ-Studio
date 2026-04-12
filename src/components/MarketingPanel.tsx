@@ -884,49 +884,56 @@ export default function MarketingPanel({
   };
 
   // Build consistent wearing prompt.
-  // Generates a NEW professional photo (not a copy/paste) while preserving
-  // the same jewelry piece, wearing style, and outfit from the source reference.
+  // Strategy: source image appears ONCE in refs (so the model doesn't try to
+  // copy/paste it). Jewelry identity + wearing style are conveyed via DETAILED
+  // TEXT from the analyze-jewelry API. This generates a fresh photo guided by
+  // text + single visual ref instead of compositing from multiple copies.
   const buildConsistentWearingPrompt = (
     charProse: string,
     shotPrompt: string,
     numCharRefs: number,
-    hasOutfitRefs: boolean
+    hasOutfitRefs: boolean,
+    jewelryAnalysis: { type: string; description: string; body_placement: string; outfit_description: string | null }
   ): string => {
     const hasFaceRefs = numCharRefs > 0;
+    const { type, description, body_placement, outfit_description } = jewelryAnalysis;
 
     const outfitRule = hasOutfitRefs
-      ? "OUTFIT: The model must wear the outfit shown in the OUTFIT REFERENCE IMAGES (provided separately from the wearing source). " +
+      ? "OUTFIT: The model must wear the outfit shown in the OUTFIT REFERENCE IMAGES. " +
         "Reproduce that outfit exactly — same garment type, fabric, color, cut, fit, neckline, sleeves, and accessories across all shots."
-      : "OUTFIT: The model must wear the same style of clothing visible in the wearing source reference. " +
-        "Keep the same garment type, fabric color, neckline, and overall style across all four shots.";
+      : outfit_description
+        ? `OUTFIT: The model must wear exactly this: ${outfit_description}. ` +
+          "Reproduce the same garment type, fabric, color, neckline, and fit across all four shots."
+        : "OUTFIT: The model should wear elegant, minimal clothing that does not compete with the jewelry.";
 
     return (
-      "Generate a NEW, high-quality professional photograph — NOT a copy, NOT an edit, NOT an inpaint of the reference. " +
-      "This must look like a freshly shot photo with no blending artifacts, no pasted regions, and no compositing seams. " +
-      "The reference images guide WHAT the model wears and HOW she wears it, but the output must be a clean, original generation.\n\n" +
+      "Generate a NEW, high-quality professional luxury jewelry campaign photograph. " +
+      "This must look like a freshly shot photo — no compositing, no blending, no inpainting artifacts, no pasted regions.\n\n" +
 
-      "JEWELRY — WHAT TO PRESERVE:\n" +
-      "The wearing source reference shows a specific jewelry piece already on the model. Your output must feature the SAME jewelry piece: " +
-      "same design, same gemstones (count, color, cut, arrangement), same metal (color, finish), same proportions. " +
-      "It must be worn on the SAME body part, the SAME side, at the SAME position. " +
-      "If the source shows an earring on the right ear at a specific lobe position, your output must also show it on the right ear at that position. " +
-      "Do not flip, mirror, or reposition the piece. Do not invent a different piece.\n\n" +
+      "CHARACTER / FACE:\n" +
+      (hasFaceRefs
+        ? `The last ${numCharRefs} reference image${numCharRefs > 1 ? "s" : ""} in image_input show the SPECIFIC person who must appear. ` +
+          "Reproduce her exact facial features — bone structure, eye shape, nose, lips, jawline, skin tone, hair color, hair style, and hair texture. "
+        : "") +
+      (charProse ? charProse + " " : "") +
+      "She must be recognizable as the SAME individual across all generated images.\n\n" +
+
+      "JEWELRY — THE HERO OF THE SHOT:\n" +
+      `The model is wearing a ${type}: ${description}. ` +
+      `It is worn ${body_placement}. ` +
+      getSizePrompt(type, body_placement) +
+      "The FIRST reference image in image_input shows this EXACT piece already worn on a model — use it as the visual reference for the jewelry's exact appearance, design details, gemstones, metal finish, and proportions. " +
+      "Your output must feature the SAME jewelry piece with the SAME design — do not invent a different piece, do not modify the design. " +
+      "The piece must be worn on the SAME body part, at the SAME position. " +
+      "Do not flip, mirror, or reposition it. The jewelry must be prominently visible and in sharp focus.\n\n" +
 
       outfitRule + "\n\n" +
-
-      "FACE — WHAT CHANGES:\n" +
-      (hasFaceRefs
-        ? `The last ${numCharRefs} reference image${numCharRefs > 1 ? "s" : ""} in image_input show the SPECIFIC person whose face must appear in the output. ` +
-          "Reproduce her exact facial features — bone structure, eye shape, nose, lips, jawline, skin tone, hair color, hair style, and hair texture. "
-        : "Use the following person's appearance for the face: ") +
-      (charProse ? charProse + " " : "") +
-      "This person replaces the face in the wearing source — everything else (jewelry, placement, outfit) stays.\n\n" +
 
       "CAMERA FOR THIS SHOT:\n" +
       shotPrompt + "\n\n" +
 
-      "QUALITY: The output must be a seamless, artifact-free professional photograph — no visible compositing, no inpainting halos, no blending edges. " +
-      "Generate the entire image as one cohesive shot."
+      "QUALITY: Professional, artifact-free, seamlessly generated photograph. " +
+      "The entire image must be coherent — one unified shot, not a composite."
     );
   };
 
@@ -1002,18 +1009,24 @@ export default function MarketingPanel({
 
           if (template.id === "consistent-wearing") {
             // Kie nano-banana-pro cap: 8 reference images total.
-            // Budget: source ×3 (anchor jewelry/wearing), outfit ×1-2, char ×2-3 (face)
-            // Layout: [src ×N, outfit?, outfit?, char, char, char?]
+            // Source appears ONCE (text description carries jewelry identity to avoid
+            // the model trying to copy-paste / composite from repeated source images).
+            // Budget: source ×1 (jewelry visual ref), outfit ×0-2, char fills remainder
+            // Layout: [src, outfit?, outfit?, char, char, char, char, char?]
             const MAX_REFS = 8;
             const outfitSlots = Math.min(outfitUrls.length, 2);
-            const charTail = characterUrls.slice(0, 3);
-            const srcCount = Math.max(1, MAX_REFS - outfitSlots - charTail.length);
+            const charSlots = MAX_REFS - 1 - outfitSlots; // 1 for source
+            let charRefs = [...characterUrls];
+            while (charRefs.length < charSlots && charRefs.length < characterUrls.length * 4) {
+              charRefs = [...charRefs, ...characterUrls];
+            }
+            charRefs = charRefs.slice(0, charSlots);
+            numCharRefs = charRefs.length;
             refs = [
-              ...Array(srcCount).fill(src.url) as string[],
+              src.url,
               ...outfitUrls.slice(0, outfitSlots),
-              ...charTail,
+              ...charRefs,
             ].slice(0, MAX_REFS);
-            numCharRefs = charTail.length;
           } else {
             // consistent-model: Kie nano-banana-pro caps at 8 refs total.
             // Budget: 1 jewelry + up to 2 outfit + remainder for character refs.
@@ -1035,15 +1048,17 @@ export default function MarketingPanel({
             ? buildWearingShotPrompts()
             : buildShotPrompts();
 
-          // For consistent-wearing: get text-based face description as a safety net
-          // in case the trailing face refs don't anchor strongly enough.
+          // For consistent-wearing: get text-based face description + detailed jewelry analysis
           const charProse = template.id === "consistent-wearing" && characterUrls.length > 0
             ? await analyzeCharacterCached(characterUrls)
             : "";
+          const wearingAnalysis = template.id === "consistent-wearing"
+            ? await analyzeJewelryCached(src.url)
+            : null;
 
           for (const shot of shots) {
             const shotPrompt = template.id === "consistent-wearing"
-              ? buildConsistentWearingPrompt(charProse, shot.scenePrompt, numCharRefs, outfitUrls.length > 0)
+              ? buildConsistentWearingPrompt(charProse, shot.scenePrompt, numCharRefs, outfitUrls.length > 0, wearingAnalysis!)
               : await buildConsistentModelPrompt(src.url, numCharRefs, shot.scenePrompt);
 
             const shotRes = await fetch("/api/kie", {
