@@ -126,14 +126,6 @@ const TEMPLATES = [
       "A high quality studio photo of the exact jewelry piece from the reference image nestled on top of a rock that is covered in thick dense moss. The background is a soft, neutral cream. Captured with a Canon EOS R5, 100mm Macro, f/5.6 for a beautiful, shallow depth of field. Lighting is a large silk scrim for a soft, fashion-editorial glow. Inspired by the minimalist floral work of Robert Mapplethorpe, this prompt uses the moss growth to frame the product, creating a sophisticated, high-end, and incredibly elegant composition that feels unique and timeless. Top view isometric angle.",
   },
   {
-    id: "consistent-model",
-    label: "Consistent Model",
-    icon: "👤",
-    description: "Same model character wears all your jewelry — upload character reference first",
-    prompt: "__CONSISTENT_MODEL__",
-    dynamic: true,
-  },
-  {
     id: "consistent-wearing",
     label: "Consistent Wearing",
     icon: "💎",
@@ -260,7 +252,7 @@ export default function MarketingPanel({
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [generatedVideo, setGeneratedVideo] = useState<GeneratedVideo | null>(null);
   const [maximizedImage, setMaximizedImage] = useState<string | null>(null);
-  // For consistent-model video: user picks a generated image as video base
+  // For consistent-wearing video: user picks a generated image as video base
   const [videoBaseImage, setVideoBaseImage] = useState<string | null>(null);
   const [videoFromImageLoading, setVideoFromImageLoading] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -638,15 +630,6 @@ export default function MarketingPanel({
     "Do NOT substitute, redesign, simplify, or alter the jewelry in ANY way. The product must look like the SAME physical object filmed in real life. " +
     "The jewelry is the undisputed hero and centerpiece of every frame. ";
 
-  // 4 shot types for consistent model generation
-  // Default outfit description when user doesn't provide one
-  const DEFAULT_OUTFIT =
-    "a trendy East Asian Gen-Z inspired outfit — bold, fashion-forward streetwear-meets-luxury style. " +
-    "Think oversized structured blazer over a cropped top, or a sleek leather jacket with high-waisted wide-leg pants, " +
-    "or a minimalist asymmetric designer top with statement accessories. The vibe is confident, edgy, and effortlessly cool — " +
-    "inspired by Seoul and Tokyo street fashion with a high-fashion twist.";
-
-  // Resolve outfit description: user-provided > default
   // Convert cm dimension + jewelry type into body-relative scale language
   const getSizePrompt = (type: string, bodyPlacement: string): string => {
     if (!jewelryDimension.trim()) return "";
@@ -699,72 +682,7 @@ export default function MarketingPanel({
     );
   };
 
-  const getOutfitPrompt = () => {
-    if (outfitDescription.trim()) return outfitDescription.trim();
-    if (outfitImages.length > 0) return "the EXACT outfit shown in the outfit reference images";
-    return DEFAULT_OUTFIT;
-  };
-
-  const buildShotPrompts = () => {
-    const outfit = getOutfitPrompt();
-    const outfitRule = outfitImages.length > 0
-      ? `OUTFIT RULE: The model MUST wear the EXACT outfit shown in the outfit reference images. Reproduce every detail of the clothing — fabric, color, cut, fit, style, and accessories. ${outfitDescription.trim() ? `The outfit is: ${outfitDescription.trim()}. ` : ""}`
-      : `OUTFIT RULE: The model must wear ${outfit}. `;
-
-    return [
-      {
-        id: "closeup-front",
-        label: "Close-Up Front",
-        scenePrompt:
-          "SHOT TYPE: Close-up shot from the FRONT angle, tightly framed on the jewelry piece and the body area where it is worn. " +
-          "The model faces the camera directly. Her face is partially visible (jawline, neck, décolletage, ear, or hand depending on jewelry type) to confirm character identity. " +
-          outfitRule +
-          "Macro-level detail — every facet of the gemstones, metal finish, and craftsmanship is razor-sharp and in perfect focus. " +
-          "Lighting: soft, refined studio lighting with a strong key light that makes the jewelry sparkle brilliantly. Shallow depth of field with creamy bokeh. " +
-          "Background: clean, softly blurred neutral studio backdrop. " +
-          "Shot on Hasselblad H6D-100c, 120mm Macro, f/2.8, ISO 64.",
-      },
-      {
-        id: "closeup-side",
-        label: "Close-Up Side",
-        scenePrompt:
-          "SHOT TYPE: Close-up shot from a 45-degree SIDE angle, giving a three-quarter perspective on the jewelry. " +
-          "Tightly framed on the jewelry piece and surrounding body area. The model's side profile or three-quarter face is partially visible to confirm character identity. " +
-          outfitRule +
-          "This angle reveals different facets, depth, and dimensionality of the jewelry that the front close-up does not show. " +
-          "Lighting: dramatic directional side lighting that sculpts the jewelry's form and creates dynamic highlights and shadows across the gemstones and metal. " +
-          "Background: clean, softly blurred neutral backdrop. " +
-          "Shot on Hasselblad H6D-100c, 100mm Macro, f/3.2, ISO 64. Shallow depth of field.",
-      },
-      {
-        id: "closeup-above",
-        label: "Close-Up Above",
-        scenePrompt:
-          "SHOT TYPE: Close-up shot from a slightly ELEVATED angle (about 30 degrees above), looking down at the jewelry on the model. " +
-          "This bird's-eye-adjacent perspective showcases the top surface of the jewelry — the crown of gemstones, the setting from above, the symmetry of the design. " +
-          "The model's head, shoulders, or hand are partially visible from above to maintain character identity. " +
-          outfitRule +
-          "Lighting: overhead key light with soft fill creating beautiful top-down highlights on every surface of the jewelry. " +
-          "Background: softly blurred, clean neutral tones. " +
-          "Shot on Hasselblad H6D-100c, 90mm Macro, f/2.8, ISO 64. Extremely shallow depth of field.",
-      },
-      {
-        id: "lifestyle",
-        label: "Daily Life",
-        scenePrompt:
-          "SHOT TYPE: Lifestyle / daily life candid editorial shot, medium to full body. " +
-          outfitRule +
-          "She is in a beautiful real-world setting — a sunlit café terrace, a modern art gallery, an elegant city street, or a stylish rooftop. " +
-          "The mood is candid, aspirational, and effortlessly cool — she's living her stylish daily life while wearing the jewelry. " +
-          "Her full outfit is clearly visible in this wider shot. " +
-          "Natural lighting mixed with ambient light. Shot on Sony A1, 50mm f/1.4, ISO 200. " +
-          "Warm, lifestyle editorial color grading. The jewelry is visible and catches natural light beautifully. " +
-          "This shot shows the jewelry is wearable and stunning in everyday life, not just in a studio.",
-      },
-    ];
-  };
-
-  // For consistent-wearing: minimal shot prompts that ONLY change camera angle.
+  // Minimal shot prompts that ONLY change camera angle.
   // Every other element (pose, jewelry, outfit, body position) is locked to the source image.
   const buildWearingShotPrompts = () => {
     const lockRule =
@@ -851,38 +769,6 @@ export default function MarketingPanel({
     return prose;
   };
 
-  // Build consistent model prompt for a specific shot type
-  const buildConsistentModelPrompt = async (
-    jewelryUrl: string,
-    numCharRefs: number,
-    shotPrompt: string
-  ): Promise<string> => {
-    const { type, description, body_placement } = await analyzeJewelryCached(jewelryUrl);
-
-    const hasOutfitRefs = outfitImages.length > 0;
-    const outfitRefNote = hasOutfitRefs
-      ? `OUTFIT REFERENCE: Some reference images show the outfit the model must wear. Reproduce this outfit EXACTLY — same fabric, color, cut, fit, and style. `
-      : "";
-
-    return (
-      `ABSOLUTE RULE — CHARACTER IDENTITY: The first ${numCharRefs} reference image${numCharRefs > 1 ? "s" : ""} show the EXACT person who must appear in the generated image. ` +
-      "You MUST reproduce this SPECIFIC person — her EXACT face, facial bone structure, eye shape, nose, lips, jawline, skin tone, hair color, hair style, hair texture, and body type. " +
-      "This is NOT a generic model — she is a SPECIFIC real person and MUST be recognizable as the SAME individual across every generated image. " +
-      "Copy her appearance from the reference photos as precisely as a portrait photographer would. " +
-      "\n\n" +
-      outfitRefNote +
-      "JEWELRY RULE: The LAST reference image shows the exact jewelry product. " +
-      `The jewelry is a ${type}: ${description}. ` +
-      getSizePrompt(type, body_placement) +
-      `It must be worn ${body_placement} and must be the EXACT same product — every gemstone, metal detail, and design element preserved perfectly. ` +
-      "The jewelry is the hero of the shot, prominently visible and in sharp focus. " +
-      "\n\n" +
-      shotPrompt +
-      "\n\n" +
-      "The final result must look like one shot from a cohesive luxury campaign series — same person, same outfit style, across all images."
-    );
-  };
-
   // Build consistent wearing prompt.
   // Strategy: source image appears ONCE in refs (so the model doesn't try to
   // copy/paste it). Jewelry identity + wearing style are conveyed via DETAILED
@@ -943,7 +829,7 @@ export default function MarketingPanel({
     const template = TEMPLATES.find((t) => t.id === selectedTemplate);
     if (!template) return;
 
-    const isConsistentFlow = template.id === "consistent-model" || template.id === "consistent-wearing";
+    const isConsistentFlow = template.id === "consistent-wearing";
 
     // Validate consistent templates require character references
     if (isConsistentFlow && characterImages.length === 0) {
@@ -1003,63 +889,37 @@ export default function MarketingPanel({
           }
 
           // ── Image mode: fire 4 shots per jewelry piece ──
-          // Build refs: character images + outfit images + jewelry/wearing source (up to 14)
-          let refs: string[];
-          let numCharRefs: number;
-
-          if (template.id === "consistent-wearing") {
-            // Kie nano-banana-pro cap: 8 reference images total.
-            // Source appears ONCE (text description carries jewelry identity to avoid
-            // the model trying to copy-paste / composite from repeated source images).
-            // Budget: source ×1 (jewelry visual ref), outfit ×0-2, char fills remainder
-            // Layout: [src, outfit?, outfit?, char, char, char, char, char?]
-            const MAX_REFS = 8;
-            const outfitSlots = Math.min(outfitUrls.length, 2);
-            const charSlots = MAX_REFS - 1 - outfitSlots; // 1 for source
-            let charRefs = [...characterUrls];
-            while (charRefs.length < charSlots && charRefs.length < characterUrls.length * 4) {
-              charRefs = [...charRefs, ...characterUrls];
-            }
-            charRefs = charRefs.slice(0, charSlots);
-            numCharRefs = charRefs.length;
-            refs = [
-              src.url,
-              ...outfitUrls.slice(0, outfitSlots),
-              ...charRefs,
-            ].slice(0, MAX_REFS);
-          } else {
-            // consistent-model: Kie nano-banana-pro caps at 8 refs total.
-            // Budget: 1 jewelry + up to 2 outfit + remainder for character refs.
-            const MAX_REFS = 8;
-            const jewelrySlots = 1;
-            const outfitSlots = Math.min(outfitUrls.length, 2);
-            const charSlots = MAX_REFS - jewelrySlots - outfitSlots;
-            let charRefs = [...characterUrls];
-            while (charRefs.length < charSlots && charRefs.length < characterUrls.length * 6) {
-              charRefs = [...charRefs, ...characterUrls];
-            }
-            charRefs = charRefs.slice(0, charSlots);
-            numCharRefs = charRefs.length;
-            refs = [...charRefs, ...outfitUrls.slice(0, outfitSlots), src.url].slice(0, MAX_REFS);
+          // Kie nano-banana-pro cap: 8 reference images total.
+          // Source appears ONCE (text description carries jewelry identity to avoid
+          // the model trying to copy-paste / composite from repeated source images).
+          // Budget: source ×1 (jewelry visual ref), outfit ×0-2, char fills remainder
+          // Layout: [src, outfit?, outfit?, char, char, char, char, char?]
+          const MAX_REFS = 8;
+          const outfitSlots = Math.min(outfitUrls.length, 2);
+          const charSlots = MAX_REFS - 1 - outfitSlots; // 1 for source
+          let charRefs = [...characterUrls];
+          while (charRefs.length < charSlots && charRefs.length < characterUrls.length * 4) {
+            charRefs = [...charRefs, ...characterUrls];
           }
+          charRefs = charRefs.slice(0, charSlots);
+          const numCharRefs = charRefs.length;
+          const refs = [
+            src.url,
+            ...outfitUrls.slice(0, outfitSlots),
+            ...charRefs,
+          ].slice(0, MAX_REFS);
 
-          // Build 4 shot prompts — different builders for different flows
-          const shots = template.id === "consistent-wearing"
-            ? buildWearingShotPrompts()
-            : buildShotPrompts();
+          // Build 4 shot prompts
+          const shots = buildWearingShotPrompts();
 
-          // For consistent-wearing: get text-based face description + detailed jewelry analysis
-          const charProse = template.id === "consistent-wearing" && characterUrls.length > 0
+          // Get text-based face description + detailed jewelry analysis
+          const charProse = characterUrls.length > 0
             ? await analyzeCharacterCached(characterUrls)
             : "";
-          const wearingAnalysis = template.id === "consistent-wearing"
-            ? await analyzeJewelryCached(src.url)
-            : null;
+          const wearingAnalysis = await analyzeJewelryCached(src.url);
 
           for (const shot of shots) {
-            const shotPrompt = template.id === "consistent-wearing"
-              ? buildConsistentWearingPrompt(charProse, shot.scenePrompt, numCharRefs, outfitUrls.length > 0, wearingAnalysis!)
-              : await buildConsistentModelPrompt(src.url, numCharRefs, shot.scenePrompt);
+            const shotPrompt = buildConsistentWearingPrompt(charProse, shot.scenePrompt, numCharRefs, outfitUrls.length > 0, wearingAnalysis);
 
             const shotRes = await fetch("/api/kie", {
               method: "POST",
@@ -1140,9 +1000,9 @@ export default function MarketingPanel({
     }
   };
 
-  // ── Generate video from a selected generated image (consistent-model workflow) ──
+  // ── Generate video from a selected generated image (consistent-wearing workflow) ──
   const handleGenerateVideoFromImage = async (baseImageUrl: string) => {
-    if (!selectedTemplate || selectedTemplate !== "consistent-model") return;
+    if (!selectedTemplate || selectedTemplate !== "consistent-wearing") return;
     if (sourceImages.length === 0) return;
 
     setVideoFromImageLoading(true);
@@ -1241,7 +1101,7 @@ export default function MarketingPanel({
   };
 
   const canGenerate = !!selectedTemplate && sourceImages.length > 0 && !loading;
-  const isConsistentModel = selectedTemplate === "consistent-model" || selectedTemplate === "consistent-wearing";
+  const isConsistentModel = selectedTemplate === "consistent-wearing";
   const isConsistentModelVideo = isConsistentModel && contentType === "video";
   const ratios = contentType === "video" ? VIDEO_RATIOS : IMAGE_RATIOS;
   const completedCount = generatedImages.length;
@@ -1519,7 +1379,7 @@ export default function MarketingPanel({
                         </p>
                       </div>
                     )}
-                    {/* Always-visible "Generate Video" button for consistent-model + video */}
+                    {/* Always-visible "Generate Video" button for consistent-wearing + video */}
                     {isConsistentModel && !videoFromImageLoading && (
                       <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent z-20">
                         <button
@@ -1711,7 +1571,7 @@ export default function MarketingPanel({
       </div>
 
       {/* ── Character Model Reference ── */}
-      {(selectedTemplate === "consistent-model" || selectedTemplate === "consistent-wearing" || characterImages.length > 0) && (
+      {(selectedTemplate === "consistent-wearing" || characterImages.length > 0) && (
         <div className="rounded-2xl border border-border bg-card/50 p-4">
           <div className="flex items-center justify-between mb-2">
             <div>
