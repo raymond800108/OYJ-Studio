@@ -15,6 +15,7 @@ import {
   Megaphone,
   Globe,
   BarChart3,
+  Sun,
 } from "lucide-react";
 import ImageUploader from "@/components/ImageUploader";
 import CameraOrbit from "@/components/CameraOrbit";
@@ -59,6 +60,18 @@ const MarketingPanel = dynamic(
   }
 );
 
+const LightingPanel = dynamic(
+  () => import("@/components/LightingPanel"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center min-h-[400px] rounded-2xl bg-card border border-border">
+        <Loader2 className="w-5 h-5 animate-spin text-muted" />
+      </div>
+    ),
+  }
+);
+
 const UsagePanel = dynamic(
   () => import("@/components/UsagePanel"),
   {
@@ -71,7 +84,7 @@ const UsagePanel = dynamic(
   }
 );
 
-type Mode = "camera" | "inpaint" | "3d" | "marketing" | "usage";
+type Mode = "camera" | "inpaint" | "3d" | "marketing" | "lighting" | "usage";
 
 interface Estimation {
   product_name: string;
@@ -545,6 +558,7 @@ export default function Home() {
                 { icon: Paintbrush, label: lang === "zh" ? "AI 編輯" : "AI Edit" },
                 { icon: Box, label: lang === "zh" ? "3D 建模" : "3D Modeling" },
                 { icon: Megaphone, label: lang === "zh" ? "行銷素材" : "Marketing" },
+                { icon: Sun, label: lang === "zh" ? "燈光角度" : "Lighting Angle" },
               ].map(({ icon: Icon, label }) => (
                 <span
                   key={label}
@@ -642,6 +656,7 @@ export default function Home() {
                   { key: "inpaint", icon: Paintbrush, labelKey: "mode.edit" as const },
                   { key: "3d", icon: Box, labelKey: "mode.3d" as const },
                   { key: "marketing", icon: Megaphone, labelKey: "mode.marketing" as const },
+                  { key: "lighting", icon: Sun, labelKey: "mode.lighting" as const },
                   { key: "usage", icon: BarChart3, labelKey: "mode.usage" as const },
                 ] as const
               ).map(({ key, icon: Icon, labelKey }) => (
@@ -834,6 +849,15 @@ export default function Home() {
                 </div>
               </div>
             )}
+
+            {/* Lighting Controls — only in lighting mode */}
+            {mode === "lighting" && sourceUrl && (
+              <LightingPanel
+                sourceUrl={sourceUrl}
+                disabled={loading}
+                logUsage={logUsage}
+              />
+            )}
           </div>
 
           {/* Right Panel — Result */}
@@ -897,7 +921,8 @@ export default function Home() {
               />
             )}
 
-            {/* Prompt + Generate */}
+            {/* Prompt + Generate — hidden in lighting mode (LightingPanel has its own) */}
+            {mode !== "lighting" && (
             <div className="space-y-3">
               {mode !== "3d" && (
                 <div>
@@ -1048,6 +1073,7 @@ export default function Home() {
                 </>
               )}
             </div>
+            )}
           </div>
         </div>
 

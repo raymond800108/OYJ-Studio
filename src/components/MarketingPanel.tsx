@@ -202,7 +202,7 @@ interface MarketingPanelProps {
   onProgressChange: (progress: string) => void;
   otherPageLoading: boolean;
   otherPageMode: string;
-  onSwitchMode: (mode: "camera" | "inpaint" | "3d" | "marketing" | "usage") => void;
+  onSwitchMode: (mode: "camera" | "inpaint" | "3d" | "marketing" | "lighting" | "usage") => void;
   logUsage?: (action: ApiAction, opts?: { status?: "success" | "error"; tokensIn?: number; tokensOut?: number; costOverride?: number; detail?: string }) => void;
 }
 

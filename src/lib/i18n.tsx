@@ -103,6 +103,7 @@ const dict = {
   "3d.uncalibrated": { en: "Not calibrated — sizes are relative", zh: "未校準 — 尺寸為相對值" },
 
   // ── Usage / Token Tracking ──
+  "mode.lighting": { en: "Lighting", zh: "燈光" },
   "mode.usage": { en: "Usage", zh: "用量" },
   "usage.title": { en: "API Usage & Cost Tracking", zh: "API 用量與費用追蹤" },
   "usage.totalCost": { en: "Total Cost", zh: "總費用" },
