@@ -854,6 +854,7 @@ export default function Home() {
             {mode === "lighting" && sourceUrl && (
               <LightingPanel
                 sourceUrl={sourceUrl}
+                ensureUploaded={ensureUploaded}
                 disabled={loading}
                 logUsage={logUsage}
               />

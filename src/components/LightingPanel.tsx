@@ -19,6 +19,8 @@ type LightDirection = "None" | "Left" | "Right" | "Top" | "Bottom";
 
 interface LightingPanelProps {
   sourceUrl: string | null;
+  /** Returns a hosted (non-blob) URL for the source image */
+  ensureUploaded: () => Promise<string>;
   disabled?: boolean;
   logUsage?: (
     action: ApiAction,
@@ -58,6 +60,7 @@ const SCENE_PRESETS = [
 // ── Component ────────────────────────────────────────────────────────────
 export default function LightingPanel({
   sourceUrl,
+  ensureUploaded,
   disabled = false,
   logUsage,
 }: LightingPanelProps) {
@@ -83,14 +86,8 @@ export default function LightingPanel({
     setError(null);
 
     try {
-      // Upload source image to fal storage first
-      const uploadRes = await fetch("/api/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_url: sourceUrl }),
-      });
-      const uploadData = await uploadRes.json();
-      const hostedUrl = uploadData.url || sourceUrl;
+      // Get hosted URL (handles blob: → fal storage upload)
+      const hostedUrl = await ensureUploaded();
 
       const res = await fetch("/api/relight", {
         method: "POST",
