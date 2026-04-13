@@ -139,10 +139,7 @@ export default function Home() {
   const [zoom, setZoom] = useState(5);
 
   // Lighting controls
-  const [lightDirection, setLightDirection] = useState<"None" | "Left" | "Right" | "Top" | "Bottom">("None");
-  const [lightGuidance, setLightGuidance] = useState(5);
-  const [lightPrompt, setLightPrompt] = useState("");
-  const [lightHrFix, setLightHrFix] = useState(true);
+  const [lightingStyle, setLightingStyle] = useState<string>("natural");
 
   // Inpaint state
   const [maskDataUrl, setMaskDataUrl] = useState<string | null>(null);
@@ -415,18 +412,12 @@ export default function Home() {
         setSharedResults([generatedUrl]);
       } else if (mode === "lighting") {
         // Relighting flow
-        const effectivePrompt = lightPrompt.trim() ||
-          "professional studio lighting, luxury product photography, clean and refined illumination";
         const res = await fetch("/api/relight", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             image_url: imageUrl,
-            prompt: effectivePrompt,
-            initial_latent: lightDirection,
-            guidance_scale: lightGuidance,
-            enable_hr_fix: lightHrFix,
-            output_format: "png",
+            lighting_style: lightingStyle,
           }),
         });
         const data = await res.json();
@@ -434,7 +425,7 @@ export default function Home() {
           logUsage("relight", { status: "error", detail: data.error });
           throw new Error(data.error);
         }
-        logUsage("relight", { status: "success", detail: `direction=${lightDirection}` });
+        logUsage("relight", { status: "success", detail: `style=${lightingStyle}` });
 
         generatedUrl = data.images?.[0]?.url;
         if (!generatedUrl) throw new Error("No image in response");
@@ -889,14 +880,8 @@ export default function Home() {
             {/* Lighting Controls — only in lighting mode */}
             {mode === "lighting" && sourceUrl && (
               <LightingPanel
-                direction={lightDirection}
-                onDirectionChange={setLightDirection}
-                guidanceScale={lightGuidance}
-                onGuidanceChange={setLightGuidance}
-                prompt={lightPrompt}
-                onPromptChange={setLightPrompt}
-                enableHrFix={lightHrFix}
-                onHrFixChange={setLightHrFix}
+                lightingStyle={lightingStyle as import("@/components/LightingPanel").LightingStyle}
+                onStyleChange={setLightingStyle}
                 disabled={loading}
               />
             )}
