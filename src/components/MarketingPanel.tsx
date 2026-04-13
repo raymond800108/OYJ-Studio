@@ -841,10 +841,13 @@ export default function MarketingPanel({
           const hostedUrl = await uploadForReference(src);
           if (!hostedUrl) continue;
 
-          const jewelryDesc = await analyzeJewelryForVideo(hostedUrl);
+          // For image-to-video: the input image IS the visual reference.
+          // The text prompt should ONLY describe motion, camera, and behavior —
+          // NOT describe the product appearance (that comes from the image).
           const userPrompt = videoPrompt.trim();
-          const prompt = VIDEO_CONSISTENCY_PREFIX + jewelryDesc +
-            (userPrompt || "Cinematic luxury jewelry campaign video. Slow elegant camera movement showcasing the jewelry from multiple angles. Studio lighting, shallow depth of field, luxurious mood.");
+          const prompt = userPrompt
+            ? `Animate this image into a video. ${userPrompt}. Keep the product and scene exactly as shown in the image.`
+            : "Animate this image into a cinematic product video. Slow elegant camera movement, gentle rotation to showcase from multiple angles. Studio lighting, shallow depth of field, luxurious mood. Keep everything exactly as shown in the image.";
 
           const res = await fetch("/api/kie", {
             method: "POST",
