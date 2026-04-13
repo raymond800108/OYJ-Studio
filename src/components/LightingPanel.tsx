@@ -22,6 +22,10 @@ interface LightingPanelProps {
   /** Returns a hosted (non-blob) URL for the source image */
   ensureUploaded: () => Promise<string>;
   disabled?: boolean;
+  /** Lift loading/result/error state to the parent so ResultPanel shows them */
+  onLoadingChange?: (loading: boolean) => void;
+  onResultChange?: (url: string | null) => void;
+  onErrorChange?: (error: string | null) => void;
   logUsage?: (
     action: ApiAction,
     opts?: {
@@ -62,6 +66,9 @@ export default function LightingPanel({
   sourceUrl,
   ensureUploaded,
   disabled = false,
+  onLoadingChange,
+  onResultChange,
+  onErrorChange,
   logUsage,
 }: LightingPanelProps) {
   // Controls
@@ -83,7 +90,9 @@ export default function LightingPanel({
       "professional studio lighting, luxury product photography, clean and refined illumination";
 
     setLoading(true);
+    onLoadingChange?.(true);
     setError(null);
+    onErrorChange?.(null);
 
     try {
       // Get hosted URL (handles blob: → fal storage upload)
@@ -107,25 +116,31 @@ export default function LightingPanel({
       if (data.error) {
         logUsage?.("relight", { status: "error", detail: data.error });
         setError(data.error);
+        onErrorChange?.(data.error);
         return;
       }
 
       const imageUrl = data.images?.[0]?.url;
       if (imageUrl) {
         setResultUrl(imageUrl);
+        onResultChange?.(imageUrl);
         logUsage?.("relight", { status: "success", detail: `direction=${direction}` });
       } else {
-        setError("No image returned from the API");
+        const errMsg = "No image returned from the API";
+        setError(errMsg);
+        onErrorChange?.(errMsg);
         logUsage?.("relight", { status: "error", detail: "No image in response" });
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       setError(msg);
+      onErrorChange?.(msg);
       logUsage?.("relight", { status: "error", detail: msg });
     } finally {
       setLoading(false);
+      onLoadingChange?.(false);
     }
-  }, [sourceUrl, prompt, direction, guidanceScale, enableHrFix, logUsage]);
+  }, [sourceUrl, prompt, direction, guidanceScale, enableHrFix, logUsage, onLoadingChange, onResultChange, onErrorChange]);
 
   const handleDownload = useCallback(async () => {
     if (!resultUrl) return;
@@ -313,29 +328,6 @@ export default function LightingPanel({
       {error && (
         <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
           {error}
-        </div>
-      )}
-
-      {/* Result */}
-      {resultUrl && (
-        <div className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
-            Result
-          </h3>
-          <div className="relative rounded-2xl overflow-hidden border border-border bg-card shadow-sm">
-            <img
-              src={resultUrl}
-              alt="Relit result"
-              className="w-full h-auto"
-              crossOrigin="anonymous"
-            />
-            <button
-              onClick={handleDownload}
-              className="absolute top-3 right-3 p-2 rounded-full bg-black/60 text-white hover:bg-black/80 transition-all"
-            >
-              <Download className="w-4 h-4" />
-            </button>
-          </div>
         </div>
       )}
     </div>

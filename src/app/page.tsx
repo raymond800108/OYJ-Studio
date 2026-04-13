@@ -856,6 +856,9 @@ export default function Home() {
                 sourceUrl={sourceUrl}
                 ensureUploaded={ensureUploaded}
                 disabled={loading}
+                onLoadingChange={setLoading}
+                onResultChange={setResultUrl}
+                onErrorChange={setError}
                 logUsage={logUsage}
               />
             )}
