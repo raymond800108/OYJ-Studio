@@ -57,7 +57,7 @@ export const PRICE_TABLE: Record<ApiAction, { service: ApiService; model: string
   "analyze-jewelry": { service: "openai", model: "gpt-4o", costUsd: 0.05 },
   "analyze-character": { service: "openai", model: "gpt-4o", costUsd: 0.10 },
   "analyze-outfit": { service: "openai", model: "gpt-4o", costUsd: 0.10 },
-  "relight": { service: "fal", model: "iclight-v2", costUsd: 0.10 },
+  "relight": { service: "fal", model: "iclight-v2+birefnet", costUsd: 0.12 },
   "estimate": { service: "openai", model: "gpt-4o", costUsd: 0.075 },
 };
 

@@ -524,12 +524,12 @@ export default function Home() {
     if (loading) {
       if (mode === "3d") return `${t("generate.generating3d")} ${meshyProgress}%`;
       if (mode === "inpaint") return t("generate.editingRegion");
-      if (mode === "lighting") return lang === "zh" ? "調整燈光中..." : "Relighting...";
+      if (mode === "lighting") return t("generate.relighting");
       return t("generate.generating");
     }
     if (mode === "3d") return t("generate.generate3d");
     if (mode === "inpaint") return t("generate.editRegion");
-    if (mode === "lighting") return lang === "zh" ? "生成燈光" : "Generate Lighting";
+    if (mode === "lighting") return t("generate.lighting");
     return t("generate.generate");
   };
 

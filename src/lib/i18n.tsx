@@ -292,6 +292,30 @@ const dict = {
   "videoModel.latest": { en: "Kling 3.0 (Latest)", zh: "Kling 3.0（最新）" },
   "videoModel.fast": { en: "Kling 2.5 Turbo (Fast)", zh: "Kling 2.5 Turbo（快速）" },
 
+  // ── Lighting Panel ──
+  "light.direction": { en: "Light Direction", zh: "光線方向" },
+  "light.scenePresets": { en: "Scene Presets", zh: "場景預設" },
+  "light.description": { en: "Lighting Description", zh: "燈光描述" },
+  "light.descPlaceholder": { en: "e.g., warm golden hour sunlight from the left side...", zh: "例如：從左側照射的溫暖金色陽光..." },
+  "light.promptStrength": { en: "Prompt Strength", zh: "提示強度" },
+  "light.subtle": { en: "Subtle", zh: "細微" },
+  "light.strong": { en: "Strong", zh: "強烈" },
+  "light.hrFix": { en: "High-resolution fix", zh: "高解析度修復" },
+  "light.reset": { en: "Reset", zh: "重置" },
+  "light.auto": { en: "Auto", zh: "自動" },
+  "light.left": { en: "Left", zh: "左" },
+  "light.right": { en: "Right", zh: "右" },
+  "light.top": { en: "Top", zh: "頂部" },
+  "light.bottom": { en: "Bottom", zh: "底部" },
+  "light.goldenHour": { en: "Golden Hour", zh: "黃金時刻" },
+  "light.studioSoft": { en: "Studio Soft", zh: "柔和棚燈" },
+  "light.dramaticSide": { en: "Dramatic Side", zh: "戲劇側光" },
+  "light.windowLight": { en: "Window Light", zh: "窗光" },
+  "light.neonAccent": { en: "Neon Accent", zh: "霓虹點綴" },
+  "light.overhead": { en: "Overhead", zh: "頂光" },
+  "generate.lighting": { en: "Generate Lighting", zh: "生成燈光" },
+  "generate.relighting": { en: "Relighting...", zh: "調整燈光中..." },
+
   // ── TemplatePreview ──
   "preview.aiPowered": { en: "AI-Powered", zh: "AI 驅動" },
 } as const;
