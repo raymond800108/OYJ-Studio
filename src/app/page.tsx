@@ -138,6 +138,12 @@ export default function Home() {
   const [verticalAngle, setVerticalAngle] = useState(0);
   const [zoom, setZoom] = useState(5);
 
+  // Lighting controls
+  const [lightDirection, setLightDirection] = useState<"None" | "Left" | "Right" | "Top" | "Bottom">("None");
+  const [lightGuidance, setLightGuidance] = useState(5);
+  const [lightPrompt, setLightPrompt] = useState("");
+  const [lightHrFix, setLightHrFix] = useState(true);
+
   // Inpaint state
   const [maskDataUrl, setMaskDataUrl] = useState<string | null>(null);
 
@@ -407,6 +413,33 @@ export default function Home() {
         if (!generatedUrl) throw new Error("No image in response");
         setResultUrl(generatedUrl);
         setSharedResults([generatedUrl]);
+      } else if (mode === "lighting") {
+        // Relighting flow
+        const effectivePrompt = lightPrompt.trim() ||
+          "professional studio lighting, luxury product photography, clean and refined illumination";
+        const res = await fetch("/api/relight", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            image_url: imageUrl,
+            prompt: effectivePrompt,
+            initial_latent: lightDirection,
+            guidance_scale: lightGuidance,
+            enable_hr_fix: lightHrFix,
+            output_format: "png",
+          }),
+        });
+        const data = await res.json();
+        if (data.error) {
+          logUsage("relight", { status: "error", detail: data.error });
+          throw new Error(data.error);
+        }
+        logUsage("relight", { status: "success", detail: `direction=${lightDirection}` });
+
+        generatedUrl = data.images?.[0]?.url;
+        if (!generatedUrl) throw new Error("No image in response");
+        setResultUrl(generatedUrl);
+        setSharedResults([generatedUrl]);
       } else {
         // Camera angle flow
         const res = await fetch("/api/generate", {
@@ -445,7 +478,7 @@ export default function Home() {
           id: crypto.randomUUID(),
           sourceUrl: sourceUrl!,
           resultUrl: generatedUrl,
-          mode: mode === "inpaint" ? "inpaint" as const : "camera" as const,
+          mode: mode === "inpaint" ? "inpaint" as const : mode === "lighting" ? "lighting" as const : "camera" as const,
           settings: {
             rotate: horizontalAngle,
             forward: zoom,
@@ -483,6 +516,7 @@ export default function Home() {
     sourceUrl &&
     !loading &&
     (mode === "camera" ||
+      mode === "lighting" ||
       mode === "3d" ||
       (mode === "inpaint" && maskDataUrl && prompt));
 
@@ -490,10 +524,12 @@ export default function Home() {
     if (loading) {
       if (mode === "3d") return `${t("generate.generating3d")} ${meshyProgress}%`;
       if (mode === "inpaint") return t("generate.editingRegion");
+      if (mode === "lighting") return lang === "zh" ? "調整燈光中..." : "Relighting...";
       return t("generate.generating");
     }
     if (mode === "3d") return t("generate.generate3d");
     if (mode === "inpaint") return t("generate.editRegion");
+    if (mode === "lighting") return lang === "zh" ? "生成燈光" : "Generate Lighting";
     return t("generate.generate");
   };
 
@@ -853,13 +889,15 @@ export default function Home() {
             {/* Lighting Controls — only in lighting mode */}
             {mode === "lighting" && sourceUrl && (
               <LightingPanel
-                sourceUrl={sourceUrl}
-                ensureUploaded={ensureUploaded}
+                direction={lightDirection}
+                onDirectionChange={setLightDirection}
+                guidanceScale={lightGuidance}
+                onGuidanceChange={setLightGuidance}
+                prompt={lightPrompt}
+                onPromptChange={setLightPrompt}
+                enableHrFix={lightHrFix}
+                onHrFixChange={setLightHrFix}
                 disabled={loading}
-                onLoadingChange={setLoading}
-                onResultChange={setResultUrl}
-                onErrorChange={setError}
-                logUsage={logUsage}
               />
             )}
           </div>
@@ -925,10 +963,9 @@ export default function Home() {
               />
             )}
 
-            {/* Prompt + Generate — hidden in lighting mode (LightingPanel has its own) */}
-            {mode !== "lighting" && (
+            {/* Prompt + Generate */}
             <div className="space-y-3">
-              {mode !== "3d" && (
+              {mode !== "3d" && mode !== "lighting" && (
                 <div>
                   <label className="text-xs font-medium text-foreground/80 mb-1.5 block">
                     {mode === "inpaint"
@@ -967,6 +1004,8 @@ export default function Home() {
                   <>
                     {mode === "3d" ? (
                       <Box className="w-4 h-4" />
+                    ) : mode === "lighting" ? (
+                      <Sun className="w-4 h-4" />
                     ) : (
                       <Wand2 className="w-4 h-4" />
                     )}
@@ -975,8 +1014,8 @@ export default function Home() {
                 )}
               </button>
 
-              {/* Advanced Settings — not for 3D mode */}
-              {mode !== "3d" && (
+              {/* Advanced Settings — only for camera/inpaint modes */}
+              {mode !== "3d" && mode !== "lighting" && (
                 <>
                   <button
                     onClick={() => setShowAdvanced(!showAdvanced)}
@@ -1077,7 +1116,6 @@ export default function Home() {
                 </>
               )}
             </div>
-            )}
           </div>
         </div>
 
