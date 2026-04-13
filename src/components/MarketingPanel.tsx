@@ -854,7 +854,7 @@ export default function MarketingPanel({
               prompt,
               aspect_ratio: aspectRatio,
               video_model: videoModel,
-              image_input: [hostedUrl],
+              reference_image: hostedUrl,
             }),
           });
           const data = await res.json();
