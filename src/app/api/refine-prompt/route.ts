@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/withAuth";
 
 /**
  * Refines a high-level user description into a detailed video generation
- * prompt optimised for Kling 2.6.
+ * prompt for AI video models (e.g. Kling).
  */
 export async function POST(req: NextRequest) {
   const authResult = await requireAuth("analyze-jewelry");
@@ -21,30 +21,41 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "OPENAI_API_KEY is not set" }, { status: 500 });
     }
 
+    // Only include image if it's a valid hosted URL (not blob:)
+    const validImageUrl =
+      image_url && typeof image_url === "string" && image_url.startsWith("https://")
+        ? image_url
+        : undefined;
+
     const messages: Array<{ role: string; content: unknown }> = [
       {
         role: "system",
         content:
-          "You are a professional AI video prompt engineer specialising in luxury jewelry video campaigns. " +
-          "The user will give you a short, high-level description of what they want in a product video. " +
-          "Your job is to expand it into a detailed, cinematic video generation prompt optimised for Kling 2.6 AI video model. " +
-          "Rules:\n" +
-          "- Keep the prompt under 200 words.\n" +
-          "- Focus on: camera movement, lighting, mood, pacing, and composition.\n" +
-          "- Always emphasise preserving the EXACT jewelry product identity — every detail, gemstone, metal colour must match.\n" +
-          "- Include cinematic terminology (dolly, rack focus, slow motion, etc.).\n" +
-          "- Do NOT add markdown, bullet points, or formatting — return ONLY the prompt text.\n" +
-          "- If the user mentions a model/person, describe elegant, minimal motion (slow turn, gentle gesture).\n" +
-          "- Default to luxury editorial aesthetic unless the user specifies otherwise.",
+          "You are a creative copywriter who writes text-to-video prompts for product advertisement videos. " +
+          "The user is creating a short product showcase video for their jewelry e-commerce store. " +
+          "Given their brief description, expand it into a rich, detailed prompt describing the video scene. " +
+          "Guidelines:\n" +
+          "- Output ONLY the expanded prompt text, no markdown or formatting.\n" +
+          "- Keep it under 200 words.\n" +
+          "- Describe camera movement (slow pan, dolly, orbit), lighting style, mood, and pacing.\n" +
+          "- Emphasise that the product must look exactly as shown — preserve every design detail.\n" +
+          "- Use elegant, cinematic language suitable for luxury brand advertising.\n" +
+          "- If the user mentions a person/model, describe graceful minimal motion.",
       },
       {
         role: "user",
-        content: image_url
+        content: validImageUrl
           ? [
-              { type: "text", text: `Refine this into a detailed Kling 2.6 video prompt:\n\n"${text}"` },
-              { type: "image_url", image_url: { url: image_url, detail: "low" } },
+              {
+                type: "text" as const,
+                text: `Write an expanded video prompt based on this brief description. The video will feature the jewelry product shown in the attached image.\n\nUser's description: "${text}"`,
+              },
+              {
+                type: "image_url" as const,
+                image_url: { url: validImageUrl, detail: "low" as const },
+              },
             ]
-          : `Refine this into a detailed Kling 2.6 video prompt:\n\n"${text}"`,
+          : `Write an expanded video prompt based on this brief description for a jewelry product showcase video.\n\nUser's description: "${text}"`,
       },
     ];
 
@@ -65,12 +76,32 @@ export async function POST(req: NextRequest) {
     const data = await res.json();
 
     if (data.error) {
+      console.error("[refine-prompt] OpenAI error:", data.error);
       return NextResponse.json({ error: data.error.message || "OpenAI error" }, { status: 500 });
     }
 
-    const refined = data.choices?.[0]?.message?.content?.trim();
+    // Check for refusal
+    const message = data.choices?.[0]?.message;
+    if (message?.refusal) {
+      console.error("[refine-prompt] OpenAI refused:", message.refusal);
+      return NextResponse.json({ error: "AI could not refine this prompt. Please try rephrasing." }, { status: 400 });
+    }
+
+    const refined = message?.content?.trim();
     if (!refined) {
       return NextResponse.json({ error: "No response from OpenAI" }, { status: 500 });
+    }
+
+    // Detect soft refusals in the content itself
+    const lowerRefined = refined.toLowerCase();
+    if (
+      lowerRefined.includes("i'm sorry") ||
+      lowerRefined.includes("i can't help") ||
+      lowerRefined.includes("i cannot help") ||
+      lowerRefined.includes("i'm unable to")
+    ) {
+      console.error("[refine-prompt] Soft refusal detected:", refined);
+      return NextResponse.json({ error: "AI could not refine this prompt. Please try rephrasing." }, { status: 400 });
     }
 
     return NextResponse.json({ prompt: refined });
