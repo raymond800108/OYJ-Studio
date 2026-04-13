@@ -222,6 +222,10 @@ const dict = {
   "mkt.contentGenerating": { en: "content generating...", zh: "內容生成中..." },
   "mkt.marketingGenerating": { en: "Marketing content generating...", zh: "行銷內容生成中..." },
   "mkt.inProgressShort": { en: "In progress", zh: "進行中" },
+  "mkt.videoPromptTitle": { en: "Video Prompt", zh: "影片提示" },
+  "mkt.videoPromptPlaceholder": { en: "Describe the video you want, e.g. \"slow rotation showing all angles, golden hour lighting, luxury feel\"", zh: "描述您想要的影片，例如「緩慢旋轉展示各角度，黃金時刻光線，奢華感」" },
+  "mkt.aiRefine": { en: "AI Refine", zh: "AI 優化" },
+  "mkt.refining": { en: "Refining...", zh: "優化中..." },
 
   // ── Character Model Reference ──
   "char.title": { en: "Model Character Reference", zh: "模特角色參考" },

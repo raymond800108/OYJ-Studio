@@ -14,6 +14,7 @@ import {
   Clock,
   Maximize2,
   Plus,
+  Wand2,
 } from "lucide-react";
 import type { HistoryItem } from "./HistoryPanel";
 import TemplatePreview from "./TemplatePreview";
@@ -255,6 +256,9 @@ export default function MarketingPanel({
   // For consistent-wearing video: user picks a generated image as video base
   const [videoBaseImage, setVideoBaseImage] = useState<string | null>(null);
   const [videoFromImageLoading, setVideoFromImageLoading] = useState(false);
+  // Video prompt (user high-level text + AI-refined)
+  const [videoPrompt, setVideoPrompt] = useState("");
+  const [refiningPrompt, setRefiningPrompt] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [sourceDropOver, setSourceDropOver] = useState(false);
@@ -824,8 +828,61 @@ export default function MarketingPanel({
   };
 
   const handleGenerate = async () => {
-    if (!selectedTemplate || sourceImages.length === 0) return;
+    if (sourceImages.length === 0) return;
 
+    // Video mode: direct generation without template
+    if (contentType === "video") {
+      setLoading(true);
+      setError(null);
+      setGeneratedVideo(null);
+      try {
+        const newTasks: TaskInfo[] = [];
+        for (const src of sourceImages) {
+          const hostedUrl = await uploadForReference(src);
+          if (!hostedUrl) continue;
+
+          const jewelryDesc = await analyzeJewelryForVideo(hostedUrl);
+          const userPrompt = videoPrompt.trim();
+          const prompt = VIDEO_CONSISTENCY_PREFIX + jewelryDesc +
+            (userPrompt || "Cinematic luxury jewelry campaign video. Slow elegant camera movement showcasing the jewelry from multiple angles. Studio lighting, shallow depth of field, luxurious mood.");
+
+          const res = await fetch("/api/kie", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "video",
+              prompt,
+              aspect_ratio: aspectRatio,
+              video_model: videoModel,
+              image_input: [hostedUrl],
+            }),
+          });
+          const data = await res.json();
+          if (data.error) {
+            logUsage?.("video-generate", { status: "error", detail: data.error });
+            setError((prev) => prev ? `${prev}\n${data.error}` : data.error);
+            continue;
+          }
+          logUsage?.("video-generate", { status: "success", detail: "direct-video" });
+          newTasks.push({
+            sourceId: src.id,
+            sourceUrl: src.url,
+            taskId: data.taskId,
+            status: "waiting",
+            taskType: "video",
+          });
+        }
+        if (newTasks.length === 0) throw new Error(t("mkt.failedToStart"));
+        setActiveTasks(newTasks);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to start generation");
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Image mode: requires template
+    if (!selectedTemplate) return;
     const template = TEMPLATES.find((t) => t.id === selectedTemplate);
     if (!template) return;
 
@@ -879,13 +936,6 @@ export default function MarketingPanel({
           for (const ot of outfitImages) {
             const hostedUrl = await uploadForReference(ot);
             if (hostedUrl) outfitUrls.push(hostedUrl);
-          }
-
-          if (contentType === "video") {
-            // ── Consistent model video: force image generation first ──
-            // User must generate images first, then pick one as the base for video.
-            // So when in video mode, we still generate images (4 shots).
-            // The "Generate Video" button will appear on each result image.
           }
 
           // ── Image mode: fire 4 shots per jewelry piece ──
@@ -950,10 +1000,6 @@ export default function MarketingPanel({
             });
           }
           continue; // Skip the single-task creation below
-        } else if (contentType === "video") {
-          const jewelryDesc = await analyzeJewelryForVideo(src.url);
-          prompt = VIDEO_CONSISTENCY_PREFIX + jewelryDesc + template.prompt;
-          imageRefs = [];
         } else {
           prompt = CONSISTENCY_PREFIX + template.prompt;
           imageRefs = [src.url];
@@ -963,29 +1009,28 @@ export default function MarketingPanel({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            type: contentType === "video" ? "video" : "image",
+            type: "image",
             prompt,
             aspect_ratio: aspectRatio,
             resolution: "2K",
-            video_model: videoModel,
             image_input: imageRefs.length > 0 ? imageRefs : undefined,
           }),
         });
         const data = await res.json();
 
         if (data.error) {
-          logUsage?.(contentType === "video" ? "video-generate" : "image-generate", { status: "error", detail: data.error });
+          logUsage?.("image-generate", { status: "error", detail: data.error });
           setError((prev) => prev ? `${prev}\n${data.error}` : data.error);
           continue;
         }
 
-        logUsage?.(contentType === "video" ? "video-generate" : "image-generate", { status: "success", detail: template.label });
+        logUsage?.("image-generate", { status: "success", detail: template.label });
         newTasks.push({
           sourceId: src.id,
           sourceUrl: src.url,
           taskId: data.taskId,
           status: "waiting",
-          taskType: contentType === "video" ? "video" : "image",
+          taskType: "image",
         });
       }
 
@@ -1100,7 +1145,38 @@ export default function MarketingPanel({
     }
   };
 
-  const canGenerate = !!selectedTemplate && sourceImages.length > 0 && !loading;
+  // ── AI Refine prompt ──
+  const handleRefinePrompt = async () => {
+    if (!videoPrompt.trim() || refiningPrompt) return;
+    setRefiningPrompt(true);
+    try {
+      // Optionally send first source image for context
+      let imageUrl: string | undefined;
+      if (sourceImages.length > 0) {
+        const hosted = await uploadForReference(sourceImages[0]);
+        if (hosted) imageUrl = hosted;
+      }
+      const res = await fetch("/api/refine-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: videoPrompt, image_url: imageUrl }),
+      });
+      const data = await res.json();
+      if (data.prompt) {
+        setVideoPrompt(data.prompt);
+      } else if (data.error) {
+        setError(data.error);
+      }
+    } catch {
+      setError("Failed to refine prompt");
+    } finally {
+      setRefiningPrompt(false);
+    }
+  };
+
+  const canGenerate = contentType === "video"
+    ? sourceImages.length > 0 && !loading
+    : !!selectedTemplate && sourceImages.length > 0 && !loading;
   const isConsistentModel = selectedTemplate === "consistent-wearing";
   const isConsistentModelVideo = isConsistentModel && contentType === "video";
   const ratios = contentType === "video" ? VIDEO_RATIOS : IMAGE_RATIOS;
@@ -1570,8 +1646,8 @@ export default function MarketingPanel({
         </div>
       </div>
 
-      {/* ── Character Model Reference ── */}
-      {(selectedTemplate === "consistent-wearing" || characterImages.length > 0) && (
+      {/* ── Character Model Reference (image mode only) ── */}
+      {contentType !== "video" && (selectedTemplate === "consistent-wearing" || characterImages.length > 0) && (
         <div className="rounded-2xl border border-border bg-card/50 p-4">
           <div className="flex items-center justify-between mb-2">
             <div>
@@ -1758,7 +1834,41 @@ export default function MarketingPanel({
         </div>
       )}
 
-      {/* ── Studio Themes ── */}
+      {/* ── Video Prompt (only in video mode) ── */}
+      {contentType === "video" && (
+        <div className="rounded-2xl border border-border bg-card/50 p-4 space-y-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
+            {t("mkt.videoPromptTitle")}
+          </h2>
+          <textarea
+            value={videoPrompt}
+            onChange={(e) => setVideoPrompt(e.target.value)}
+            placeholder={t("mkt.videoPromptPlaceholder")}
+            rows={3}
+            className="w-full rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-foreground placeholder:text-muted/40 focus:outline-none focus:ring-2 focus:ring-foreground/20 resize-none"
+          />
+          <button
+            onClick={handleRefinePrompt}
+            disabled={!videoPrompt.trim() || refiningPrompt}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all border bg-card text-foreground border-border hover:border-foreground/20 hover:bg-card-hover disabled:opacity-30"
+          >
+            {refiningPrompt ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                {t("mkt.refining")}
+              </>
+            ) : (
+              <>
+                <Wand2 className="w-3.5 h-3.5" />
+                {t("mkt.aiRefine")}
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* ── Studio Themes (hidden in video mode) ── */}
+      {contentType !== "video" && (
       <div>
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">
           {t("mkt.studioTheme")}
@@ -1788,6 +1898,7 @@ export default function MarketingPanel({
           ))}
         </div>
       </div>
+      )}
 
       {/* Generation History */}
       {history.length > 0 && (
