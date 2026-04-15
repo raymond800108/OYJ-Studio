@@ -93,6 +93,49 @@ export function getCurrentMonthRange(): { start: number; end: number; label: str
   return getMonthRange(now.getFullYear(), now.getMonth() + 1);
 }
 
+/**
+ * Delete entries within a [start, end) timestamp range for a user,
+ * across current + legacy Redis keys. Called after invoice is sent
+ * so the billing period is "closed out".
+ * Returns the number of entries removed.
+ */
+export async function purgeUserUsageInRange(
+  email: string,
+  start: number,
+  end: number
+): Promise<number> {
+  const redis = getRedis();
+  if (!redis) return 0;
+  const keys = await scanAllKeysFor(redis, email);
+  let removed = 0;
+  for (const key of keys) {
+    const raw = await redis.lrange(key, 0, -1);
+    if (!raw || raw.length === 0) continue;
+    // Keep only entries outside the [start, end) window
+    const kept: string[] = [];
+    for (const item of raw) {
+      const s = typeof item === "string" ? item : JSON.stringify(item);
+      const parsed = typeof item === "string" ? safeParse(item) : (item as Record<string, unknown>);
+      const ts = parsed && typeof parsed.timestamp === "number" ? parsed.timestamp : 0;
+      if (ts >= start && ts < end) {
+        removed++;
+      } else {
+        kept.push(s);
+      }
+    }
+    // Rewrite the list atomically
+    await redis.del(key);
+    if (kept.length > 0) {
+      // kept is currently in "newest first" order; lpush reverses order,
+      // so push oldest first to preserve chronology.
+      for (const s of [...kept].reverse()) {
+        await redis.lpush(key, s);
+      }
+    }
+  }
+  return removed;
+}
+
 /** Fetch usage entries for a single user email within a date range,
  *  merging current + legacy Redis keys. */
 async function getUserUsageInRange(

@@ -115,6 +115,7 @@ const dict = {
   "usage.inOut": { en: "In: {in} / Out: {out}", zh: "輸入: {in} / 輸出: {out}" },
   "usage.errors": { en: "errors", zh: "錯誤" },
   "usage.last7Days": { en: "Cost — Last 7 Days", zh: "費用 — 最近 7 天" },
+  "usage.monthChart": { en: "Daily Cost", zh: "每日費用" },
   "usage.byAction": { en: "Cost by Action", zh: "依操作分類費用" },
   "usage.activityLog": { en: "Activity Log", zh: "活動記錄" },
   "usage.records": { en: "records", zh: "筆記錄" },

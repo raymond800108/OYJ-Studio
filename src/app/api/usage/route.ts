@@ -6,7 +6,12 @@ import { getSession, getUserProfile } from "@/lib/auth";
 
 const LEGACY_KEY = "ce:usage:entries";
 const USER_KEY_PREFIX = "ce:usage:user:";
-const MAX_ENTRIES = 1000;
+/** Hard safety cap to prevent a single user from blowing up Redis.
+ *  Entries are otherwise kept indefinitely until the admin sends an
+ *  invoice for the billing period. */
+const SAFETY_CAP = 10000;
+/** Max entries returned by list endpoints — separate from storage cap. */
+const MAX_ENTRIES = 2000;
 const SUPER_ADMIN = "raymond800108@gmail.com";
 // Always-visible accounts in the admin dropdown (even if they have 0 entries)
 const KNOWN_ACCOUNTS = [
@@ -284,7 +289,7 @@ export async function POST(req: NextRequest) {
         await redis.lpush(targetKey, JSON.stringify(stamped));
         migrated++;
       }
-      await redis.ltrim(targetKey, 0, MAX_ENTRIES - 1);
+      await redis.ltrim(targetKey, 0, SAFETY_CAP - 1);
       // Clear the legacy key so we don't double-migrate
       await redis.del(LEGACY_KEY);
 
@@ -311,7 +316,9 @@ export async function POST(req: NextRequest) {
       await redis.lpush(key, JSON.stringify(stamped));
     }
 
-    await redis.ltrim(key, 0, MAX_ENTRIES - 1);
+    // Only trim at the safety cap — entries are otherwise retained
+    // until admin sends an invoice for the billing period.
+    await redis.ltrim(key, 0, SAFETY_CAP - 1);
 
     return NextResponse.json({ ok: true, added: entries.length, key });
   } catch (err) {
