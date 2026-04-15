@@ -36,6 +36,39 @@ function emailToKey(email: string): string {
   return `${USER_KEY_PREFIX}${safe}`;
 }
 
+/** Recover canonical email from a Redis key, handling legacy `__at__`/`_` encoding. */
+function keyToEmail(key: string): string {
+  const raw = key.replace(USER_KEY_PREFIX, "");
+  let email = raw.replace(/__at__/gi, "@").replace(/_dot_/gi, ".");
+  const atIdx = email.indexOf("@");
+  if (atIdx >= 0) {
+    const local = email.slice(0, atIdx);
+    const domain = email.slice(atIdx + 1);
+    if (!domain.includes(".") && domain.includes("_")) {
+      email = `${local}@${domain.replace(/_/g, ".")}`;
+    }
+  }
+  return email.toLowerCase();
+}
+
+async function scanAllKeysFor(redis: Redis, email: string): Promise<string[]> {
+  const canonical = emailToKey(email);
+  const target = email.toLowerCase();
+  const keys: string[] = [];
+  let cursor = "0";
+  do {
+    const [next, batch] = await redis.scan(cursor, {
+      match: `${USER_KEY_PREFIX}*`,
+      count: 100,
+    });
+    cursor = String(next);
+    keys.push(...(batch as string[]));
+  } while (cursor !== "0");
+  const matching = keys.filter((k) => keyToEmail(k) === target);
+  if (!matching.includes(canonical)) matching.push(canonical);
+  return matching;
+}
+
 function safeParse(s: string): Record<string, unknown> | null {
   try {
     return JSON.parse(s);
@@ -60,25 +93,28 @@ export function getCurrentMonthRange(): { start: number; end: number; label: str
   return getMonthRange(now.getFullYear(), now.getMonth() + 1);
 }
 
-/** Fetch usage entries for a single user email within a date range. */
+/** Fetch usage entries for a single user email within a date range,
+ *  merging current + legacy Redis keys. */
 async function getUserUsageInRange(
   redis: Redis,
   email: string,
   start: number,
   end: number
 ): Promise<{ calls: number; costUsd: number }> {
-  const key = emailToKey(email);
-  const raw = await redis.lrange(key, 0, MAX_ENTRIES - 1);
-  if (!raw || raw.length === 0) return { calls: 0, costUsd: 0 };
+  const keys = await scanAllKeysFor(redis, email);
   let calls = 0;
   let costUsd = 0;
-  for (const item of raw) {
-    const parsed = typeof item === "string" ? safeParse(item) : (item as Record<string, unknown>);
-    if (!parsed) continue;
-    const ts = typeof parsed.timestamp === "number" ? parsed.timestamp : 0;
-    if (ts < start || ts >= end) continue;
-    calls += 1;
-    costUsd += typeof parsed.costUsd === "number" ? parsed.costUsd : 0;
+  for (const key of keys) {
+    const raw = await redis.lrange(key, 0, MAX_ENTRIES - 1);
+    if (!raw || raw.length === 0) continue;
+    for (const item of raw) {
+      const parsed = typeof item === "string" ? safeParse(item) : (item as Record<string, unknown>);
+      if (!parsed) continue;
+      const ts = typeof parsed.timestamp === "number" ? parsed.timestamp : 0;
+      if (ts < start || ts >= end) continue;
+      calls += 1;
+      costUsd += typeof parsed.costUsd === "number" ? parsed.costUsd : 0;
+    }
   }
   return { calls, costUsd };
 }
