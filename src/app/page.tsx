@@ -84,6 +84,18 @@ const UsagePanel = dynamic(
   }
 );
 
+const AdminInvoiceHub = dynamic(
+  () => import("@/components/AdminInvoiceHub"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center min-h-[400px] rounded-2xl bg-card border border-border">
+        <Loader2 className="w-5 h-5 animate-spin text-muted" />
+      </div>
+    ),
+  }
+);
+
 type Mode = "camera" | "inpaint" | "3d" | "marketing" | "lighting" | "usage";
 
 interface Estimation {
@@ -101,7 +113,21 @@ export default function Home() {
   const { user, openLogin, refresh: refreshAuth, ready, loading: authLoading } = useAuth();
   // Admin view mode: "self" | "all" | "<email>"
   const [usageViewMode, setUsageViewMode] = useState<"self" | "all" | string>("self");
+  const [usageSubTab, setUsageSubTab] = useState<"dashboard" | "invoices">("dashboard");
   const { entries: usageEntries, logUsage, clearUsage, summary: usageSummary, kvAvailable, refreshFromServer } = useUsageTracking(user?.email, usageViewMode);
+  const isAdminUser = user?.email?.toLowerCase() === "raymond800108@gmail.com";
+
+  // "Billed to" info for non-admin users
+  const [myCompany, setMyCompany] = useState<{ id: string; name: string } | null>(null);
+  useEffect(() => {
+    if (!user?.email) { setMyCompany(null); return; }
+    let cancelled = false;
+    fetch("/api/me/company")
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setMyCompany(d?.company ?? null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user?.email]);
 
   // Detect auth_error=not_allowed from OAuth redirect
   const [authError, setAuthError] = useState<string | null>(null);
@@ -736,19 +762,57 @@ export default function Home() {
       <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-5">
         {mode === "usage" ? (
           <div className="space-y-4">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
-              {t("usage.title" as import("@/lib/i18n").TKey)}
-            </h2>
-            <UsagePanel
-              entries={usageEntries}
-              summary={usageSummary}
-              onClear={clearUsage}
-              kvAvailable={kvAvailable}
-              onRefresh={refreshFromServer}
-              userEmail={user?.email}
-              viewMode={usageViewMode}
-              onViewModeChange={setUsageViewMode}
-            />
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
+                {t("usage.title" as import("@/lib/i18n").TKey)}
+              </h2>
+              {/* Non-admin: billed-to badge */}
+              {!isAdminUser && myCompany && (
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-card border border-border text-[11px]">
+                  <span className="text-muted">{t("invoice.billedTo" as import("@/lib/i18n").TKey)}</span>
+                  <span className="font-medium">{myCompany.name}</span>
+                </div>
+              )}
+              {/* Admin sub-tabs */}
+              {isAdminUser && (
+                <div className="flex items-center gap-1 p-1 rounded-full bg-card border border-border">
+                  <button
+                    onClick={() => setUsageSubTab("dashboard")}
+                    className={`px-3 py-1 rounded-full text-[11px] transition-colors ${
+                      usageSubTab === "dashboard"
+                        ? "bg-foreground text-background"
+                        : "text-muted hover:text-foreground"
+                    }`}
+                  >
+                    {t("invoice.usageDashboard" as import("@/lib/i18n").TKey)}
+                  </button>
+                  <button
+                    onClick={() => setUsageSubTab("invoices")}
+                    className={`px-3 py-1 rounded-full text-[11px] transition-colors ${
+                      usageSubTab === "invoices"
+                        ? "bg-foreground text-background"
+                        : "text-muted hover:text-foreground"
+                    }`}
+                  >
+                    {t("invoice.hub" as import("@/lib/i18n").TKey)}
+                  </button>
+                </div>
+              )}
+            </div>
+            {isAdminUser && usageSubTab === "invoices" ? (
+              <AdminInvoiceHub />
+            ) : (
+              <UsagePanel
+                entries={usageEntries}
+                summary={usageSummary}
+                onClear={clearUsage}
+                kvAvailable={kvAvailable}
+                onRefresh={refreshFromServer}
+                userEmail={user?.email}
+                viewMode={usageViewMode}
+                onViewModeChange={setUsageViewMode}
+              />
+            )}
           </div>
         ) : mode === "marketing" ? (
           <MarketingPanel

@@ -13,6 +13,8 @@ export interface UserProfile {
   plan: "free" | "starter" | "pro" | "business";
   credits: number;
   createdAt: number;
+  /** Company the user is billed under (admin-assigned) */
+  companyId?: string | null;
 }
 
 interface SessionPayload {
@@ -191,6 +193,59 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
   const data = await redis.get(`ce:user:${userId}`);
   if (!data) return null;
   return typeof data === "string" ? JSON.parse(data) : data as UserProfile;
+}
+
+/**
+ * Scan and return all user profiles (admin-only usage).
+ * Skips auxiliary keys like ce:user:email:* and ce:user:provider:*.
+ */
+export async function listAllUsers(): Promise<UserProfile[]> {
+  const redis = getRedis();
+  if (!redis) return [];
+
+  const keys: string[] = [];
+  let cursor = "0";
+  do {
+    const [next, batch] = await redis.scan(cursor, {
+      match: "ce:user:*",
+      count: 100,
+    });
+    cursor = String(next);
+    keys.push(...(batch as string[]));
+  } while (cursor !== "0");
+
+  // Filter: only direct profile keys like ce:user:{uuid}, skip ce:user:email:*
+  const profileKeys = keys.filter((k) => {
+    const tail = k.replace("ce:user:", "");
+    return !tail.includes(":"); // excludes email:foo, provider:xxx, etc.
+  });
+
+  if (profileKeys.length === 0) return [];
+
+  const results = await Promise.all(
+    profileKeys.map(async (key) => {
+      const data = await redis.get(key);
+      if (!data) return null;
+      return typeof data === "string"
+        ? (JSON.parse(data) as UserProfile)
+        : (data as UserProfile);
+    })
+  );
+
+  return results.filter((u): u is UserProfile => u !== null && typeof u.id === "string");
+}
+
+export async function updateUserProfile(
+  userId: string,
+  patch: Partial<Omit<UserProfile, "id" | "createdAt">>
+): Promise<UserProfile | null> {
+  const redis = getRedis();
+  if (!redis) return null;
+  const existing = await getUserProfile(userId);
+  if (!existing) return null;
+  const updated: UserProfile = { ...existing, ...patch };
+  await redis.set(`ce:user:${userId}`, JSON.stringify(updated));
+  return updated;
 }
 
 /* ─── Credit management ─────────────────────────────────────────── */

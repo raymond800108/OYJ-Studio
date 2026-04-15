@@ -322,6 +322,40 @@ const dict = {
 
   // ── TemplatePreview ──
   "preview.aiPowered": { en: "AI-Powered", zh: "AI 驅動" },
+
+  // ── Admin Invoice Hub ──
+  "invoice.hub": { en: "Invoice Hub", zh: "發票中心" },
+  "invoice.usageDashboard": { en: "Usage Dashboard", zh: "用量儀表板" },
+  "invoice.companies": { en: "Companies", zh: "公司" },
+  "invoice.newCompany": { en: "+ New Company", zh: "+ 新增公司" },
+  "invoice.companyName": { en: "Company name", zh: "公司名稱" },
+  "invoice.billingEmail": { en: "Billing email", zh: "帳單電子郵件" },
+  "invoice.notes": { en: "Notes (optional)", zh: "備註 (選填)" },
+  "invoice.save": { en: "Save", zh: "儲存" },
+  "invoice.cancel": { en: "Cancel", zh: "取消" },
+  "invoice.edit": { en: "Edit", zh: "編輯" },
+  "invoice.delete": { en: "Delete", zh: "刪除" },
+  "invoice.deleteConfirm": { en: "Delete this company?", zh: "確定刪除此公司？" },
+  "invoice.noCompanies": { en: "No companies yet. Create one to start billing.", zh: "尚未新增公司，請先建立。" },
+  "invoice.userAssignments": { en: "User ↔ Company Assignments", zh: "用戶與公司對應" },
+  "invoice.unassigned": { en: "— Unassigned —", zh: "— 未分配 —" },
+  "invoice.preview": { en: "Preview", zh: "預覽" },
+  "invoice.sendInvoice": { en: "Send Invoice", zh: "寄送發票" },
+  "invoice.sending": { en: "Sending...", zh: "寄送中..." },
+  "invoice.sendConfirm": { en: "Send invoice to {email}?", zh: "確定寄送發票至 {email}？" },
+  "invoice.period": { en: "Period", zh: "計費期間" },
+  "invoice.total": { en: "Total", zh: "總計" },
+  "invoice.lines": { en: "User lines", zh: "用戶明細" },
+  "invoice.sentOk": { en: "Invoice sent to {email}", zh: "發票已寄出至 {email}" },
+  "invoice.sentFail": { en: "Send failed: {error}", zh: "寄送失敗：{error}" },
+  "invoice.billedTo": { en: "Billed to:", zh: "帳單對象：" },
+  "invoice.thisMonth": { en: "This Month", zh: "本月" },
+  "invoice.noUsers": { en: "No users assigned to this company", zh: "此公司尚無分配用戶" },
+  "invoice.selectCompany": { en: "Select a company to preview", zh: "選擇公司以預覽" },
+  "invoice.resendNotConfigured": {
+    en: "Email provider not configured. Invoice built but not sent — set RESEND_API_KEY to enable.",
+    zh: "尚未設定郵件服務，發票已產生但未寄出 — 請設定 RESEND_API_KEY。",
+  },
 } as const;
 
 export type TKey = keyof typeof dict;
