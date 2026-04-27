@@ -225,13 +225,16 @@ export async function getUserMonthCost(
 
 /** Render a simple HTML invoice body for email. */
 export function renderInvoiceHtml(data: InvoiceData): string {
+  const fmt = (n: number) =>
+    `$${n.toFixed(2)} <span style="color:#888;font-size:11px;font-weight:normal">USD</span>`;
+
   const rows = data.lines
     .map(
       (l) => `
     <tr>
       <td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(l.userName)}<br/><span style="color:#888;font-size:12px">${escapeHtml(l.userEmail || "")}</span></td>
       <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${l.calls}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;font-family:monospace">$${l.costUsd.toFixed(2)}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;font-family:monospace">${fmt(l.costUsd)}</td>
     </tr>`
     )
     .join("");
@@ -240,6 +243,7 @@ export function renderInvoiceHtml(data: InvoiceData): string {
 <html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#222;max-width:640px;margin:0 auto;padding:24px">
   <h1 style="font-size:20px;margin-bottom:4px">Invoice — ${escapeHtml(data.periodLabel)}</h1>
   <p style="color:#666;margin-top:0">Billed to: <strong>${escapeHtml(data.company.name)}</strong></p>
+  <p style="color:#888;margin-top:0;font-size:12px">All amounts in <strong>US Dollars (USD)</strong>.</p>
   <table style="width:100%;border-collapse:collapse;margin-top:24px">
     <thead>
       <tr style="background:#f8f8f8">
@@ -253,7 +257,7 @@ export function renderInvoiceHtml(data: InvoiceData): string {
       <tr>
         <td style="padding:12px 8px;font-weight:bold">Total</td>
         <td style="padding:12px 8px;text-align:right;font-weight:bold">${data.totalCalls}</td>
-        <td style="padding:12px 8px;text-align:right;font-weight:bold;font-family:monospace">$${data.totalCostUsd.toFixed(2)}</td>
+        <td style="padding:12px 8px;text-align:right;font-weight:bold;font-family:monospace">${fmt(data.totalCostUsd)}</td>
       </tr>
     </tfoot>
   </table>
