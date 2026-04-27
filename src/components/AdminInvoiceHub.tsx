@@ -195,13 +195,21 @@ export default function AdminInvoiceHub() {
       const res = await fetch("/api/admin/invoices/test-send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: "raymond800108@gmail.com" }),
+        body: JSON.stringify({
+          to: "raymond800108@gmail.com",
+          companyId: selectedCompanyId || undefined,
+          year: period.year,
+          month: period.month,
+        }),
       });
       const data = await res.json();
       if (res.ok && data.ok) {
+        const desc = data.companyName
+          ? `${data.companyName} · ${data.periodLabel} · $${(data.totalCostUsd ?? 0).toFixed(2)}`
+          : data.periodLabel;
         setToast({
           kind: "ok",
-          msg: `Test invoice sent to ${data.sentTo}. Check inbox & spam.`,
+          msg: `Test sent to ${data.sentTo} — ${desc}. Check inbox & spam.`,
         });
       } else {
         setToast({ kind: "err", msg: `Test send failed: ${data.error || "unknown"}` });
