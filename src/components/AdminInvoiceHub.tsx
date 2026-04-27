@@ -85,6 +85,7 @@ export default function AdminInvoiceHub() {
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [testSending, setTestSending] = useState(false);
   const [toast, setToast] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
 
   /* ─── Fetchers ──────────────────────────────────────────────── */
@@ -186,6 +187,34 @@ export default function AdminInvoiceHub() {
   useEffect(() => {
     fetchPreview();
   }, [fetchPreview]);
+
+  async function sendTestInvoice() {
+    setTestSending(true);
+    setToast(null);
+    try {
+      const res = await fetch("/api/admin/invoices/test-send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: "raymond800108@gmail.com" }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setToast({
+          kind: "ok",
+          msg: `Test invoice sent to ${data.sentTo}. Check inbox & spam.`,
+        });
+      } else {
+        setToast({ kind: "err", msg: `Test send failed: ${data.error || "unknown"}` });
+      }
+    } catch (err) {
+      setToast({
+        kind: "err",
+        msg: `Test send failed: ${err instanceof Error ? err.message : "unknown"}`,
+      });
+    } finally {
+      setTestSending(false);
+    }
+  }
 
   async function sendInvoice() {
     if (!invoice) return;
@@ -400,10 +429,25 @@ export default function AdminInvoiceHub() {
 
       {/* ── Invoice preview & send ── */}
       <div className="p-4 rounded-2xl bg-card border border-border">
-        <h3 className="text-xs font-semibold mb-3 flex items-center gap-2">
-          <Mail className="w-3.5 h-3.5 text-muted" />
-          {t("invoice.hub" as TKey)}
-        </h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-semibold flex items-center gap-2">
+            <Mail className="w-3.5 h-3.5 text-muted" />
+            {t("invoice.hub" as TKey)}
+          </h3>
+          <button
+            onClick={sendTestInvoice}
+            disabled={testSending}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] text-muted hover:text-foreground border border-border hover:border-foreground/20 disabled:opacity-50 transition-colors"
+            title="Send a sample invoice to raymond800108@gmail.com to verify Resend"
+          >
+            {testSending ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Send className="w-3 h-3" />
+            )}
+            {testSending ? "Sending..." : "Send Test Email"}
+          </button>
+        </div>
 
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <select

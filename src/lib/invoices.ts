@@ -276,12 +276,13 @@ function escapeHtml(s: string): string {
  * Requires RESEND_API_KEY env var; throws if not configured.
  */
 export async function sendInvoiceEmail(data: InvoiceData): Promise<{ ok: true; id?: string } | { ok: false; error: string }> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const fromAddr = process.env.RESEND_FROM_EMAIL || "invoices@contentengine.app";
+  // Accept either RESEND_API_KEY (canonical) or RESEND_KEY (shorthand)
+  const apiKey = process.env.RESEND_API_KEY || process.env.RESEND_KEY;
+  const fromAddr = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
   if (!apiKey) {
     return {
       ok: false,
-      error: "RESEND_API_KEY not configured. Set it in env to enable email sending.",
+      error: "RESEND_API_KEY (or RESEND_KEY) not configured. Set it in env to enable email sending.",
     };
   }
 
