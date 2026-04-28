@@ -158,7 +158,6 @@ function InvoiceDocument({ data, invoiceNumber, issueTs, dueTs }: Props) {
             <Text style={styles.wordmark}>
               convra<Text style={styles.wordmarkAccent}>.</Text>
             </Text>
-            <Text style={styles.websiteLine}>{BUSINESS.website}</Text>
           </View>
           <View style={{ alignItems: "flex-end" }}>
             <Text style={styles.invoiceLabel}>Invoice</Text>
@@ -174,7 +173,6 @@ function InvoiceDocument({ data, invoiceNumber, issueTs, dueTs }: Props) {
           <View style={styles.party}>
             <Text style={styles.partyLabel}>Billed to</Text>
             <Text style={styles.partyName}>{data.company.name}</Text>
-            <Text style={styles.partyMono}>{data.company.email}</Text>
           </View>
           <View style={[styles.party, { alignItems: "flex-end" }]}>
             <Text style={styles.partyLabel}>From</Text>

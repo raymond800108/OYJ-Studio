@@ -299,7 +299,6 @@ export function renderInvoiceHtml(data: InvoiceData): string {
           <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;font-weight:300;letter-spacing:1px;color:${brand.primary};line-height:1">
             convra<span style="color:${brand.accent}">.</span>
           </div>
-          <div style="margin-top:6px;color:${brand.muted};font-size:11px;letter-spacing:1.5px;text-transform:uppercase">${escapeHtml(BUSINESS.website)}</div>
         </td>
         <td style="padding:32px 40px 24px 40px;vertical-align:top;text-align:right">
           <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:${brand.muted};margin-bottom:8px">Invoice</div>
@@ -316,8 +315,7 @@ export function renderInvoiceHtml(data: InvoiceData): string {
       <tr>
         <td style="padding:32px 40px 16px 40px;vertical-align:top;width:50%">
           <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${brand.muted};margin-bottom:10px">Billed to</div>
-          <div style="font-size:15px;font-weight:600;color:${brand.text};margin-bottom:4px">${escapeHtml(data.company.name)}</div>
-          <div style="font-size:12px;color:${brand.muted};font-family:'SF Mono',Menlo,monospace">${escapeHtml(data.company.email)}</div>
+          <div style="font-size:15px;font-weight:600;color:${brand.text}">${escapeHtml(data.company.name)}</div>
         </td>
         <td style="padding:32px 40px 16px 40px;vertical-align:top;width:50%;text-align:right">
           <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${brand.muted};margin-bottom:10px">From</div>
