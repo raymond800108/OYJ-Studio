@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/requireAdmin";
 import { buildInvoice, sendInvoiceEmail } from "@/lib/invoices";
 import type { InvoiceData } from "@/lib/invoices";
+import { previewInvoiceNumber } from "@/lib/invoice-number";
+import { renderInvoicePdfBase64 } from "@/lib/invoice-pdf";
+import { INVOICE_DEFAULTS } from "@/lib/business";
 
 /**
  * Send a real invoice (built from the selected company/year/month) but
@@ -83,7 +86,24 @@ export async function POST(req: NextRequest) {
     };
   }
 
-  const result = await sendInvoiceEmail(invoice);
+  // Use a preview-tagged invoice number so we don't burn a real sequence
+  const invoiceNumber = previewInvoiceNumber(year, month);
+  const issueTs = Date.now();
+  const dueTs = issueTs + INVOICE_DEFAULTS.netDays * 86400000;
+  invoice = { ...invoice, invoiceNumber, issueDate: issueTs, dueDate: dueTs };
+
+  // Build PDF attachment
+  let pdfBase64: string | null = null;
+  try {
+    pdfBase64 = await renderInvoicePdfBase64(invoice, invoiceNumber, issueTs, dueTs);
+  } catch (err) {
+    console.error("[test-send] PDF render error:", err);
+  }
+  const attachments = pdfBase64
+    ? [{ filename: `${invoiceNumber}.pdf`, content: pdfBase64 }]
+    : undefined;
+
+  const result = await sendInvoiceEmail(invoice, attachments);
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 502 });
   }
@@ -91,10 +111,12 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     messageId: result.id,
+    invoiceNumber,
     sentTo: to,
     companyName: invoice.company.name,
     periodLabel: invoice.periodLabel,
     totalCostUsd: invoice.totalCostUsd,
     lineCount: invoice.lines.length,
+    pdfAttached: !!pdfBase64,
   });
 }

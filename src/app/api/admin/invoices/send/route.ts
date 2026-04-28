@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/requireAdmin";
 import { buildInvoice, sendInvoiceEmail, purgeUserUsageInRange } from "@/lib/invoices";
+import { allocateInvoiceNumber } from "@/lib/invoice-number";
+import { renderInvoicePdfBase64 } from "@/lib/invoice-pdf";
+import { INVOICE_DEFAULTS } from "@/lib/business";
 
 export async function POST(req: NextRequest) {
   const guard = await requireAdmin();
@@ -16,20 +19,40 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "companyId is required" }, { status: 400 });
   }
 
-  const invoice = await buildInvoice(companyId, year, month);
-  if (!invoice) {
+  const builtInvoice = await buildInvoice(companyId, year, month);
+  if (!builtInvoice) {
     return NextResponse.json(
       { error: "Company not found or Redis unavailable" },
       { status: 404 }
     );
   }
 
-  const result = await sendInvoiceEmail(invoice);
+  // Allocate sequential invoice number + dates
+  const invoiceNumber = await allocateInvoiceNumber(year, month);
+  const issueTs = Date.now();
+  const dueTs = issueTs + INVOICE_DEFAULTS.netDays * 86400000;
+  const invoice = { ...builtInvoice, invoiceNumber, issueDate: issueTs, dueDate: dueTs };
+
+  // Render PDF attachment
+  let pdfBase64: string | null = null;
+  try {
+    pdfBase64 = await renderInvoicePdfBase64(invoice, invoiceNumber, issueTs, dueTs);
+  } catch (err) {
+    console.error("[invoice-send] PDF render error:", err);
+    // Continue without attachment rather than failing the email
+  }
+
+  const attachments = pdfBase64
+    ? [{ filename: `${invoiceNumber}.pdf`, content: pdfBase64 }]
+    : undefined;
+
+  const result = await sendInvoiceEmail(invoice, attachments);
   if (!result.ok) {
     return NextResponse.json(
       {
         error: result.error,
         invoice: {
+          invoiceNumber,
           companyName: invoice.company.name,
           companyEmail: invoice.company.email,
           periodLabel: invoice.periodLabel,
@@ -55,9 +78,11 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     messageId: result.id,
+    invoiceNumber,
     sentTo: invoice.company.email,
     periodLabel: invoice.periodLabel,
     totalCostUsd: invoice.totalCostUsd,
     purgedEntries: purged,
+    pdfAttached: !!pdfBase64,
   });
 }

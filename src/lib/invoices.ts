@@ -4,6 +4,7 @@ import { listAllUsers } from "./auth";
 import type { UserProfile } from "./auth";
 import { getCompany } from "./companies";
 import type { Company } from "./companies";
+import { BUSINESS, BANK, INVOICE_DEFAULTS } from "./business";
 
 /* ─── Types ─────────────────────────────────────────────────────── */
 
@@ -24,6 +25,12 @@ export interface InvoiceData {
   lines: InvoiceLine[];
   totalCalls: number;
   totalCostUsd: number;
+  /** Sequential invoice number, e.g. "INV-2026-04-001" — set at send time */
+  invoiceNumber?: string;
+  /** Issue date (ms since epoch) — defaults to now */
+  issueDate?: number;
+  /** Due date (ms since epoch) — defaults to issueDate + 14 days */
+  dueDate?: number;
 }
 
 /* ─── Helpers ───────────────────────────────────────────────────── */
@@ -223,47 +230,215 @@ export async function getUserMonthCost(
   return { calls, costUsd, periodLabel: range.label };
 }
 
-/** Render a simple HTML invoice body for email. */
-export function renderInvoiceHtml(data: InvoiceData): string {
-  const fmt = (n: number) =>
-    `$${n.toFixed(2)} <span style="color:#888;font-size:11px;font-weight:normal">USD</span>`;
+/* ─── Date helpers ──────────────────────────────────────────────── */
 
-  const rows = data.lines
+function formatDate(ts: number): string {
+  return new Date(ts).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }); // "16 Apr 2026"
+}
+
+function ensureDates(data: InvoiceData): {
+  invoiceNumber: string;
+  issueTs: number;
+  dueTs: number;
+} {
+  const issueTs = data.issueDate ?? Date.now();
+  const dueTs = data.dueDate ?? issueTs + INVOICE_DEFAULTS.netDays * 86400000;
+  const invoiceNumber = data.invoiceNumber ?? "INV-PREVIEW";
+  return { invoiceNumber, issueTs, dueTs };
+}
+
+/** Render a polished, professional HTML invoice for email + preview. */
+export function renderInvoiceHtml(data: InvoiceData): string {
+  const { invoiceNumber, issueTs, dueTs } = ensureDates(data);
+  const { brand } = BUSINESS;
+
+  // USD amount formatter
+  const fmt = (n: number) => `$${n.toFixed(2)}`;
+  const fmtUsd = (n: number) =>
+    `${fmt(n)} <span style="color:${brand.muted};font-size:10px;font-weight:400;letter-spacing:0.5px">USD</span>`;
+
+  const lineRows = data.lines
     .map(
-      (l) => `
-    <tr>
-      <td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(l.userName)}<br/><span style="color:#888;font-size:12px">${escapeHtml(l.userEmail || "")}</span></td>
-      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${l.calls}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;font-family:monospace">${fmt(l.costUsd)}</td>
+      (l, i) => `
+    <tr style="background:${i % 2 === 0 ? "#fff" : brand.softBg}">
+      <td style="padding:12px 16px;border-bottom:1px solid ${brand.border};font-size:13px;color:${brand.text}">
+        <div style="font-weight:500">${escapeHtml(l.userName)}</div>
+        <div style="color:${brand.muted};font-size:11px;margin-top:2px;font-family:'SF Mono',Menlo,monospace">${escapeHtml(l.userEmail || "")}</div>
+      </td>
+      <td style="padding:12px 16px;border-bottom:1px solid ${brand.border};text-align:right;font-size:13px;color:${brand.text};font-variant-numeric:tabular-nums">${l.calls}</td>
+      <td style="padding:12px 16px;border-bottom:1px solid ${brand.border};text-align:right;font-size:13px;font-family:'SF Mono',Menlo,monospace;color:${brand.text}">${fmt(l.costUsd)}</td>
     </tr>`
     )
     .join("");
 
+  const emptyRow = `<tr><td colspan="3" style="padding:32px 16px;text-align:center;color:${brand.muted};font-size:13px">No usage recorded for this period.</td></tr>`;
+
+  const businessAddress = BUSINESS.addressLines
+    .map((l) => escapeHtml(l))
+    .join("<br/>");
+
   return `<!doctype html>
-<html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#222;max-width:640px;margin:0 auto;padding:24px">
-  <h1 style="font-size:20px;margin-bottom:4px">Invoice — ${escapeHtml(data.periodLabel)}</h1>
-  <p style="color:#666;margin-top:0">Billed to: <strong>${escapeHtml(data.company.name)}</strong></p>
-  <p style="color:#888;margin-top:0;font-size:12px">All amounts in <strong>US Dollars (USD)</strong>.</p>
-  <table style="width:100%;border-collapse:collapse;margin-top:24px">
-    <thead>
-      <tr style="background:#f8f8f8">
-        <th style="padding:8px;text-align:left;border-bottom:2px solid #ddd">User</th>
-        <th style="padding:8px;text-align:right;border-bottom:2px solid #ddd">Calls</th>
-        <th style="padding:8px;text-align:right;border-bottom:2px solid #ddd">Cost (USD)</th>
-      </tr>
-    </thead>
-    <tbody>${rows || `<tr><td colspan="3" style="padding:16px;text-align:center;color:#888">No usage this period</td></tr>`}</tbody>
-    <tfoot>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Invoice ${escapeHtml(invoiceNumber)}</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f3f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:${brand.text};-webkit-font-smoothing:antialiased">
+  <div style="max-width:680px;margin:0 auto;background:#ffffff;padding:0">
+
+    <!-- Header bar -->
+    <table width="100%" style="border-collapse:collapse">
       <tr>
-        <td style="padding:12px 8px;font-weight:bold">Total</td>
-        <td style="padding:12px 8px;text-align:right;font-weight:bold">${data.totalCalls}</td>
-        <td style="padding:12px 8px;text-align:right;font-weight:bold;font-family:monospace">${fmt(data.totalCostUsd)}</td>
+        <td style="padding:32px 40px 24px 40px;vertical-align:top">
+          <!-- convra. wordmark -->
+          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:32px;font-weight:300;letter-spacing:1px;color:${brand.primary};line-height:1">
+            convra<span style="color:${brand.accent}">.</span>
+          </div>
+          <div style="margin-top:6px;color:${brand.muted};font-size:11px;letter-spacing:1.5px;text-transform:uppercase">${escapeHtml(BUSINESS.website)}</div>
+        </td>
+        <td style="padding:32px 40px 24px 40px;vertical-align:top;text-align:right">
+          <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:${brand.muted};margin-bottom:8px">Invoice</div>
+          <div style="font-size:18px;font-weight:600;font-family:'SF Mono',Menlo,monospace;color:${brand.text}">${escapeHtml(invoiceNumber)}</div>
+        </td>
       </tr>
-    </tfoot>
-  </table>
-  ${data.company.notes ? `<p style="margin-top:24px;color:#666;font-size:13px">${escapeHtml(data.company.notes)}</p>` : ""}
-  <p style="margin-top:32px;color:#aaa;font-size:12px">ContentEngine — costs are estimated based on published API pricing.</p>
-</body></html>`;
+    </table>
+
+    <!-- Accent divider -->
+    <div style="height:3px;background:linear-gradient(to right, ${brand.primary} 0%, ${brand.primary} 70%, ${brand.accent} 70%, ${brand.accent} 100%)"></div>
+
+    <!-- Bill To / From -->
+    <table width="100%" style="border-collapse:collapse">
+      <tr>
+        <td style="padding:32px 40px 16px 40px;vertical-align:top;width:50%">
+          <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${brand.muted};margin-bottom:10px">Billed to</div>
+          <div style="font-size:15px;font-weight:600;color:${brand.text};margin-bottom:4px">${escapeHtml(data.company.name)}</div>
+          <div style="font-size:12px;color:${brand.muted};font-family:'SF Mono',Menlo,monospace">${escapeHtml(data.company.email)}</div>
+        </td>
+        <td style="padding:32px 40px 16px 40px;vertical-align:top;width:50%;text-align:right">
+          <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${brand.muted};margin-bottom:10px">From</div>
+          <div style="font-size:14px;font-weight:600;color:${brand.text};margin-bottom:4px">${escapeHtml(BUSINESS.legalName)}</div>
+          <div style="font-size:12px;color:${brand.muted};line-height:1.6">${businessAddress}</div>
+          <div style="font-size:11px;color:${brand.muted};margin-top:8px;font-family:'SF Mono',Menlo,monospace">${escapeHtml(BUSINESS.email)}<br/>${escapeHtml(BUSINESS.phone)}</div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Meta strip -->
+    <table width="100%" style="border-collapse:collapse;margin:0 40px;width:calc(100% - 80px)">
+      <tr>
+        <td style="background:${brand.softBg};border-radius:8px;padding:16px 20px">
+          <table width="100%" style="border-collapse:collapse">
+            <tr>
+              <td style="vertical-align:top">
+                <div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:${brand.muted};margin-bottom:4px">Period</div>
+                <div style="font-size:13px;font-weight:600;color:${brand.text}">${escapeHtml(data.periodLabel)}</div>
+              </td>
+              <td style="vertical-align:top">
+                <div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:${brand.muted};margin-bottom:4px">Issued</div>
+                <div style="font-size:13px;font-weight:600;color:${brand.text}">${formatDate(issueTs)}</div>
+              </td>
+              <td style="vertical-align:top">
+                <div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:${brand.muted};margin-bottom:4px">Due</div>
+                <div style="font-size:13px;font-weight:600;color:${brand.accent}">${formatDate(dueTs)}</div>
+              </td>
+              <td style="vertical-align:top;text-align:right">
+                <div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:${brand.muted};margin-bottom:4px">Currency</div>
+                <div style="font-size:13px;font-weight:600;color:${brand.text}">USD</div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Line items table -->
+    <div style="padding:24px 40px 0 40px">
+      <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${brand.muted};margin-bottom:12px">Usage Details</div>
+      <table width="100%" style="border-collapse:collapse;border:1px solid ${brand.border};border-radius:8px;overflow:hidden">
+        <thead>
+          <tr style="background:${brand.text}">
+            <th style="padding:12px 16px;text-align:left;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#fff;font-weight:500">User</th>
+            <th style="padding:12px 16px;text-align:right;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#fff;font-weight:500">Calls</th>
+            <th style="padding:12px 16px;text-align:right;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#fff;font-weight:500">Cost</th>
+          </tr>
+        </thead>
+        <tbody>${lineRows || emptyRow}</tbody>
+      </table>
+    </div>
+
+    <!-- Totals -->
+    <div style="padding:16px 40px 0 40px">
+      <table width="100%" style="border-collapse:collapse">
+        <tr>
+          <td style="text-align:right;padding:8px 16px;color:${brand.muted};font-size:12px">Total Calls</td>
+          <td style="text-align:right;padding:8px 16px;font-size:13px;color:${brand.text};font-variant-numeric:tabular-nums;width:140px">${data.totalCalls}</td>
+        </tr>
+        <tr>
+          <td style="text-align:right;padding:8px 16px;color:${brand.muted};font-size:12px;border-top:1px solid ${brand.border}">Subtotal</td>
+          <td style="text-align:right;padding:8px 16px;font-size:13px;color:${brand.text};font-family:'SF Mono',Menlo,monospace;border-top:1px solid ${brand.border};width:140px">${fmt(data.totalCostUsd)}</td>
+        </tr>
+        <tr>
+          <td style="text-align:right;padding:8px 16px;color:${brand.muted};font-size:11px">Tax</td>
+          <td style="text-align:right;padding:8px 16px;font-size:11px;color:${brand.muted};width:140px">—</td>
+        </tr>
+        <tr>
+          <td style="text-align:right;padding:14px 16px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:${brand.text};font-weight:600;border-top:2px solid ${brand.text}">Total Due</td>
+          <td style="text-align:right;padding:14px 16px;font-size:18px;color:${brand.text};font-family:'SF Mono',Menlo,monospace;font-weight:700;border-top:2px solid ${brand.text};width:140px">${fmtUsd(data.totalCostUsd)}</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Payment Instructions -->
+    <div style="padding:32px 40px 0 40px">
+      <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${brand.muted};margin-bottom:12px">Payment Instructions</div>
+      <table width="100%" style="border-collapse:collapse;border-left:3px solid ${brand.accent};background:${brand.softBg}">
+        <tr>
+          <td style="padding:18px 20px;font-size:12px;color:${brand.text};line-height:1.8">
+            <div style="margin-bottom:8px;color:${brand.muted};font-size:11px">Wire transfer (USD or local equivalent) — payment terms: <strong style="color:${brand.text}">Net ${INVOICE_DEFAULTS.netDays} days</strong></div>
+            <table width="100%" style="border-collapse:collapse;margin-top:8px;font-size:12px">
+              <tr><td style="padding:3px 0;color:${brand.muted};width:120px">Beneficiary</td><td style="padding:3px 0;color:${brand.text};font-weight:500">${escapeHtml(BANK.beneficiary)} <span style="color:${brand.muted}">(${escapeHtml(BANK.beneficiaryZh)})</span></td></tr>
+              <tr><td style="padding:3px 0;color:${brand.muted}">Bank</td><td style="padding:3px 0;color:${brand.text}">${escapeHtml(BANK.bank)}</td></tr>
+              <tr><td style="padding:3px 0;color:${brand.muted}">Branch</td><td style="padding:3px 0;color:${brand.text}">${escapeHtml(BANK.branch)}</td></tr>
+              <tr><td style="padding:3px 0;color:${brand.muted}">Account No.</td><td style="padding:3px 0;color:${brand.text};font-family:'SF Mono',Menlo,monospace">${escapeHtml(BANK.account)}</td></tr>
+              <tr><td style="padding:3px 0;color:${brand.muted}">Bank Code</td><td style="padding:3px 0;color:${brand.text};font-family:'SF Mono',Menlo,monospace">${escapeHtml(BANK.bankCode)}</td></tr>
+              <tr><td style="padding:3px 0;color:${brand.muted}">SWIFT / BIC</td><td style="padding:3px 0;color:${brand.text};font-family:'SF Mono',Menlo,monospace">${escapeHtml(BANK.swift)}</td></tr>
+            </table>
+            <div style="margin-top:12px;padding-top:10px;border-top:1px solid ${brand.border};color:${brand.muted};font-size:11px">
+              Please include invoice number <strong style="color:${brand.text};font-family:'SF Mono',Menlo,monospace">${escapeHtml(invoiceNumber)}</strong> in the wire transfer reference.
+            </div>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    ${data.company.notes ? `
+    <div style="padding:24px 40px 0 40px">
+      <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${brand.muted};margin-bottom:8px">Notes</div>
+      <div style="font-size:12px;color:${brand.muted};line-height:1.6;white-space:pre-wrap">${escapeHtml(data.company.notes)}</div>
+    </div>` : ""}
+
+    <!-- Footer -->
+    <div style="padding:40px 40px 32px 40px;margin-top:24px;border-top:1px solid ${brand.border}">
+      <div style="font-size:13px;color:${brand.text};margin-bottom:6px">${escapeHtml(INVOICE_DEFAULTS.thankYou)}</div>
+      <div style="font-size:11px;color:${brand.muted};line-height:1.6">${escapeHtml(INVOICE_DEFAULTS.legal)}</div>
+      <div style="font-size:10px;color:${brand.muted};margin-top:16px;letter-spacing:0.5px">
+        Questions about this invoice? Reply to this email and it will reach <strong style="color:${brand.text}">${escapeHtml(BUSINESS.email)}</strong> directly.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Outer footer -->
+  <div style="text-align:center;padding:16px 24px;color:${brand.muted};font-size:10px">
+    ${escapeHtml(BUSINESS.legalName)} &middot; ${escapeHtml(BUSINESS.website)}
+  </div>
+</body>
+</html>`;
 }
 
 function escapeHtml(s: string): string {
@@ -277,9 +452,15 @@ function escapeHtml(s: string): string {
 
 /**
  * Send an invoice via Resend. Returns result metadata.
- * Requires RESEND_API_KEY env var; throws if not configured.
+ * Requires RESEND_API_KEY env var; returns ok:false otherwise.
+ *
+ * @param data        Invoice data (must have invoiceNumber by send time)
+ * @param attachments Optional file attachments (e.g. PDF copy)
  */
-export async function sendInvoiceEmail(data: InvoiceData): Promise<{ ok: true; id?: string } | { ok: false; error: string }> {
+export async function sendInvoiceEmail(
+  data: InvoiceData,
+  attachments?: { filename: string; content: string /* base64 */ }[]
+): Promise<{ ok: true; id?: string } | { ok: false; error: string }> {
   // Accept either RESEND_API_KEY (canonical) or RESEND_KEY (shorthand)
   const apiKey = process.env.RESEND_API_KEY || process.env.RESEND_KEY;
   const fromAddr = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
@@ -291,7 +472,20 @@ export async function sendInvoiceEmail(data: InvoiceData): Promise<{ ok: true; i
   }
 
   const html = renderInvoiceHtml(data);
-  const subject = `Invoice — ${data.company.name} — ${data.periodLabel}`;
+  const invNum = data.invoiceNumber || "INV";
+  const subject = `Invoice ${invNum} from ${BUSINESS.legalName} — ${data.periodLabel}`;
+
+  const payload: Record<string, unknown> = {
+    from: fromAddr,
+    to: data.company.email,
+    subject,
+    html,
+    reply_to: BUSINESS.email,
+  };
+
+  if (attachments && attachments.length > 0) {
+    payload.attachments = attachments;
+  }
 
   try {
     const res = await fetch("https://api.resend.com/emails", {
@@ -300,12 +494,7 @@ export async function sendInvoiceEmail(data: InvoiceData): Promise<{ ok: true; i
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        from: fromAddr,
-        to: data.company.email,
-        subject,
-        html,
-      }),
+      body: JSON.stringify(payload),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
