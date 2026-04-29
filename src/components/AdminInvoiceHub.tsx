@@ -87,6 +87,8 @@ export default function AdminInvoiceHub() {
   const [sending, setSending] = useState(false);
   const [testSending, setTestSending] = useState(false);
   const [toast, setToast] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
+  /** Selected recipient for the real "Send Invoice" — defaults to company billing email */
+  const [selectedRecipient, setSelectedRecipient] = useState<string>("");
 
   /* ─── Fetchers ──────────────────────────────────────────────── */
 
@@ -188,6 +190,12 @@ export default function AdminInvoiceHub() {
     fetchPreview();
   }, [fetchPreview]);
 
+  // Whenever a new invoice is loaded, reset the recipient picker to the
+  // company's billing email by default.
+  useEffect(() => {
+    setSelectedRecipient(invoice?.company.email ?? "");
+  }, [invoice?.company.id, invoice?.company.email]);
+
   async function sendTestInvoice() {
     setTestSending(true);
     setToast(null);
@@ -226,7 +234,8 @@ export default function AdminInvoiceHub() {
 
   async function sendInvoice() {
     if (!invoice) return;
-    if (!confirm(t("invoice.sendConfirm" as TKey, { email: invoice.company.email }))) return;
+    const recipient = selectedRecipient || invoice.company.email;
+    if (!confirm(t("invoice.sendConfirm" as TKey, { email: recipient }))) return;
     setSending(true);
     setToast(null);
     try {
@@ -237,6 +246,7 @@ export default function AdminInvoiceHub() {
           companyId: invoice.company.id,
           year: period.year,
           month: period.month,
+          recipientEmail: recipient,
         }),
       });
       const data = await res.json();
@@ -506,18 +516,46 @@ export default function AdminInvoiceHub() {
           )}
 
           {invoice && (
-            <button
-              onClick={sendInvoice}
-              disabled={sending}
-              className="ml-auto flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] bg-foreground text-background hover:opacity-90 disabled:opacity-50 transition-opacity"
-            >
-              {sending ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
-              ) : (
-                <Send className="w-3 h-3" />
-              )}
-              {sending ? t("invoice.sending" as TKey) : t("invoice.sendInvoice" as TKey)}
-            </button>
+            <div className="ml-auto flex items-center gap-2">
+              {/* Recipient picker — choose which user/email gets the real invoice */}
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full border border-border bg-background">
+                <span className="text-[10px] text-muted">Send to:</span>
+                <select
+                  value={selectedRecipient}
+                  onChange={(e) => setSelectedRecipient(e.target.value)}
+                  className="text-[11px] bg-transparent outline-none cursor-pointer pr-1 max-w-[200px] truncate"
+                  title="Choose recipient"
+                >
+                  <option value={invoice.company.email}>
+                    {invoice.company.email} (billing)
+                  </option>
+                  {users
+                    .filter(
+                      (u) =>
+                        u.companyId === invoice.company.id &&
+                        u.email &&
+                        u.email.toLowerCase() !== invoice.company.email.toLowerCase()
+                    )
+                    .map((u) => (
+                      <option key={u.id} value={u.email!}>
+                        {u.email} ({u.name})
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <button
+                onClick={sendInvoice}
+                disabled={sending}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] bg-foreground text-background hover:opacity-90 disabled:opacity-50 transition-opacity"
+              >
+                {sending ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Send className="w-3 h-3" />
+                )}
+                {sending ? t("invoice.sending" as TKey) : t("invoice.sendInvoice" as TKey)}
+              </button>
+            </div>
           )}
         </div>
 

@@ -14,6 +14,12 @@ export async function POST(req: NextRequest) {
   const year: number = typeof body?.year === "number" ? body.year : new Date().getFullYear();
   const month: number =
     typeof body?.month === "number" ? body.month : new Date().getMonth() + 1;
+  /** Optional explicit recipient — must be a user assigned to the company,
+   *  or the company's billing email. Falls back to company.email when absent. */
+  const recipientEmail: string | undefined =
+    typeof body?.recipientEmail === "string" && body.recipientEmail
+      ? body.recipientEmail.toLowerCase()
+      : undefined;
 
   if (!companyId) {
     return NextResponse.json({ error: "companyId is required" }, { status: 400 });
@@ -27,11 +33,38 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Validate the chosen recipient — must be the company billing email or a
+  // user actually assigned to this company (prevents arbitrary emails).
+  let finalRecipient = builtInvoice.company.email;
+  if (recipientEmail) {
+    const allowedEmails = new Set<string>(
+      [
+        builtInvoice.company.email.toLowerCase(),
+        ...builtInvoice.users.map((u) => u.email?.toLowerCase()).filter(Boolean) as string[],
+      ]
+    );
+    if (!allowedEmails.has(recipientEmail)) {
+      return NextResponse.json(
+        {
+          error: `Recipient ${recipientEmail} is not the company billing email or a user assigned to this company.`,
+        },
+        { status: 400 }
+      );
+    }
+    finalRecipient = recipientEmail;
+  }
+
   // Allocate sequential invoice number + dates
   const invoiceNumber = await allocateInvoiceNumber(year, month);
   const issueTs = Date.now();
   const dueTs = issueTs + INVOICE_DEFAULTS.netDays * 86400000;
-  const invoice = { ...builtInvoice, invoiceNumber, issueDate: issueTs, dueDate: dueTs };
+  const invoice = {
+    ...builtInvoice,
+    company: { ...builtInvoice.company, email: finalRecipient },
+    invoiceNumber,
+    issueDate: issueTs,
+    dueDate: dueTs,
+  };
 
   // Render PDF attachment
   let pdfBase64: string | null = null;

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/requireAdmin";
 import { buildInvoice, sendInvoiceEmail } from "@/lib/invoices";
 import type { InvoiceData } from "@/lib/invoices";
-import { previewInvoiceNumber } from "@/lib/invoice-number";
+import { peekNextInvoiceNumber } from "@/lib/invoice-number";
 import { renderInvoicePdfBase64 } from "@/lib/invoice-pdf";
 import { INVOICE_DEFAULTS } from "@/lib/business";
 
@@ -38,16 +38,13 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
-    // Redirect: keep the real company name in the body, but override the
-    // recipient and tag the subject as a test.
+    // Identical to real send — only the recipient is overridden.
+    // No "[TEST SEND]" tag, no preview marker — pixel-perfect preview.
     invoice = {
       ...invoice,
       company: {
         ...invoice.company,
-        email: to, // Send target
-        notes:
-          (invoice.company.notes ? invoice.company.notes + "\n\n" : "") +
-          "[TEST SEND] This is a preview — no charges apply.",
+        email: to, // Test recipient override (raymond800108@gmail.com)
       },
     };
   } else {
@@ -58,7 +55,6 @@ export async function POST(req: NextRequest) {
         id: "test-company",
         name: "Test Company Ltd.",
         email: to,
-        notes: "[TEST SEND] No company selected — synthetic data.",
         createdAt: Date.now(),
       },
       users: [],
@@ -86,8 +82,9 @@ export async function POST(req: NextRequest) {
     };
   }
 
-  // Use a preview-tagged invoice number so we don't burn a real sequence
-  const invoiceNumber = previewInvoiceNumber(year, month);
+  // Show the NEXT real invoice number (without incrementing the counter)
+  // so the preview looks pixel-identical to a real send.
+  const invoiceNumber = await peekNextInvoiceNumber(year, month);
   const issueTs = Date.now();
   const dueTs = issueTs + INVOICE_DEFAULTS.netDays * 86400000;
   invoice = { ...invoice, invoiceNumber, issueDate: issueTs, dueDate: dueTs };
