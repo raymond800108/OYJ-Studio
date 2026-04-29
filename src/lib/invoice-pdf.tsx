@@ -177,9 +177,6 @@ function InvoiceDocument({ data, invoiceNumber, issueTs, dueTs }: Props) {
           <View style={[styles.party, { alignItems: "flex-end" }]}>
             <Text style={styles.partyLabel}>From</Text>
             <Text style={styles.partyName}>{BUSINESS.legalName}</Text>
-            {BUSINESS.addressLines.map((line, i) => (
-              <Text key={i} style={styles.partyText}>{line}</Text>
-            ))}
             <Text style={styles.partyMono}>{BUSINESS.email}</Text>
             <Text style={styles.partyMono}>{BUSINESS.phone}</Text>
           </View>

@@ -277,10 +277,6 @@ export function renderInvoiceHtml(data: InvoiceData): string {
 
   const emptyRow = `<tr><td colspan="3" style="padding:32px 16px;text-align:center;color:${brand.muted};font-size:13px">No usage recorded for this period.</td></tr>`;
 
-  const businessAddress = BUSINESS.addressLines
-    .map((l) => escapeHtml(l))
-    .join("<br/>");
-
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -320,8 +316,7 @@ export function renderInvoiceHtml(data: InvoiceData): string {
         <td style="padding:32px 40px 16px 40px;vertical-align:top;width:50%;text-align:right">
           <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:${brand.muted};margin-bottom:10px">From</div>
           <div style="font-size:14px;font-weight:600;color:${brand.text};margin-bottom:4px">${escapeHtml(BUSINESS.legalName)}</div>
-          <div style="font-size:12px;color:${brand.muted};line-height:1.6">${businessAddress}</div>
-          <div style="font-size:11px;color:${brand.muted};margin-top:8px;font-family:'SF Mono',Menlo,monospace">${escapeHtml(BUSINESS.email)}<br/>${escapeHtml(BUSINESS.phone)}</div>
+          <div style="font-size:11px;color:${brand.muted};margin-top:4px;font-family:'SF Mono',Menlo,monospace">${escapeHtml(BUSINESS.email)}<br/>${escapeHtml(BUSINESS.phone)}</div>
         </td>
       </tr>
     </table>
