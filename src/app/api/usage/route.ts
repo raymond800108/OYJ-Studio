@@ -9,9 +9,11 @@ const USER_KEY_PREFIX = "ce:usage:user:";
 /** Hard safety cap to prevent a single user from blowing up Redis.
  *  Entries are otherwise kept indefinitely until the admin sends an
  *  invoice for the billing period. */
-const SAFETY_CAP = 10000;
-/** Max entries returned by list endpoints — separate from storage cap. */
-const MAX_ENTRIES = 2000;
+const SAFETY_CAP = 50000;
+/** Max entries returned by list endpoints — equal to SAFETY_CAP so the
+ *  client always sees the full accumulated count, never an artificial
+ *  truncation. Entries only ever shrink when admin sends an invoice. */
+const MAX_ENTRIES = SAFETY_CAP;
 const SUPER_ADMIN = "raymond800108@gmail.com";
 // Always-visible accounts in the admin dropdown (even if they have 0 entries)
 const KNOWN_ACCOUNTS = [

@@ -36,7 +36,9 @@ export interface InvoiceData {
 /* ─── Helpers ───────────────────────────────────────────────────── */
 
 const USER_KEY_PREFIX = "ce:usage:user:";
-const MAX_ENTRIES = 1000;
+/** Max entries scanned when computing per-user usage for a billing period.
+ *  Must match SAFETY_CAP in /api/usage/route.ts so we never under-bill. */
+const MAX_ENTRIES = 50000;
 
 function emailToKey(email: string): string {
   const safe = email.toLowerCase().replace(/[^a-z0-9@._-]/g, "_");
