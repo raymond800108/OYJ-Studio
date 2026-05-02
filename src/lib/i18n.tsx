@@ -203,6 +203,7 @@ const dict = {
   "mkt.pieceSize": { en: "Piece size (cm)", zh: "尺寸 (cm)" },
   "mkt.videoModel": { en: "Video model", zh: "影片模型" },
   "mkt.studioTheme": { en: "Studio Theme", zh: "攝影主題" },
+  "mkt.popular": { en: "Popular", zh: "常用" },
   "mkt.generateVideoFromThis": { en: "Generate Video from This", zh: "使用此圖生成影片" },
   "mkt.generatingVideo": { en: "Generating video...", zh: "影片生成中..." },
   "mkt.noValidSources": { en: "No valid source images to generate from", zh: "沒有有效的原始圖片" },

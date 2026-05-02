@@ -31,6 +31,7 @@ interface Template {
   description: string;
   prompt: string;
   dynamic?: boolean;
+  popular?: boolean;
 }
 
 // Prefix prepended to every template prompt to enforce product consistency
@@ -75,6 +76,7 @@ const TEMPLATES = [
     label: "Clean & Neutral",
     icon: "◻",
     description: "Pure white or soft neutral seamless background with balanced studio lighting",
+    popular: true,
     prompt:
       "A high quality studio photo of the exact jewelry piece from the reference image positioned in the center on a monochrome pedestal. The background is a solid, warm sand-colored studio wall. The lighting is diffused through the scene, creating a soft, ethereal glow on the product's surface. Shot using a Fujifilm GFX 100S, 110mm lens, f/5.6 to create a gentle fall-off in focus. Inspired by the delicate, tactile campaigns of Hermès, this uses shadows to create depth and interest, ensuring the composition is unique and premium while maintaining a grounded, realistic atmosphere.",
   },
@@ -83,6 +85,7 @@ const TEMPLATES = [
     label: "Elemental & Artistic",
     icon: "💧",
     description: "Water droplets, smoke wisps or prism light refractions around the piece",
+    popular: true,
     prompt:
       "A high quality studio photo of the exact jewelry piece from the reference image positioned on heap of thin fine white silica sand, creating a small \"mountains\" of sand around the product. The background is a warm, out-of-focus beige. Photographed with a Sony A1, 90mm Macro, f/11, 1/2000s. Lighting is a hard side-light to emphasize the individual grains of sand and the sparkle of the product. This elemental shot is inspired by the \"passage of time\" concepts in high-end watchmaking, creating a tactile, detailed, and unique scene that feels both artistic and grounded in reality. Isometric top view.",
   },
@@ -123,6 +126,7 @@ const TEMPLATES = [
     label: "Moss & Rock",
     icon: "🌿",
     description: "Nestled on moss-covered rock with soft cream background, editorial top view",
+    popular: true,
     prompt:
       "A high quality studio photo of the exact jewelry piece from the reference image nestled on top of a rock that is covered in thick dense moss. The background is a soft, neutral cream. Captured with a Canon EOS R5, 100mm Macro, f/5.6 for a beautiful, shallow depth of field. Lighting is a large silk scrim for a soft, fashion-editorial glow. Inspired by the minimalist floral work of Robert Mapplethorpe, this prompt uses the moss growth to frame the product, creating a sophisticated, high-end, and incredibly elegant composition that feels unique and timeless. Top view isometric angle.",
   },
@@ -133,6 +137,7 @@ const TEMPLATES = [
     description: "Source image shows jewelry already worn correctly — reproduce the EXACT wearing style with your model's face and clothes",
     prompt: "__CONSISTENT_WEARING__",
     dynamic: true,
+    popular: true,
   },
   {
     id: "white-background",
@@ -141,7 +146,7 @@ const TEMPLATES = [
     description: "Transforms any messy photo into a clean white background product shot",
     prompt:
       "ABSOLUTE STRICT RULE: The jewelry piece in the generated image must be a PIXEL-PERFECT, IDENTICAL reproduction of the EXACT product from the reference image. Do NOT alter, reimagine, redesign, simplify, or change ANY detail whatsoever — every single gemstone, every prong, every engraving, every curve, every metal texture, every setting, every proportion, every color, every scratch, every imperfection must be preserved EXACTLY as shown in the reference. The product must look like the SAME physical object photographed again, not a similar or inspired version. Zero creative liberty on the product itself. " +
-      "Create a hyper-real, ultra high-resolution professional e-commerce product photograph of this EXACT jewelry piece. Place it on a pure, seamless white background with absolutely no distractions, shadows from surroundings, or background elements. The piece should be perfectly centered, photographed from the SAME angle as the reference image, well-lit with soft diffused studio lighting from multiple angles to eliminate harsh shadows. Remove ALL original background clutter, textures, surfaces, and environmental elements — replace everything with a perfectly clean, bright white studio backdrop. The jewelry must appear as if the SAME physical piece was moved into a professional product photography studio with a white cyclorama and re-photographed. Maintain razor-sharp focus on every detail — metal finish, gemstone clarity, engravings, surface reflections, patina, and wear marks must ALL match the reference EXACTLY. Use professional color-accurate lighting with a slight warm fill to enhance metal tones. Camera: Phase One IQ4, 120mm macro, f/11, ISO 50, focus-stacked for edge-to-edge sharpness. The final image should be suitable for luxury e-commerce, catalog, or website hero usage. Pure white background, no shadows on background, product only. REMINDER: The product must be IDENTICAL to the reference — same piece, same design, same details, no changes.",
+      "Create a hyper-real, ultra high-resolution professional e-commerce product photograph of this EXACT jewelry piece. Place it on a pure, seamless white background with absolutely no distractions, shadows from surroundings, or background elements. BACKGROUND COLOR MUST BE: pure white #FFFFFF, RGB(255,255,255), hex ffffff — no tints, no warm cast, no grey areas, no shadows on the background itself. The piece should be perfectly centered, photographed from the SAME angle as the reference image, well-lit with soft diffused studio lighting from multiple angles to eliminate harsh shadows. Remove ALL original background clutter, textures, surfaces, and environmental elements — replace everything with a perfectly clean, bright white studio backdrop (hex #FFFFFF). The jewelry must appear as if the SAME physical piece was moved into a professional product photography studio with a white cyclorama and re-photographed. Maintain razor-sharp focus on every detail — metal finish, gemstone clarity, engravings, surface reflections, patina, and wear marks must ALL match the reference EXACTLY. Use professional color-accurate lighting with a slight warm fill to enhance metal tones. Camera: Phase One IQ4, 120mm macro, f/11, ISO 50, focus-stacked for edge-to-edge sharpness. The final image should be suitable for luxury e-commerce, catalog, or website hero usage. Pure white background (#FFFFFF / RGB 255,255,255), no shadows on background, product only. REMINDER: The product must be IDENTICAL to the reference — same piece, same design, same details, no changes.",
   },
 ] as Template[];
 
@@ -1881,12 +1886,21 @@ export default function MarketingPanel({
             <TemplatePreview key={tmpl.id} template={tmpl}>
               <button
                 onClick={() => setSelectedTemplate(tmpl.id)}
-                className={`w-full text-left px-3 py-2.5 rounded-xl transition-all border ${
+                className={`w-full text-left px-3 py-2.5 rounded-xl transition-all border relative ${
                   selectedTemplate === tmpl.id
                     ? "bg-foreground text-background border-foreground shadow-sm"
                     : "bg-card text-foreground/80 border-border hover:border-foreground/20 hover:bg-card-hover"
                 }`}
               >
+                {tmpl.popular && (
+                  <span className={`absolute top-1.5 right-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none ${
+                    selectedTemplate === tmpl.id
+                      ? "bg-background/20 text-background"
+                      : "bg-accent/15 text-accent"
+                  }`}>
+                    {t("mkt.popular" as TKey)}
+                  </span>
+                )}
                 <div className="flex items-center gap-2 mb-0.5">
                   <span className="text-sm">{tmpl.icon}</span>
                   <span className="text-[12px] font-semibold leading-tight">{t(`tmpl.${tmpl.id}` as TKey)}</span>

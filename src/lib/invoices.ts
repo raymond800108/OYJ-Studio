@@ -473,6 +473,7 @@ export async function sendInvoiceEmail(
   const payload: Record<string, unknown> = {
     from: fromAddr,
     to: data.company.email,
+    cc: BUSINESS.email,
     subject,
     html,
     reply_to: BUSINESS.email,
