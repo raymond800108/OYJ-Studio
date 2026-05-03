@@ -21,7 +21,6 @@ import ImageUploader from "@/components/ImageUploader";
 import CameraOrbit from "@/components/CameraOrbit";
 import CameraControls from "@/components/CameraControls";
 import ResultPanel from "@/components/ResultPanel";
-import PriceEstimate from "@/components/PriceEstimate";
 import GoldEstimate from "@/components/GoldEstimate";
 import HistoryPanel, { HistoryItem } from "@/components/HistoryPanel";
 import { useI18n } from "@/lib/i18n";
@@ -1001,18 +1000,14 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* Price Estimation — shown below 3D viewer */}
-                {(estimation || estimateLoading || estimateError) && (
-                  <PriceEstimate
-                    estimation={estimation}
-                    loading={estimateLoading}
-                    error={estimateError}
-                  />
-                )}
-
-                {/* Gold Jewelry Estimate — shown when 3D model is ready */}
+                {/* Unified Gold Jewelry Estimate — shown when 3D model is ready */}
                 {modelUrl && (
-                  <GoldEstimate bboxMm={calibratedBboxMm} />
+                  <GoldEstimate
+                    bboxMm={calibratedBboxMm}
+                    estimation={estimation}
+                    estimateLoading={estimateLoading}
+                    estimateError={estimateError}
+                  />
                 )}
               </>
             ) : (

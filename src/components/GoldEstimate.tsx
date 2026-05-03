@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { AlertTriangle, AlertCircle, CheckCircle, ChevronDown, ChevronUp, Gem } from "lucide-react";
+import { AlertTriangle, AlertCircle, CheckCircle, ChevronDown, ChevronUp, Gem, Loader2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
 interface BboxMm {
@@ -10,8 +10,19 @@ interface BboxMm {
   z: number;
 }
 
+interface AIEstimation {
+  product_name: string;
+  materials: string[];
+  material_analysis: string;
+  unit_cost_twd: { low: number; high: number };
+  confidence: "low" | "medium" | "high";
+}
+
 interface GoldEstimateProps {
   bboxMm: BboxMm | null;
+  estimation?: AIEstimation | null;
+  estimateLoading?: boolean;
+  estimateError?: string | null;
 }
 
 // Gold densities in g/cm³
@@ -35,7 +46,7 @@ const PROFIT_RATE = 0.30;
 const MIN_REALISTIC = 0.5;
 const MIN_FEASIBLE = 1.5;
 
-export default function GoldEstimate({ bboxMm }: GoldEstimateProps) {
+export default function GoldEstimate({ bboxMm, estimation, estimateLoading, estimateError }: GoldEstimateProps) {
   const { lang } = useI18n();
   const zh = lang === "zh";
 
@@ -88,7 +99,37 @@ export default function GoldEstimate({ bboxMm }: GoldEstimateProps) {
         <h3 className="text-sm font-semibold text-foreground">
           {zh ? "黃金珠寶估價" : "Gold Jewelry Estimate"}
         </h3>
+        {estimation && (
+          <span className="ml-auto text-[11px] text-muted truncate max-w-[140px]">
+            {estimation.product_name}
+          </span>
+        )}
+        {estimateLoading && (
+          <Loader2 className="ml-auto w-3.5 h-3.5 animate-spin text-muted" />
+        )}
       </div>
+
+      {/* AI material analysis */}
+      {estimation && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-1.5">
+            {estimation.materials.map((m) => (
+              <span
+                key={m}
+                className="px-2.5 py-1 rounded-full bg-amber-50 border border-amber-100 text-[11px] font-medium text-amber-800"
+              >
+                {m}
+              </span>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted/80 leading-relaxed">
+            {estimation.material_analysis}
+          </p>
+        </div>
+      )}
+      {estimateError && !estimation && (
+        <p className="text-[11px] text-red-500">{zh ? "AI 分析失敗：" : "AI analysis failed: "}{estimateError}</p>
+      )}
 
       {!bboxMm ? (
         <p className="text-xs text-muted leading-relaxed">
