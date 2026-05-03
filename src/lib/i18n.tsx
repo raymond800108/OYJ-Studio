@@ -260,7 +260,8 @@ const dict = {
   "tmpl.vintage-inspired": { en: "Vintage Heritage", zh: "復古傳承" },
   "tmpl.moss-rock": { en: "Moss & Rock", zh: "苔蘚岩石" },
   "tmpl.consistent-wearing": { en: "Consistent Wearing", zh: "一致佩戴" },
-  "tmpl.white-background": { en: "Clean White Studio", zh: "純白背景" },
+  "tmpl.solid-color": { en: "Solid Color Studio", zh: "純色背景" },
+  "tmpl.seashell": { en: "Seashell", zh: "貝殼海洋" },
 
   // ── Template descriptions ──
   "desc.glass-display": { en: "Museum-grade glass showcase on polished marble base with soft highlights", zh: "博物館級玻璃展櫃，拋光大理石底座，柔和高光" },
@@ -270,12 +271,20 @@ const dict = {
   "desc.clean-neutral": { en: "Pure white or soft neutral seamless background with balanced studio lighting", zh: "純白或柔和中性無縫背景，均衡棚燈" },
   "desc.elemental-artistic": { en: "Water droplets, smoke wisps or prism light refractions around the piece", zh: "水滴、煙霧或稜鏡光折射環繞珠寶" },
   "desc.detail-closeup": { en: "Extreme macro focus on engravings, metal joins and gemstone settings", zh: "極致微距聚焦雕刻、金屬接合與寶石鑲嵌" },
-  "desc.packaging-box": { en: "Inside an open luxury jewellery box with plush cushion interior", zh: "放置於打開的奢華珠寶盒中，內襯柔軟墊子" },
+  "desc.packaging-box": { en: "Place jewelry in your custom packaging — upload a packaging image or use the default luxury box", zh: "上傳您的包裝樣式圖，或使用預設奢華珠寶盒" },
   "desc.natural-branches": { en: "Draped over sculptural tree branch with organic curves and bark texture", zh: "懸掛於造型樹枝上，自然曲線與樹皮紋理" },
   "desc.vintage-inspired": { en: "Classic heritage setting with aged linen, warm tones and old-world elegance", zh: "經典傳承場景，做舊亞麻布，暖色調與復古優雅" },
   "desc.moss-rock": { en: "Nestled on moss-covered rock with soft cream background, editorial top view", zh: "嵌於苔蘚岩石上，柔和奶油色背景，編輯俯視角度" },
   "desc.consistent-wearing": { en: "Source image shows jewelry already worn correctly \u2014 reproduce the EXACT wearing style with your model's face and clothes", zh: "來源圖已正確佩戴珠寶 \u2014 以您的模特臉孔與服裝完美複製該佩戴方式" },
-  "desc.white-background": { en: "Transforms any messy photo into a clean white background product shot", zh: "將雜亂照片轉換為純白背景產品圖" },
+  "desc.solid-color": { en: "Custom solid color or gradient background — white, cream, black, blush and more", zh: "自訂純色或漸層背景 — 白色、奶油色、黑色、粉色等多種選擇" },
+  "desc.seashell": { en: "Still-life scene with seashells, ocean sand and soft coastal light", zh: "靜物攝影風格，貝殼、海沙與柔和海岸光線" },
+  "mkt.bgColorPicker": { en: "Background Color", zh: "背景顏色" },
+  "mkt.solidColors": { en: "Solid Colors", zh: "純色" },
+  "mkt.gradients": { en: "Gradients", zh: "漸層色" },
+  "mkt.selectedBg": { en: "Selected", zh: "已選擇" },
+  "mkt.packagingUploadTitle": { en: "Custom Packaging (optional)", zh: "自訂包裝（選填）" },
+  "mkt.packagingUploadHint": { en: "Upload your packaging design — the AI will place the jewelry inside it. Leave empty to use the default luxury box.", zh: "上傳您的包裝設計圖，AI 將把珠寶放置其中。不上傳則使用預設奢華珠寶盒。" },
+  "mkt.packagingDropHere": { en: "Drop packaging image or click to browse", zh: "拖放包裝圖或點擊瀏覽" },
 
   // ── Aspect ratio labels ──
   "ratio.square": { en: "Square", zh: "方形" },

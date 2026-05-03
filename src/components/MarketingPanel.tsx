@@ -101,9 +101,9 @@ const TEMPLATES = [
     id: "packaging-box",
     label: "Packaging Box",
     icon: "🎁",
-    description: "Inside an open luxury jewellery box with plush cushion interior",
-    prompt:
-      "Create a hyper-real, ultra high-resolution studio photograph of the exact jewelry piece from the reference image elegantly placed inside an open rigid jewellery box with a soft, plush cushion interior. The jewelry rests naturally, following the contours of the cushion, highlighting its craftsmanship, polished metal, and gemstone brilliance. Use controlled studio lighting to create refined highlights and gentle shadows that enhance depth and texture. The exterior of the box should feel minimal and luxurious, with a clean background that keeps attention on the jewellery. Shot on a professional high-end camera with perfect exposure, sharp focus, and cinematic depth of field for a refined luxury brand aesthetic.",
+    description: "Place jewelry in your custom packaging — upload a packaging image or use the default luxury box",
+    prompt: "__PACKAGING_BOX__",
+    dynamic: true,
   },
   {
     id: "natural-branches",
@@ -128,7 +128,15 @@ const TEMPLATES = [
     description: "Nestled on moss-covered rock with soft cream background, editorial top view",
     popular: true,
     prompt:
-      "A high quality studio photo of the exact jewelry piece from the reference image nestled on top of a rock that is covered in thick dense moss. The background is a soft, neutral cream. Captured with a Canon EOS R5, 100mm Macro, f/5.6 for a beautiful, shallow depth of field. Lighting is a large silk scrim for a soft, fashion-editorial glow. Inspired by the minimalist floral work of Robert Mapplethorpe, this prompt uses the moss growth to frame the product, creating a sophisticated, high-end, and incredibly elegant composition that feels unique and timeless. Top view isometric angle.",
+      "A high quality studio photo of the exact jewelry piece from the reference image nestled on top of a rock that is covered in thick dense moss. The moss must have a muted, low-saturation grayish-green tone — desaturated and earthy, NOT vivid or bright green. Think aged, weathered, olive-toned moss rather than fresh lush green. The background is a soft, neutral cream. Captured with a Canon EOS R5, 100mm Macro, f/5.6 for a beautiful, shallow depth of field. Lighting is a large silk scrim for a soft, fashion-editorial glow. Inspired by the minimalist floral work of Robert Mapplethorpe, this prompt uses the moss growth to frame the product, creating a sophisticated, high-end, and incredibly elegant composition that feels unique and timeless. Top view isometric angle.",
+  },
+  {
+    id: "seashell",
+    label: "Seashell",
+    icon: "🐚",
+    description: "Still-life scene with seashells, ocean sand and soft coastal light",
+    prompt:
+      "A high quality studio still-life photograph of the exact jewelry piece from the reference image carefully arranged among a curated collection of natural seashells — spiral shells, smooth cowries, and scallop shells of varying sizes — on a bed of fine pale ocean sand. Subtle sea elements are present: a translucent fragment of sea glass, a dried piece of bleached coral, and a trace of dried sea foam texture. The background is a soft, hazy coastal white with gentle depth. Lighting is soft and diffused, mimicking the natural light of an overcast coastal afternoon — no harsh shadows, just a luminous, airy atmosphere. The shells frame and complement the jewelry without overpowering it. Captured with a Canon EOS R5, 100mm Macro, f/8. Inspired by the still-life traditions of Dutch golden-age painting reinterpreted through a modern luxury jewelry editorial lens. Top-down isometric angle.",
   },
   {
     id: "consistent-wearing",
@@ -140,15 +148,66 @@ const TEMPLATES = [
     popular: true,
   },
   {
-    id: "white-background",
-    label: "Clean White Studio",
-    icon: "⬜",
-    description: "Transforms any messy photo into a clean white background product shot",
-    prompt:
-      "ABSOLUTE STRICT RULE: The jewelry piece in the generated image must be a PIXEL-PERFECT, IDENTICAL reproduction of the EXACT product from the reference image. Do NOT alter, reimagine, redesign, simplify, or change ANY detail whatsoever — every single gemstone, every prong, every engraving, every curve, every metal texture, every setting, every proportion, every color, every scratch, every imperfection must be preserved EXACTLY as shown in the reference. The product must look like the SAME physical object photographed again, not a similar or inspired version. Zero creative liberty on the product itself. " +
-      "Create a hyper-real, ultra high-resolution professional e-commerce product photograph of this EXACT jewelry piece. Place it on a pure, seamless white background with absolutely no distractions, shadows from surroundings, or background elements. BACKGROUND COLOR MUST BE: pure white #FFFFFF, RGB(255,255,255), hex ffffff — no tints, no warm cast, no grey areas, no shadows on the background itself. The piece should be perfectly centered, photographed from the SAME angle as the reference image, well-lit with soft diffused studio lighting from multiple angles to eliminate harsh shadows. Remove ALL original background clutter, textures, surfaces, and environmental elements — replace everything with a perfectly clean, bright white studio backdrop (hex #FFFFFF). The jewelry must appear as if the SAME physical piece was moved into a professional product photography studio with a white cyclorama and re-photographed. Maintain razor-sharp focus on every detail — metal finish, gemstone clarity, engravings, surface reflections, patina, and wear marks must ALL match the reference EXACTLY. Use professional color-accurate lighting with a slight warm fill to enhance metal tones. Camera: Phase One IQ4, 120mm macro, f/11, ISO 50, focus-stacked for edge-to-edge sharpness. The final image should be suitable for luxury e-commerce, catalog, or website hero usage. Pure white background (#FFFFFF / RGB 255,255,255), no shadows on background, product only. REMINDER: The product must be IDENTICAL to the reference — same piece, same design, same details, no changes.",
+    id: "solid-color",
+    label: "Solid Color Studio",
+    icon: "🎨",
+    description: "Custom solid color or gradient background — choose from presets or enter your own color",
+    prompt: "__SOLID_COLOR__",
+    dynamic: true,
   },
 ] as Template[];
+
+// ── Solid color / gradient background options ─────────────────────────────────
+
+interface BgColorOption {
+  id: string;
+  label: string;
+  hex: string; // for swatch display
+  desc: string; // injected into prompt
+}
+
+interface BgGradientOption {
+  id: string;
+  label: string;
+  gradient: string; // CSS gradient for preview
+  desc: string; // injected into prompt
+}
+
+const SOLID_BG_COLORS: BgColorOption[] = [
+  { id: "white", label: "Pure White", hex: "#FFFFFF", desc: "pure white seamless studio background, hex #FFFFFF, RGB(255,255,255)" },
+  { id: "cream", label: "Soft Cream", hex: "#FFF8EE", desc: "soft cream seamless studio background, hex #FFF8EE, RGB(255,248,238)" },
+  { id: "beige", label: "Warm Beige", hex: "#F5EFE6", desc: "warm beige seamless studio background, hex #F5EFE6, RGB(245,239,230)" },
+  { id: "sand", label: "Sand", hex: "#E5DDD0", desc: "warm sand seamless studio background, hex #E5DDD0, RGB(229,221,208)" },
+  { id: "pale-gold", label: "Pale Gold", hex: "#F5EDD5", desc: "pale gold seamless studio background, hex #F5EDD5, RGB(245,237,213)" },
+  { id: "blush", label: "Blush Pink", hex: "#F5E6E8", desc: "soft blush pink seamless studio background, hex #F5E6E8, RGB(245,230,232)" },
+  { id: "sage", label: "Sage Green", hex: "#E8EDE5", desc: "pale sage green seamless studio background, hex #E8EDE5, RGB(232,237,229)" },
+  { id: "dusty-blue", label: "Dusty Blue", hex: "#E5ECF0", desc: "dusty blue seamless studio background, hex #E5ECF0, RGB(229,236,240)" },
+  { id: "light-grey", label: "Light Grey", hex: "#F0F0F0", desc: "light grey seamless studio background, hex #F0F0F0, RGB(240,240,240)" },
+  { id: "warm-grey", label: "Warm Grey", hex: "#E8E4E0", desc: "warm grey seamless studio background, hex #E8E4E0, RGB(232,228,224)" },
+  { id: "charcoal", label: "Charcoal", hex: "#3C3C3C", desc: "dark charcoal seamless studio background, hex #3C3C3C, RGB(60,60,60)" },
+  { id: "black", label: "Deep Black", hex: "#1A1A1A", desc: "deep black seamless studio background, hex #1A1A1A, RGB(26,26,26)" },
+];
+
+const GRADIENT_BG_OPTIONS: BgGradientOption[] = [
+  { id: "gradient-warm", label: "Warm Glow", gradient: "linear-gradient(135deg, #F5EDD5, #FFF8EE)", desc: "soft warm gradient background blending from pale gold to warm cream, studio lighting" },
+  { id: "gradient-cool", label: "Cool Mist", gradient: "linear-gradient(135deg, #E5ECF0, #FFFFFF)", desc: "cool gradient background blending from dusty blue to soft white, studio lighting" },
+  { id: "gradient-blush", label: "Blush Fade", gradient: "linear-gradient(135deg, #F5E6E8, #FFFFFF)", desc: "elegant gradient background blending from soft blush pink to pure white, studio lighting" },
+  { id: "gradient-dark", label: "Dark Vignette", gradient: "linear-gradient(135deg, #1A1A1A, #3C3C3C)", desc: "dark gradient background blending from deep black to charcoal, dramatic studio lighting" },
+];
+
+function buildSolidColorPrompt(bgDesc: string): string {
+  return (
+    "ABSOLUTE STRICT RULE: The jewelry piece in the generated image must be a PIXEL-PERFECT, IDENTICAL reproduction of the EXACT product from the reference image. " +
+    "Do NOT alter, reimagine, redesign, simplify, or change ANY detail whatsoever — every gemstone, prong, engraving, curve, metal texture, proportion, and finish must be preserved EXACTLY. " +
+    "The product must look like the SAME physical object photographed again, not a similar version. Zero creative liberty on the product itself. " +
+    `Create a hyper-real, ultra high-resolution professional e-commerce product photograph of this EXACT jewelry piece placed against a ${bgDesc}. ` +
+    "The piece should be perfectly centered, photographed from the SAME angle as the reference, well-lit with soft diffused studio lighting from multiple angles to eliminate harsh shadows on the product. " +
+    "Replace ALL original background clutter, textures, and environmental elements with the new studio backdrop. " +
+    "Maintain razor-sharp focus on every detail — metal finish, gemstone clarity, engravings, surface reflections. " +
+    "Camera: Phase One IQ4, 120mm macro, f/11, ISO 50, focus-stacked for edge-to-edge sharpness. " +
+    "REMINDER: The product must be IDENTICAL to the reference — same piece, same design, same details, no changes."
+  );
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -245,6 +304,12 @@ export default function MarketingPanel({
 
   // Template selection
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  // Solid-color template: selected background color/gradient id
+  const [solidBgColor, setSolidBgColor] = useState<string>("white");
+  // Packaging-box template: user-uploaded packaging reference images
+  const [packagingImages, setPackagingImages] = useState<SourceImage[]>([]);
+  const [packagingDropOver, setPackagingDropOver] = useState(false);
+  const packagingInputRef = useRef<HTMLInputElement>(null);
 
   // Settings
   const [aspectRatio, setAspectRatio] = useState("4:3");
@@ -522,6 +587,47 @@ export default function MarketingPanel({
       addOutfitFromUrl(URL.createObjectURL(file), file);
     }
   }, [addOutfitFromUrl]);
+
+  // ── Packaging image management ──
+  const addPackagingFromUrl = useCallback((url: string, file: File | null) => {
+    setPackagingImages((prev) => {
+      if (prev.some((s) => s.url === url)) return prev;
+      return [...prev, { id: crypto.randomUUID(), url, file }];
+    });
+  }, []);
+
+  const removePackaging = useCallback((id: string) => {
+    setPackagingImages((prev) => prev.filter((s) => s.id !== id));
+  }, []);
+
+  const handlePackagingFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.type.startsWith("image/")) continue;
+      addPackagingFromUrl(URL.createObjectURL(file), file);
+    }
+    if (packagingInputRef.current) packagingInputRef.current.value = "";
+  }, [addPackagingFromUrl]);
+
+  const handlePackagingDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    setPackagingDropOver(false);
+    const historyData = e.dataTransfer.getData("application/x-history-item");
+    const droppedUrl = e.dataTransfer.getData("text/plain");
+    if (historyData || (droppedUrl && droppedUrl.startsWith("http"))) {
+      const url = historyData ? JSON.parse(historyData).resultUrl : droppedUrl;
+      addPackagingFromUrl(url, null);
+      return;
+    }
+    const files = e.dataTransfer.files;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.type.startsWith("image/")) continue;
+      addPackagingFromUrl(URL.createObjectURL(file), file);
+    }
+  }, [addPackagingFromUrl]);
 
   // Convert any image source to a PNG File using canvas (handles HEIC, WebP, etc.)
   const convertToPng = async (src: string): Promise<File> => {
@@ -1008,6 +1114,36 @@ export default function MarketingPanel({
             });
           }
           continue; // Skip the single-task creation below
+        } else if (template.id === "solid-color") {
+          const colorOpt = SOLID_BG_COLORS.find((c) => c.id === solidBgColor);
+          const gradOpt = GRADIENT_BG_OPTIONS.find((g) => g.id === solidBgColor);
+          const bgDesc = colorOpt?.desc ?? gradOpt?.desc ?? "pure white seamless studio background, hex #FFFFFF";
+          prompt = CONSISTENCY_PREFIX + buildSolidColorPrompt(bgDesc);
+          imageRefs = [src.url];
+        } else if (template.id === "packaging-box") {
+          if (packagingImages.length > 0) {
+            // User provided custom packaging: upload it and reference alongside the jewelry
+            const packagingHosted: string[] = [];
+            for (const pk of packagingImages.slice(0, 2)) {
+              const hostedUrl = await uploadForReference(pk);
+              if (hostedUrl) packagingHosted.push(hostedUrl);
+            }
+            prompt =
+              CONSISTENCY_PREFIX +
+              "Create a hyper-real, ultra high-resolution studio photograph of the exact jewelry piece from the FIRST reference image elegantly placed inside or on top of the custom packaging shown in the SECOND reference image. " +
+              "Preserve the packaging's exact design, shape, color, texture, branding, and material as shown — do not alter or substitute the packaging. " +
+              "The jewelry should be positioned naturally and beautifully inside or on the packaging, resting on any cushion, tray, or surface the packaging provides. " +
+              "Use controlled studio lighting to create refined highlights and gentle shadows that showcase both the jewelry and the packaging at their finest. " +
+              "The background should be minimal and clean, keeping full attention on the product and its packaging. " +
+              "Shot on a professional high-end camera with perfect exposure, sharp focus, and cinematic depth of field for a refined luxury brand aesthetic.";
+            imageRefs = [src.url, ...packagingHosted];
+          } else {
+            // No custom packaging uploaded: fall back to default luxury box prompt
+            prompt =
+              CONSISTENCY_PREFIX +
+              "Create a hyper-real, ultra high-resolution studio photograph of the exact jewelry piece from the reference image elegantly placed inside an open rigid jewellery box with a soft, plush cushion interior. The jewelry rests naturally, following the contours of the cushion, highlighting its craftsmanship, polished metal, and gemstone brilliance. Use controlled studio lighting to create refined highlights and gentle shadows that enhance depth and texture. The exterior of the box should feel minimal and luxurious, with a clean background that keeps attention on the jewellery. Shot on a professional high-end camera with perfect exposure, sharp focus, and cinematic depth of field for a refined luxury brand aesthetic.";
+            imageRefs = [src.url];
+          }
         } else {
           prompt = CONSISTENCY_PREFIX + template.prompt;
           imageRefs = [src.url];
@@ -1914,6 +2050,121 @@ export default function MarketingPanel({
             </TemplatePreview>
           ))}
         </div>
+
+        {/* ── Packaging Image Upload (shown when packaging-box template is selected) ── */}
+        {selectedTemplate === "packaging-box" && (
+          <div className="mt-3 p-4 rounded-2xl bg-card border border-border space-y-3">
+            <div>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted mb-0.5">
+                {t("mkt.packagingUploadTitle" as TKey)}
+              </h3>
+              <p className="text-[10px] text-muted/60">
+                {t("mkt.packagingUploadHint" as TKey)}
+              </p>
+            </div>
+
+            {/* Drop area */}
+            <div
+              onDrop={handlePackagingDrop}
+              onDragOver={(e) => { e.preventDefault(); setPackagingDropOver(true); }}
+              onDragLeave={() => setPackagingDropOver(false)}
+              onClick={() => packagingInputRef.current?.click()}
+              className={`relative border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${
+                packagingDropOver
+                  ? "border-foreground/60 bg-foreground/5"
+                  : "border-border hover:border-foreground/30 hover:bg-card-hover"
+              }`}
+            >
+              <input
+                ref={packagingInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handlePackagingFileSelect}
+              />
+              <Upload className="w-4 h-4 text-muted/50 mx-auto mb-1" />
+              <p className="text-[10px] text-muted/60">{t("mkt.packagingDropHere" as TKey)}</p>
+            </div>
+
+            {/* Packaging thumbnails */}
+            {packagingImages.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {packagingImages.map((pk) => (
+                  <div key={pk.id} className="relative w-14 h-14 rounded-lg overflow-hidden border border-border group">
+                    <img src={pk.url} alt="packaging" className="w-full h-full object-cover" />
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removePackaging(pk.id); }}
+                      className="absolute top-0.5 right-0.5 bg-black/60 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-2.5 h-2.5 text-white" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Solid Color Picker (shown when solid-color template is selected) ── */}
+        {selectedTemplate === "solid-color" && (
+          <div className="mt-3 p-4 rounded-2xl bg-card border border-border space-y-3">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+              {t("mkt.bgColorPicker" as TKey)}
+            </h3>
+
+            {/* Solid colors */}
+            <div>
+              <p className="text-[10px] text-muted/60 mb-1.5">{t("mkt.solidColors" as TKey)}</p>
+              <div className="flex flex-wrap gap-2">
+                {SOLID_BG_COLORS.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setSolidBgColor(c.id)}
+                    title={c.label}
+                    className={`w-8 h-8 rounded-full border-2 transition-all ${
+                      solidBgColor === c.id
+                        ? "border-foreground scale-110 shadow-md"
+                        : "border-border hover:border-foreground/40 hover:scale-105"
+                    }`}
+                    style={{ backgroundColor: c.hex, outline: c.hex === "#FFFFFF" ? "1px solid #e8e6e3" : undefined }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Gradients */}
+            <div>
+              <p className="text-[10px] text-muted/60 mb-1.5">{t("mkt.gradients" as TKey)}</p>
+              <div className="flex flex-wrap gap-2">
+                {GRADIENT_BG_OPTIONS.map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => setSolidBgColor(g.id)}
+                    title={g.label}
+                    className={`h-8 rounded-full border-2 transition-all flex items-center px-3 text-[10px] font-medium ${
+                      solidBgColor === g.id
+                        ? "border-foreground scale-105 shadow-md text-foreground"
+                        : "border-border hover:border-foreground/40 text-muted"
+                    }`}
+                    style={{ background: g.gradient }}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Selected color label */}
+            <p className="text-[10px] text-muted/50">
+              {t("mkt.selectedBg" as TKey)}{": "}
+              <span className="font-medium text-foreground/70">
+                {SOLID_BG_COLORS.find(c => c.id === solidBgColor)?.label ??
+                 GRADIENT_BG_OPTIONS.find(g => g.id === solidBgColor)?.label ?? solidBgColor}
+              </span>
+            </p>
+          </div>
+        )}
       </div>
       )}
 
