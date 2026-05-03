@@ -22,6 +22,7 @@ import CameraOrbit from "@/components/CameraOrbit";
 import CameraControls from "@/components/CameraControls";
 import ResultPanel from "@/components/ResultPanel";
 import PriceEstimate from "@/components/PriceEstimate";
+import GoldEstimate from "@/components/GoldEstimate";
 import HistoryPanel, { HistoryItem } from "@/components/HistoryPanel";
 import { useI18n } from "@/lib/i18n";
 import { useUsageTracking } from "@/lib/usage";
@@ -182,6 +183,9 @@ export default function Home() {
   const [estimateLoading, setEstimateLoading] = useState(false);
   const [estimateError, setEstimateError] = useState<string | null>(null);
 
+  // Gold estimate — calibrated 3D bounding box in mm
+  const [calibratedBboxMm, setCalibratedBboxMm] = useState<{ x: number; y: number; z: number } | null>(null);
+
   // Prompt
   const [prompt, setPrompt] = useState("");
 
@@ -226,6 +230,7 @@ export default function Home() {
     setMeshyStatus(null);
     setEstimation(null);
     setEstimateError(null);
+    setCalibratedBboxMm(null);
   }, []);
 
   const handleClearImage = useCallback(() => {
@@ -240,6 +245,7 @@ export default function Home() {
     setMeshyStatus(null);
     setEstimation(null);
     setEstimateError(null);
+    setCalibratedBboxMm(null);
   }, []);
 
   // Upload file to fal storage (cached)
@@ -961,7 +967,7 @@ export default function Home() {
             {mode === "3d" ? (
               <>
                 {modelUrl ? (
-                  <ModelViewer modelUrl={modelUrl} />
+                  <ModelViewer modelUrl={modelUrl} onCalibrationChange={setCalibratedBboxMm} />
                 ) : loading && meshyTaskId ? (
                   <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-card min-h-[320px] p-8 shadow-sm">
                     <Loader2 className="w-8 h-8 animate-spin text-foreground" />
@@ -1002,6 +1008,11 @@ export default function Home() {
                     loading={estimateLoading}
                     error={estimateError}
                   />
+                )}
+
+                {/* Gold Jewelry Estimate — shown when 3D model is ready */}
+                {modelUrl && (
+                  <GoldEstimate bboxMm={calibratedBboxMm} />
                 )}
               </>
             ) : (

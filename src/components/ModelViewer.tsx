@@ -17,6 +17,7 @@ import * as THREE from "three";
 
 interface ModelViewerProps {
   modelUrl: string;
+  onCalibrationChange?: (sizeMm: { x: number; y: number; z: number } | null) => void;
 }
 
 /* ─── Model loader ──────────────────────────────────────────────── */
@@ -578,7 +579,7 @@ function Scene({
 
 /* ─── Main export ───────────────────────────────────────────────── */
 
-export default function ModelViewer({ modelUrl }: ModelViewerProps) {
+export default function ModelViewer({ modelUrl, onCalibrationChange }: ModelViewerProps) {
   const [exposure, setExposure] = useState(1.2);
   // Calibration state lives here so it persists across tool toggles
   const [scale, setScale] = useState<number | null>(null);
@@ -587,14 +588,27 @@ export default function ModelViewer({ modelUrl }: ModelViewerProps) {
   const [calibAxis, setCalibAxis] = useState<"x" | "y" | "z">("x");
   const { t } = useI18n();
 
+  // Reset calibration when model changes
+  useEffect(() => {
+    setScale(null);
+    setRawBboxSize(null);
+    onCalibrationChange?.(null);
+  }, [modelUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const applyCalibration = useCallback(() => {
     if (!rawBboxSize) return;
     const mm = parseFloat(calibInput);
     if (!mm || mm <= 0) return;
     const rawVal = calibAxis === "x" ? rawBboxSize.x : calibAxis === "y" ? rawBboxSize.y : rawBboxSize.z;
     if (rawVal <= 0) return;
-    setScale(mm / rawVal);
-  }, [rawBboxSize, calibInput, calibAxis]);
+    const newScale = mm / rawVal;
+    setScale(newScale);
+    onCalibrationChange?.({
+      x: rawBboxSize.x * newScale,
+      y: rawBboxSize.y * newScale,
+      z: rawBboxSize.z * newScale,
+    });
+  }, [rawBboxSize, calibInput, calibAxis, onCalibrationChange]);
 
   return (
     <ModelErrorBoundary>
