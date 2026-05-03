@@ -134,9 +134,9 @@ const TEMPLATES = [
     id: "seashell",
     label: "Seashell",
     icon: "🐚",
-    description: "Still-life scene with seashells, ocean sand and soft coastal light",
+    description: "A single perfect shell cradles or holds the jewelry — poetic, minimal, high-end coastal editorial",
     prompt:
-      "A high quality studio still-life photograph of the exact jewelry piece from the reference image carefully arranged among a curated collection of natural seashells — spiral shells, smooth cowries, and scallop shells of varying sizes — on a bed of fine pale ocean sand. Subtle sea elements are present: a translucent fragment of sea glass, a dried piece of bleached coral, and a trace of dried sea foam texture. The background is a soft, hazy coastal white with gentle depth. Lighting is soft and diffused, mimicking the natural light of an overcast coastal afternoon — no harsh shadows, just a luminous, airy atmosphere. The shells frame and complement the jewelry without overpowering it. Captured with a Canon EOS R5, 100mm Macro, f/8. Inspired by the still-life traditions of Dutch golden-age painting reinterpreted through a modern luxury jewelry editorial lens. Top-down isometric angle.",
+      "A high quality luxury editorial photograph of the exact jewelry piece from the reference image. A single, perfect natural shell — either a smooth ivory cowrie, a lustrous mother-of-pearl abalone fragment, or an elegant spiral nautilus — is used as the sole supporting element: the jewelry rests inside the shell's curved interior, is draped over its lip, or is held gently within it. The shell and jewelry are the only two subjects. No sand, no collections of shells, no sea debris. The surface beneath is a bare, minimal pale stone or soft linen — clean and uncluttered. The background is a soft, luminous off-white with subtle depth. Lighting is a single large diffused source, creating a gentle gradient of light across both the shell and the jewelry — highlighting the iridescent inner surface of the shell alongside the metal and gemstone of the piece. The composition feels intimate and poetic, as if the ocean offered the shell as a vessel for the jewelry. Captured with a Hasselblad X2D, 90mm, f/5.6. Inspired by the spare, contemplative still-life work of Irving Penn. Close macro angle, slightly elevated.",
   },
   {
     id: "consistent-wearing",

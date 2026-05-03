@@ -277,7 +277,7 @@ const dict = {
   "desc.moss-rock": { en: "Nestled on moss-covered rock with soft cream background, editorial top view", zh: "嵌於苔蘚岩石上，柔和奶油色背景，編輯俯視角度" },
   "desc.consistent-wearing": { en: "Source image shows jewelry already worn correctly \u2014 reproduce the EXACT wearing style with your model's face and clothes", zh: "來源圖已正確佩戴珠寶 \u2014 以您的模特臉孔與服裝完美複製該佩戴方式" },
   "desc.solid-color": { en: "Custom solid color or gradient background — white, cream, black, blush and more", zh: "自訂純色或漸層背景 — 白色、奶油色、黑色、粉色等多種選擇" },
-  "desc.seashell": { en: "Still-life scene with seashells, ocean sand and soft coastal light", zh: "靜物攝影風格，貝殼、海沙與柔和海岸光線" },
+  "desc.seashell": { en: "A single perfect shell cradles the jewelry — poetic, minimal, high-end coastal editorial", zh: "單一完美貝殼承托珠寶，詩意極簡，高端海岸編輯風格" },
   "mkt.bgColorPicker": { en: "Background Color", zh: "背景顏色" },
   "mkt.solidColors": { en: "Solid Colors", zh: "純色" },
   "mkt.gradients": { en: "Gradients", zh: "漸層色" },
