@@ -308,6 +308,36 @@ interface VintageConfig {
   velvetColor: string;
 }
 
+const VINTAGE_FABRIC_COLORS = [
+  { id: "ivory",      hex: "#F5EED8", zh: "象牙白",   en: "ivory" },
+  { id: "warm-sand",  hex: "#C9A87A", zh: "暖沙色",   en: "warm sand" },
+  { id: "dusty-blue", hex: "#7A9BB0", zh: "霧藍",     en: "dusty blue" },
+  { id: "sage-green", hex: "#9BAE96", zh: "鼠尾草綠", en: "sage green" },
+  { id: "tea-rose",   hex: "#C08080", zh: "茶玫瑰",   en: "tea rose" },
+] as const;
+
+const VINTAGE_FABRIC_MATERIALS = [
+  { id: "linen",  zh: "亞麻", en: "linen" },
+  { id: "silk",   zh: "絲緞", en: "silk satin" },
+  { id: "cotton", zh: "棉布", en: "soft cotton" },
+] as const;
+
+const VINTAGE_TABLE_MATERIALS = [
+  { id: "marble",     zh: "大理石",   en: "ivory white marble" },
+  { id: "light-oak",  zh: "淺橡木",   en: "light oak wood" },
+  { id: "terrazzo",   zh: "磨石子",   en: "light terrazzo" },
+  { id: "limestone",  zh: "石灰岩",   en: "smooth limestone" },
+  { id: "brass",      zh: "拉絲黃銅", en: "brushed brass" },
+] as const;
+
+const VINTAGE_VELVET_COLORS = [
+  { id: "dusty-rose",    hex: "#C4908A", zh: "淡玫瑰", en: "dusty rose" },
+  { id: "forest-green",  hex: "#5A7A55", zh: "森林綠", en: "forest green" },
+  { id: "midnight-navy", hex: "#3B4D6B", zh: "午夜藍", en: "midnight navy" },
+  { id: "charcoal",      hex: "#545454", zh: "炭灰",   en: "charcoal" },
+  { id: "warm-cream",    hex: "#E0D0B8", zh: "暖奶白", en: "warm cream" },
+] as const;
+
 function buildVintagePrompt(config: VintageConfig): string {
   const elements: string[] = [];
   if (config.showFabric) {
@@ -614,7 +644,7 @@ export default function MarketingPanel({
     fabricColor: "ivory",
     fabricMaterial: "linen",
     showTable: true,
-    tableMaterial: "marble",
+    tableMaterial: "ivory white marble",
     showVelvet: true,
     velvetColor: "dusty rose",
   });
@@ -2556,7 +2586,7 @@ export default function MarketingPanel({
             </h3>
 
             {/* Fabric row */}
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -2570,27 +2600,52 @@ export default function MarketingPanel({
                 </label>
               </div>
               {vintageConfig.showFabric && (
-                <div className="flex gap-2 pl-5">
-                  <input
-                    type="text"
-                    value={vintageConfig.fabricColor}
-                    onChange={(e) => setVintageConfig((c) => ({ ...c, fabricColor: e.target.value }))}
-                    placeholder={t("mkt.vintageColor" as TKey)}
-                    className="flex-1 px-2 py-1.5 rounded-lg bg-background border border-border text-xs focus:outline-none focus:border-foreground/30 transition-all placeholder:text-muted/40"
-                  />
-                  <input
-                    type="text"
-                    value={vintageConfig.fabricMaterial}
-                    onChange={(e) => setVintageConfig((c) => ({ ...c, fabricMaterial: e.target.value }))}
-                    placeholder={t("mkt.vintageMaterial" as TKey)}
-                    className="flex-1 px-2 py-1.5 rounded-lg bg-background border border-border text-xs focus:outline-none focus:border-foreground/30 transition-all placeholder:text-muted/40"
-                  />
+                <div className="pl-5 space-y-2.5">
+                  {/* Fabric color swatches */}
+                  <p className="text-[10px] text-muted/60">{t("mkt.vintageFabricColor" as TKey)}</p>
+                  <div className="flex gap-2 items-center">
+                    {VINTAGE_FABRIC_COLORS.map((c) => (
+                      <button
+                        key={c.id}
+                        title={c.zh}
+                        type="button"
+                        onClick={() => setVintageConfig((cfg) => ({ ...cfg, fabricColor: c.en }))}
+                        className={`w-7 h-7 rounded-full border-2 transition-all hover:scale-105 ${
+                          vintageConfig.fabricColor === c.en
+                            ? "border-foreground scale-110 shadow-md"
+                            : "border-transparent hover:border-foreground/30"
+                        }`}
+                        style={{ backgroundColor: c.hex }}
+                      />
+                    ))}
+                    <span className="text-[10px] text-muted/60 ml-1">
+                      {VINTAGE_FABRIC_COLORS.find((c) => c.en === vintageConfig.fabricColor)?.zh ?? vintageConfig.fabricColor}
+                    </span>
+                  </div>
+                  {/* Fabric material pills */}
+                  <p className="text-[10px] text-muted/60">{t("mkt.vintageFabricMaterial" as TKey)}</p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {VINTAGE_FABRIC_MATERIALS.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setVintageConfig((cfg) => ({ ...cfg, fabricMaterial: m.en }))}
+                        className={`px-2.5 py-1 rounded-full text-[10px] border transition-all ${
+                          vintageConfig.fabricMaterial === m.en
+                            ? "border-foreground bg-foreground text-background"
+                            : "border-border text-foreground/70 hover:border-foreground/40"
+                        }`}
+                      >
+                        {m.zh}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Table row */}
-            <div className="space-y-1.5">
+            {/* Table/Stand row */}
+            <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -2604,20 +2659,30 @@ export default function MarketingPanel({
                 </label>
               </div>
               {vintageConfig.showTable && (
-                <div className="pl-5">
-                  <input
-                    type="text"
-                    value={vintageConfig.tableMaterial}
-                    onChange={(e) => setVintageConfig((c) => ({ ...c, tableMaterial: e.target.value }))}
-                    placeholder={t("mkt.vintageMaterial" as TKey)}
-                    className="w-full px-2 py-1.5 rounded-lg bg-background border border-border text-xs focus:outline-none focus:border-foreground/30 transition-all placeholder:text-muted/40"
-                  />
+                <div className="pl-5 space-y-2.5">
+                  <p className="text-[10px] text-muted/60">{t("mkt.vintageTableMaterial" as TKey)}</p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {VINTAGE_TABLE_MATERIALS.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setVintageConfig((cfg) => ({ ...cfg, tableMaterial: m.en }))}
+                        className={`px-2.5 py-1 rounded-full text-[10px] border transition-all ${
+                          vintageConfig.tableMaterial === m.en
+                            ? "border-foreground bg-foreground text-background"
+                            : "border-border text-foreground/70 hover:border-foreground/40"
+                        }`}
+                      >
+                        {m.zh}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Velvet row */}
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -2631,14 +2696,27 @@ export default function MarketingPanel({
                 </label>
               </div>
               {vintageConfig.showVelvet && (
-                <div className="pl-5">
-                  <input
-                    type="text"
-                    value={vintageConfig.velvetColor}
-                    onChange={(e) => setVintageConfig((c) => ({ ...c, velvetColor: e.target.value }))}
-                    placeholder={t("mkt.vintageColor" as TKey)}
-                    className="w-full px-2 py-1.5 rounded-lg bg-background border border-border text-xs focus:outline-none focus:border-foreground/30 transition-all placeholder:text-muted/40"
-                  />
+                <div className="pl-5 space-y-2.5">
+                  <p className="text-[10px] text-muted/60">{t("mkt.vintageVelvetColor" as TKey)}</p>
+                  <div className="flex gap-2 items-center">
+                    {VINTAGE_VELVET_COLORS.map((c) => (
+                      <button
+                        key={c.id}
+                        title={c.zh}
+                        type="button"
+                        onClick={() => setVintageConfig((cfg) => ({ ...cfg, velvetColor: c.en }))}
+                        className={`w-7 h-7 rounded-full border-2 transition-all hover:scale-105 ${
+                          vintageConfig.velvetColor === c.en
+                            ? "border-foreground scale-110 shadow-md"
+                            : "border-transparent hover:border-foreground/30"
+                        }`}
+                        style={{ backgroundColor: c.hex }}
+                      />
+                    ))}
+                    <span className="text-[10px] text-muted/60 ml-1">
+                      {VINTAGE_VELVET_COLORS.find((c) => c.en === vintageConfig.velvetColor)?.zh ?? vintageConfig.velvetColor}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
