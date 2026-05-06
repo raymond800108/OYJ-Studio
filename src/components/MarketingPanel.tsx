@@ -1512,31 +1512,33 @@ export default function MarketingPanel({
               // Analyze packaging with GPT-4o to get a text description
               const pkgProse = await analyzePackagingCached(pkgHosted);
 
-              // Repeat packaging image to fill image_input (mirrors how consistent-wearing
-              // repeats character refs — gives the model a strong visual anchor on the packaging)
+              // IMPORTANT: packaging goes FIRST and fills most slots — nano-banana-2
+              // treats the first image as the dominant scene anchor.
+              // [pkg, pkg, pkg, pkg, jewelry] → model builds the packaging scene,
+              // then places the jewelry (last image) inside it.
               const MAX_REFS = 8;
               const pkgRepeat = Math.min(4, MAX_REFS - 1); // 1 slot for jewelry
               const pkgRefs = Array(pkgRepeat).fill(pkgHosted);
-              imageRefs = [src.url, ...pkgRefs]; // [jewelry, pkg, pkg, pkg, pkg]
+              imageRefs = [...pkgRefs, src.url]; // [pkg, pkg, pkg, pkg, jewelry]
 
               prompt =
                 "Generate a hyper-real, ultra high-resolution luxury product photograph.\n\n" +
 
-                "JEWELRY — PLACE THIS INSIDE THE PACKAGING:\n" +
-                "The FIRST image in image_input shows the exact jewelry piece. " +
-                "Reproduce every detail of this piece — its shape, gemstones, metal color, finish, and proportions — exactly as shown. " +
-                "Do not alter or substitute the jewelry.\n\n" +
+                "PACKAGING — THIS IS THE SCENE (DOMINANT REFERENCE):\n" +
+                `The first ${pkgRepeat} images in image_input all show the SAME packaging. Detailed description: ${pkgProse} ` +
+                "CRITICAL: Reproduce this EXACT packaging — same box type, shape, exterior color, material, finish, branding, logo, and interior cushion/tray. " +
+                "Open the lid naturally if the box has a hinged or lift-off lid. " +
+                "Do NOT invent or substitute a different box. This specific packaging is the container that MUST appear.\n\n" +
 
-                "PACKAGING — REPRODUCE THIS EXACTLY:\n" +
-                `Images 2 through ${pkgRepeat + 1} all show the SAME packaging. Here is a detailed description: ${pkgProse} ` +
-                "CRITICAL: You MUST reproduce this EXACT packaging — same box type, shape, color, material, branding, logo, and interior cushion/tray. " +
-                "Do NOT invent a different box. Do NOT use a generic box. The packaging shown in the reference images is the packaging that MUST appear in the output.\n\n" +
+                "JEWELRY — THE ITEM TO PLACE INSIDE:\n" +
+                `The LAST image (image ${pkgRepeat + 1}) shows the jewelry piece. ` +
+                "Reproduce this exact piece — same design, gemstones, metal color, finish, and proportions. Do not alter it. " +
+                "Place it naturally inside the open packaging, resting on the interior cushion or tray, positioned to showcase both the piece and the packaging.\n\n" +
 
                 "SCENE:\n" +
-                "The jewelry is elegantly placed inside the open packaging, resting naturally on its interior cushion or tray. " +
-                "Use controlled studio lighting with soft highlights and gentle shadows to showcase both the jewelry and the packaging at their finest. " +
-                "The background is minimal and clean. Shot on a Hasselblad H6D, 120mm macro, f/11, ISO 50. " +
-                "Refined luxury brand aesthetic — the complete image must look like one unified, freshly shot photograph.";
+                "Studio lighting with soft highlights and gentle shadows that showcase both the jewelry and the packaging. " +
+                "Minimal clean background. Hasselblad H6D, 120mm macro, f/11, ISO 50. " +
+                "One unified, freshly shot luxury photograph — no compositing artifacts.";
             } else {
               // Upload failed — fall back to default
               imageRefs = [src.url];
