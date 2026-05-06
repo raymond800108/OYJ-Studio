@@ -59,6 +59,7 @@ const ACTION_LABELS: Record<ApiAction, { en: string; zh: string }> = {
   "analyze-jewelry": { en: "Jewelry Analysis", zh: "珠寶分析" },
   "analyze-character": { en: "Character Analysis", zh: "角色分析" },
   "analyze-outfit": { en: "Outfit Analysis", zh: "服裝分析" },
+  "analyze-packaging": { en: "Packaging Analysis", zh: "包裝分析" },
   "relight": { en: "Relighting", zh: "燈光調整" },
   "estimate": { en: "Price Estimate", zh: "價格估算" },
 };

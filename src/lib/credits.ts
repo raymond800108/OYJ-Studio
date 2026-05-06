@@ -12,6 +12,7 @@ export const ACTION_CREDITS: Record<ApiAction, number> = {
   "analyze-jewelry": 1,
   "analyze-character": 1,
   "analyze-outfit": 1,
+  "analyze-packaging": 1,
   "relight": 1,
   "estimate": 1,
 };

@@ -1225,6 +1225,27 @@ export default function MarketingPanel({
     return result;
   };
 
+  // Cache packaging analysis — keyed on packaging image URL
+  const packagingAnalysisCache = useRef<Record<string, string>>({});
+
+  const analyzePackagingCached = async (pkgUrl: string): Promise<string> => {
+    if (packagingAnalysisCache.current[pkgUrl]) return packagingAnalysisCache.current[pkgUrl];
+    try {
+      const res = await fetch("/api/analyze-packaging", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_url: pkgUrl }),
+      });
+      const analysis = await res.json();
+      const prose: string = analysis.prose || "a luxury jewelry packaging box";
+      logUsage?.("analyze-packaging", { status: analysis.error ? "error" : "success" });
+      packagingAnalysisCache.current[pkgUrl] = prose;
+      return prose;
+    } catch {
+      return "a luxury jewelry packaging box";
+    }
+  };
+
   // Cache character analysis — keyed on sorted URL list so same set of refs always hits cache
   const characterAnalysisCache = useRef<Record<string, string>>({});
 
@@ -1485,21 +1506,43 @@ export default function MarketingPanel({
           imageRefs = [src.url];
         } else if (template.id === "packaging-box") {
           if (packagingImages.length > 0) {
-            // User provided custom packaging: upload it and reference alongside the jewelry
-            const packagingHosted: string[] = [];
-            for (const pk of packagingImages.slice(0, 2)) {
-              const hostedUrl = await uploadForReference(pk);
-              if (hostedUrl) packagingHosted.push(hostedUrl);
+            // Upload the first packaging image and get its hosted URL
+            const pkgHosted = await uploadForReference(packagingImages[0]);
+            if (pkgHosted) {
+              // Analyze packaging with GPT-4o to get a text description
+              const pkgProse = await analyzePackagingCached(pkgHosted);
+
+              // Repeat packaging image to fill image_input (mirrors how consistent-wearing
+              // repeats character refs — gives the model a strong visual anchor on the packaging)
+              const MAX_REFS = 8;
+              const pkgRepeat = Math.min(4, MAX_REFS - 1); // 1 slot for jewelry
+              const pkgRefs = Array(pkgRepeat).fill(pkgHosted);
+              imageRefs = [src.url, ...pkgRefs]; // [jewelry, pkg, pkg, pkg, pkg]
+
+              prompt =
+                "Generate a hyper-real, ultra high-resolution luxury product photograph.\n\n" +
+
+                "JEWELRY — PLACE THIS INSIDE THE PACKAGING:\n" +
+                "The FIRST image in image_input shows the exact jewelry piece. " +
+                "Reproduce every detail of this piece — its shape, gemstones, metal color, finish, and proportions — exactly as shown. " +
+                "Do not alter or substitute the jewelry.\n\n" +
+
+                "PACKAGING — REPRODUCE THIS EXACTLY:\n" +
+                `Images 2 through ${pkgRepeat + 1} all show the SAME packaging. Here is a detailed description: ${pkgProse} ` +
+                "CRITICAL: You MUST reproduce this EXACT packaging — same box type, shape, color, material, branding, logo, and interior cushion/tray. " +
+                "Do NOT invent a different box. Do NOT use a generic box. The packaging shown in the reference images is the packaging that MUST appear in the output.\n\n" +
+
+                "SCENE:\n" +
+                "The jewelry is elegantly placed inside the open packaging, resting naturally on its interior cushion or tray. " +
+                "Use controlled studio lighting with soft highlights and gentle shadows to showcase both the jewelry and the packaging at their finest. " +
+                "The background is minimal and clean. Shot on a Hasselblad H6D, 120mm macro, f/11, ISO 50. " +
+                "Refined luxury brand aesthetic — the complete image must look like one unified, freshly shot photograph.";
+            } else {
+              // Upload failed — fall back to default
+              imageRefs = [src.url];
+              prompt = CONSISTENCY_PREFIX +
+                "Create a hyper-real studio photograph of the exact jewelry piece from the reference image elegantly placed inside an open rigid jewellery box with a soft plush cushion interior. Studio lighting, minimal background, luxury aesthetic.";
             }
-            prompt =
-              CONSISTENCY_PREFIX +
-              "Create a hyper-real, ultra high-resolution studio photograph of the exact jewelry piece from the FIRST reference image elegantly placed inside or on top of the custom packaging shown in the SECOND reference image. " +
-              "Preserve the packaging's exact design, shape, color, texture, branding, and material as shown — do not alter or substitute the packaging. " +
-              "The jewelry should be positioned naturally and beautifully inside or on the packaging, resting on any cushion, tray, or surface the packaging provides. " +
-              "Use controlled studio lighting to create refined highlights and gentle shadows that showcase both the jewelry and the packaging at their finest. " +
-              "The background should be minimal and clean, keeping full attention on the product and its packaging. " +
-              "Shot on a professional high-end camera with perfect exposure, sharp focus, and cinematic depth of field for a refined luxury brand aesthetic.";
-            imageRefs = [src.url, ...packagingHosted];
           } else {
             // No custom packaging uploaded: fall back to default luxury box prompt
             prompt =
