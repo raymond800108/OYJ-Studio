@@ -28,13 +28,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       type = "image", // "image" | "video"
+      model: requestedModel,  // optional model override (e.g. gpt-image-2-image-to-image)
       prompt,
       negative_prompt = "",
       aspect_ratio = "1:1",
       resolution = "2K",
       output_format = "jpg",
-      // Image-specific — reference images for Nano Banana Pro (up to 8 URLs)
+      // Image-specific — reference images for Nano Banana 2 (up to 14 URLs)
       image_input = [],
+      // GPT-Image-2 uses a different param name (up to 16 URLs)
+      input_urls = [],
       // Video-specific
       video_model = "kling-2.6",
       // Optional reference image for image-to-video
@@ -88,8 +91,22 @@ export async function POST(req: NextRequest) {
         model,
         input,
       };
+    } else if (requestedModel === "gpt-image-2-image-to-image") {
+      // GPT-Image-2 image-to-image — uses input_urls (up to 16), quality param
+      endpoint = `${KIE_BASE}/jobs/createTask`;
+      const input: Record<string, unknown> = {
+        prompt: negative_prompt ? `${prompt}. Avoid: ${negative_prompt}` : prompt,
+        quality: "high",
+      };
+      if (input_urls && Array.isArray(input_urls) && input_urls.length > 0) {
+        input.input_urls = input_urls.slice(0, 16);
+      }
+      payload = {
+        model: "gpt-image-2-image-to-image",
+        input,
+      };
     } else {
-      // Nano Banana Pro — image generation
+      // Nano Banana 2 — default image generation
       endpoint = `${KIE_BASE}/jobs/createTask`;
       const input: Record<string, unknown> = {
         prompt: negative_prompt

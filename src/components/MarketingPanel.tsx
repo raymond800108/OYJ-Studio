@@ -1512,33 +1512,51 @@ export default function MarketingPanel({
               // Analyze packaging with GPT-4o to get a text description
               const pkgProse = await analyzePackagingCached(pkgHosted);
 
-              // IMPORTANT: packaging goes FIRST and fills most slots — nano-banana-2
-              // treats the first image as the dominant scene anchor.
-              // [pkg, pkg, pkg, pkg, jewelry] → model builds the packaging scene,
-              // then places the jewelry (last image) inside it.
-              const MAX_REFS = 8;
-              const pkgRepeat = Math.min(4, MAX_REFS - 1); // 1 slot for jewelry
-              const pkgRefs = Array(pkgRepeat).fill(pkgHosted);
-              imageRefs = [...pkgRefs, src.url]; // [pkg, pkg, pkg, pkg, jewelry]
+              // GPT-Image-2: packaging ×6 first (dominant scene anchor),
+              // jewelry ×2 last (item to place inside). 8 total, well within 16 limit.
+              const gptInputUrls = [
+                pkgHosted, pkgHosted, pkgHosted, pkgHosted, pkgHosted, pkgHosted, // pkg ×6
+                src.url, src.url, // jewelry ×2
+              ];
 
               prompt =
-                "Generate a hyper-real, ultra high-resolution luxury product photograph.\n\n" +
+                "You are a luxury product photographer. " +
+                "The first 6 images all show the SAME packaging. " +
+                (pkgProse ? `Packaging description: ${pkgProse} ` : "") +
+                "Reproduce this EXACT packaging — same box type, shape, exterior color, finish, material, branding, logo, and interior cushion or tray. Open the lid naturally. Do NOT invent or substitute a different box. " +
+                "The last 2 images show the jewelry piece to place inside. " +
+                "Reproduce the jewelry exactly — same design, gemstones, metal color, finish, and proportions. " +
+                "Place the jewelry naturally inside the open packaging, resting on the interior cushion or tray. " +
+                "Hyper-real studio photography, soft highlights, gentle shadows, minimal clean background. " +
+                "One unified freshly shot luxury photograph.";
 
-                "PACKAGING — THIS IS THE SCENE (DOMINANT REFERENCE):\n" +
-                `The first ${pkgRepeat} images in image_input all show the SAME packaging. Detailed description: ${pkgProse} ` +
-                "CRITICAL: Reproduce this EXACT packaging — same box type, shape, exterior color, material, finish, branding, logo, and interior cushion/tray. " +
-                "Open the lid naturally if the box has a hinged or lift-off lid. " +
-                "Do NOT invent or substitute a different box. This specific packaging is the container that MUST appear.\n\n" +
+              // Fire directly via Kie with GPT-Image-2 model — uses same polling system
+              const gptRes = await fetch("/api/kie", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  type: "image",
+                  model: "gpt-image-2-image-to-image",
+                  prompt,
+                  input_urls: gptInputUrls,
+                }),
+              });
+              const gptData = await gptRes.json();
 
-                "JEWELRY — THE ITEM TO PLACE INSIDE:\n" +
-                `The LAST image (image ${pkgRepeat + 1}) shows the jewelry piece. ` +
-                "Reproduce this exact piece — same design, gemstones, metal color, finish, and proportions. Do not alter it. " +
-                "Place it naturally inside the open packaging, resting on the interior cushion or tray, positioned to showcase both the piece and the packaging.\n\n" +
-
-                "SCENE:\n" +
-                "Studio lighting with soft highlights and gentle shadows that showcase both the jewelry and the packaging. " +
-                "Minimal clean background. Hasselblad H6D, 120mm macro, f/11, ISO 50. " +
-                "One unified, freshly shot luxury photograph — no compositing artifacts.";
+              if (gptData.error) {
+                logUsage?.("image-generate", { status: "error", detail: gptData.error });
+                setError((prev) => prev ? `${prev}\n${gptData.error}` : gptData.error);
+              } else {
+                logUsage?.("image-generate", { status: "success", detail: "packaging-box GPT-Image-2" });
+                newTasks.push({
+                  sourceId: src.id,
+                  sourceUrl: src.url,
+                  taskId: gptData.taskId,
+                  status: "waiting",
+                  taskType: "image",
+                });
+              }
+              continue; // skip the regular nano-banana-2 call below
             } else {
               // Upload failed — fall back to default
               imageRefs = [src.url];
