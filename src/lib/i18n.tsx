@@ -104,6 +104,7 @@ const dict = {
 
   // ── Usage / Token Tracking ──
   "mode.lighting": { en: "Lighting", zh: "燈光" },
+  "mode.social": { en: "Social", zh: "社群" },
   "mode.usage": { en: "Usage", zh: "用量" },
   "usage.title": { en: "API Usage & Cost Tracking", zh: "API 用量與費用追蹤" },
   "usage.totalCost": { en: "Total Cost", zh: "總費用" },
@@ -297,6 +298,60 @@ const dict = {
   "mkt.packagingUploadTitle": { en: "Custom Packaging (optional)", zh: "自訂包裝（選填）" },
   "mkt.packagingUploadHint": { en: "Upload your packaging design — the AI will place the jewelry inside it. Leave empty to use the default luxury box.", zh: "上傳您的包裝設計圖，AI 將把珠寶放置其中。不上傳則使用預設奢華珠寶盒。" },
   "mkt.packagingDropHere": { en: "Drop packaging image or click to browse", zh: "拖放包裝圖或點擊瀏覽" },
+
+  // ── Social Panel ──
+  "social.schedule": { en: "Schedule", zh: "排程" },
+  "social.diagnosis": { en: "Diagnosis", zh: "診斷" },
+  "social.comingSoon": { en: "Scheduling Coming Soon", zh: "排程功能即將推出" },
+  "social.comingSoonSub": {
+    en: "Connect Blotato to schedule and auto-publish content across platforms",
+    zh: "連接 Blotato 以跨平台排程並自動發布內容",
+  },
+  "social.blotatoKey": { en: "Blotato API Key", zh: "Blotato API 金鑰" },
+  "social.blotatoPlaceholder": { en: "Paste your Blotato API key", zh: "貼上您的 Blotato API 金鑰" },
+  "social.connect.headline": { en: "Connect Instagram for AI Diagnosis", zh: "連接 Instagram 以獲取 AI 診斷" },
+  "social.connect.p1": {
+    en: "Post performance — reach, saves, impressions, engagement",
+    zh: "貼文表現 — 觸及、收藏、曝光、互動",
+  },
+  "social.connect.p2": { en: "Audience breakdown — age, gender, top regions", zh: "受眾分析 — 年齡、性別、主要地區" },
+  "social.connect.p3": {
+    en: "Read-only access — Convra never posts on your behalf",
+    zh: "唯讀存取 — Convra 不會代您發文",
+  },
+  "social.connect.cta": { en: "Connect Instagram Business Account", zh: "連接 Instagram 商業帳號" },
+  "social.connect.note": {
+    en: "Requires an Instagram Business or Creator account connected to a Facebook Page",
+    zh: "需要連接至 Facebook 專頁的 Instagram 商業或創作者帳號",
+  },
+  "social.idle.headline": { en: "Ready to diagnose your Instagram", zh: "準備診斷您的 Instagram" },
+  "social.idle.sub": {
+    en: "Convra will analyse your last 30 posts and provide AI-powered recommendations",
+    zh: "Convra 將分析您最近 30 篇貼文並提供 AI 建議",
+  },
+  "social.run": { en: "Run Diagnosis", zh: "執行診斷" },
+  "social.disconnect": { en: "Disconnect", zh: "中斷連接" },
+  "social.step.posts": { en: "Fetching your last 30 posts...", zh: "正在獲取最近 30 篇貼文..." },
+  "social.step.audience": { en: "Pulling audience demographics...", zh: "正在獲取受眾數據..." },
+  "social.step.ai": { en: "Running AI diagnosis...", zh: "正在執行 AI 診斷..." },
+  "social.working": { en: "What's Working", zh: "表現良好" },
+  "social.notWorking": { en: "What's Not Working", zh: "需要改進" },
+  "social.audience": { en: "Your Audience", zh: "您的受眾" },
+  "social.bestTime": { en: "Best time to post:", zh: "最佳發文時間：" },
+  "social.topPost": { en: "Top Performing Post", zh: "表現最佳貼文" },
+  "social.nextPost": { en: "Your Next Post", zh: "下一篇貼文建議" },
+  "social.generate": { en: "Generate This Content in Studio", zh: "在工作室生成此內容" },
+  "social.tryAgain": { en: "Try Again", zh: "重試" },
+  "social.err.generic": { en: "Something went wrong. Please try again.", zh: "發生錯誤，請重試。" },
+  "social.err.denied": { en: "Connection cancelled.", zh: "連接已取消。" },
+  "social.err.noAccount": {
+    en: "Your Instagram isn't connected to a Facebook Page.",
+    zh: "您的 Instagram 未連接至 Facebook 專頁。",
+  },
+  "social.err.expired": {
+    en: "Your Instagram connection expired. Please reconnect.",
+    zh: "您的 Instagram 連接已過期，請重新連接。",
+  },
 
   // ── Aspect ratio labels ──
   "ratio.square": { en: "Square", zh: "方形" },

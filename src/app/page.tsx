@@ -16,6 +16,7 @@ import {
   Globe,
   BarChart3,
   Sun,
+  Share2,
 } from "lucide-react";
 import ImageUploader from "@/components/ImageUploader";
 import CameraOrbit from "@/components/CameraOrbit";
@@ -84,6 +85,8 @@ const UsagePanel = dynamic(
   }
 );
 
+import SocialPanel from "@/components/SocialPanel";
+
 const AdminInvoiceHub = dynamic(
   () => import("@/components/AdminInvoiceHub"),
   {
@@ -96,7 +99,7 @@ const AdminInvoiceHub = dynamic(
   }
 );
 
-type Mode = "camera" | "inpaint" | "3d" | "marketing" | "lighting" | "usage";
+type Mode = "camera" | "inpaint" | "3d" | "marketing" | "lighting" | "usage" | "social";
 
 interface Estimation {
   product_name: string;
@@ -715,6 +718,7 @@ export default function Home() {
                   { key: "3d", icon: Box, labelKey: "mode.3d" as const },
                   { key: "marketing", icon: Megaphone, labelKey: "mode.marketing" as const },
                   { key: "lighting", icon: Sun, labelKey: "mode.lighting" as const },
+                  { key: "social", icon: Share2, labelKey: "mode.social" as const },
                   { key: "usage", icon: BarChart3, labelKey: "mode.usage" as const },
                 ] as const
               ).map(({ key, icon: Icon, labelKey }) => (
@@ -765,7 +769,9 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-5">
-        {mode === "usage" ? (
+        {mode === "social" ? (
+          <SocialPanel lang={lang} user={user} logUsage={logUsage} />
+        ) : mode === "usage" ? (
           <div className="space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
