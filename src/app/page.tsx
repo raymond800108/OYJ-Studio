@@ -201,8 +201,23 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // History
-  const [history, setHistory] = useState<HistoryItem[]>([]);
+  // History — initialised from localStorage so it survives page refreshes
+  const [history, setHistory] = useState<HistoryItem[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = localStorage.getItem("convra-history");
+      return saved ? (JSON.parse(saved) as HistoryItem[]) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Persist history to localStorage whenever it changes
+  useEffect(() => {
+    if (history.length > 0) {
+      localStorage.setItem("convra-history", JSON.stringify(history));
+    }
+  }, [history]);
 
   // Shared latest generated results — visible across all pages
   const [sharedResults, setSharedResults] = useState<string[]>([]);
@@ -770,7 +785,7 @@ export default function Home() {
       {/* Main Content */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-5">
         {mode === "social" ? (
-          <SocialPanel lang={lang} user={user} logUsage={logUsage} />
+          <SocialPanel lang={lang} user={user} logUsage={logUsage} history={history} />
         ) : mode === "usage" ? (
           <div className="space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">

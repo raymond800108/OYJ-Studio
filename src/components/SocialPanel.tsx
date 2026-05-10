@@ -25,11 +25,21 @@ import { useI18n, type TKey } from "@/lib/i18n";
 
 /* ─── Types ──────────────────────────────────────────────────────── */
 
+// AppHistoryItem matches HistoryItem from HistoryPanel.tsx (resultUrl + mode)
+interface AppHistoryItem {
+  id?: string;
+  resultUrl: string;
+  mode?: "image" | "video" | "camera" | "3d" | "inpaint" | "lighting";
+  prompt?: string;
+  timestamp?: number;
+}
+
 interface SocialPanelProps {
   lang: "en" | "zh";
   user: { email: string | null; name?: string | null } | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   logUsage?: (...args: any[]) => any;
+  history?: AppHistoryItem[];
 }
 
 type Phase = "idle" | "connecting" | "fetching" | "diagnosing" | "done" | "error";
@@ -111,42 +121,30 @@ interface HistoryItem {
   timestamp?: number;
 }
 
-function loadHistoryItems(): HistoryItem[] {
+// Convert app HistoryItem (resultUrl + mode) to tray format (url + type)
+function appHistoryToTray(items: AppHistoryItem[]): HistoryItem[] {
+  return items
+    .filter((item) => Boolean(item.resultUrl))
+    .map((item) => ({
+      url: item.resultUrl,
+      type: (item.mode === "video" ? "video" : "image") as "image" | "video",
+      timestamp: item.timestamp,
+    }));
+}
+
+// Fallback: read from localStorage if no prop provided
+function loadHistoryFromStorage(): HistoryItem[] {
   try {
-    const raw = localStorage.getItem("convra-history") ||
-      localStorage.getItem("history") ||
-      localStorage.getItem("ce-history") ||
-      "[]";
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return parsed
-        .filter((item: unknown) => {
-          if (typeof item === "string") return true;
-          if (item && typeof item === "object" && "url" in item) return true;
-          return false;
-        })
-        .map((item: unknown): HistoryItem => {
-          if (typeof item === "string") {
-            return { url: item, type: "image" };
-          }
-          const obj = item as Record<string, unknown>;
-          return {
-            url: (obj.url as string) || (obj.imageUrl as string) || "",
-            type: ((obj.type as string) === "video" ? "video" : "image") as "image" | "video",
-            timestamp: obj.timestamp as number | undefined,
-          };
-        })
-        .filter((item) => Boolean(item.url));
-    }
-  } catch {
-    // ignore
-  }
+    const raw = localStorage.getItem("convra-history") || "[]";
+    const parsed = JSON.parse(raw) as AppHistoryItem[];
+    if (Array.isArray(parsed)) return appHistoryToTray(parsed);
+  } catch { /* ignore */ }
   return [];
 }
 
 /* ─── SocialPanel ─────────────────────────────────────────────────── */
 
-export default function SocialPanel({ lang, logUsage }: SocialPanelProps) {
+export default function SocialPanel({ lang, logUsage, history: appHistory }: SocialPanelProps) {
   const { t } = useI18n();
 
   // Tab state
@@ -218,9 +216,18 @@ export default function SocialPanel({ lang, logUsage }: SocialPanelProps) {
         .catch(() => {});
     }
 
-    // Load content tray from history
-    setTrayItems(loadHistoryItems());
+    // Load content tray — fall back to localStorage if prop not yet populated
+    if (!appHistory || appHistory.length === 0) {
+      setTrayItems(loadHistoryFromStorage());
+    }
   }, []);
+
+  /* ── Sync live history prop → tray (real-time as new content generates) */
+  useEffect(() => {
+    if (appHistory && appHistory.length > 0) {
+      setTrayItems(appHistoryToTray(appHistory));
+    }
+  }, [appHistory]);
 
   /* ── On mount: check status + handle URL params ─────────────────── */
   useEffect(() => {
