@@ -20,6 +20,10 @@ import {
   Send,
   Trash2,
   Link2,
+  Upload,
+  Sparkles,
+  Timer,
+  Radio,
 } from "lucide-react";
 import { useI18n, type TKey } from "@/lib/i18n";
 
@@ -76,13 +80,16 @@ interface BlotatoAccount {
 
 interface CalendarPost {
   id: string;
-  date: string; // YYYY-MM-DD
-  time: string; // HH:MM
+  date: string;           // YYYY-MM-DD
+  time: string;           // HH:MM
+  timezone: string;       // IANA tz string
   mediaUrl: string;
   mediaType: "image" | "video";
   caption: string;
   platform: string | null;
   accountId: string | null;
+  presetId: string | null;
+  presetLabel: string | null;
   status: "draft" | "scheduled" | "published" | "failed";
   blotatoPostId: string | null;
 }
@@ -112,6 +119,34 @@ const MONTH_NAMES_ZH = [
 ];
 
 const PLATFORMS = ["instagram", "facebook", "twitter", "tiktok", "linkedin"];
+
+const COMMON_TIMEZONES = [
+  { value: "America/New_York",    label: "Eastern (ET)" },
+  { value: "America/Chicago",     label: "Central (CT)" },
+  { value: "America/Los_Angeles", label: "Pacific (PT)" },
+  { value: "UTC",                 label: "UTC" },
+  { value: "Europe/London",       label: "London (GMT/BST)" },
+  { value: "Europe/Paris",        label: "Paris (CET)" },
+  { value: "Asia/Dubai",          label: "Dubai (GST)" },
+  { value: "Asia/Shanghai",       label: "China (CST)" },
+  { value: "Asia/Tokyo",          label: "Tokyo (JST)" },
+  { value: "Asia/Seoul",          label: "Seoul (KST)" },
+  { value: "Asia/Hong_Kong",      label: "Hong Kong (HKT)" },
+  { value: "Asia/Singapore",      label: "Singapore (SGT)" },
+  { value: "Australia/Sydney",    label: "Sydney (AEST)" },
+];
+
+const ACCOUNT_BUNDLES: { id: string; label: string }[] = [
+  { id: "40541", label: "Socialfashionizing" },
+  { id: "41782", label: "innery.lab" },
+  { id: "41768", label: "necksy_de" },
+];
+
+const IG_PRESETS = [
+  { id: "ig-post",  label: "Instagram — Feed Post" },
+  { id: "ig-reels", label: "Instagram — Reel" },
+  { id: "ig-story", label: "Instagram — Story" },
+];
 
 /* ─── History helpers ─────────────────────────────────────────────── */
 
@@ -176,6 +211,27 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
   /* ── Edit modal state ──────────────────────────────────────────── */
   const [editingPost, setEditingPost] = useState<CalendarPost | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editTime, setEditTime] = useState("12:00");
+  const [editTimezone, setEditTimezone] = useState("UTC");
+  const [editCaption, setEditCaption] = useState("");
+  const [generatingCaption, setGeneratingCaption] = useState(false);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const replaceFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Auto-detect local timezone once
+  const [defaultTimezone] = useState<string>(() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return "UTC"; }
+  });
+
+  // Live clock — null until mounted to avoid hydration mismatch
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const tick = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(tick);
+  }, []);
 
   /* ── Content tray ──────────────────────────────────────────────── */
   const [trayItems, setTrayItems] = useState<HistoryItem[]>([]);
@@ -333,11 +389,14 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
       id: crypto.randomUUID(),
       date,
       time: "09:00",
+      timezone: defaultTimezone,
       mediaUrl,
       mediaType,
       caption: "",
       platform: "instagram",
       accountId: selectedAccountId,
+      presetId: null,
+      presetLabel: null,
       status: "draft",
       blotatoPostId: null,
     };
@@ -371,54 +430,164 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
     }
   }
 
-  /* ── Publish post ──────────────────────────────────────────────── */
+  /* ── Temp URL helpers ─────────────────────────────────────────── */
+  function isTempUrl(url: string): boolean {
+    return url.includes("tempfile.aiquickdraw.com") || url.includes("kie.ai");
+  }
+
+  async function extractMediaBlob(url: string, isVideo: boolean): Promise<Blob | null> {
+    try {
+      const r = await fetch(url, { cache: "force-cache" });
+      if (r.ok) return await r.blob();
+    } catch {}
+    try {
+      const r = await fetch(`/api/proxy-media?url=${encodeURIComponent(url)}`);
+      if (r.ok) return await r.blob();
+    } catch {}
+    if (!isVideo) {
+      try {
+        return await new Promise<Blob | null>((resolve) => {
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return resolve(null);
+            try { ctx.drawImage(img, 0, 0); canvas.toBlob((b) => resolve(b), "image/jpeg", 0.95); }
+            catch { resolve(null); }
+          };
+          img.onerror = () => resolve(null);
+          img.src = url;
+        });
+      } catch {}
+    }
+    return null;
+  }
+
+  /* ── Open / save edit modal ────────────────────────────────────── */
+  function openEdit(post: CalendarPost) {
+    setEditingPost(post);
+    setEditCaption(post.caption);
+    setEditTime(post.time || "12:00");
+    setEditTimezone(post.timezone || defaultTimezone);
+    setPublishError(null);
+    setEditModalOpen(true);
+  }
+
+  function saveEdit() {
+    if (!editingPost) return;
+    const updated = { ...editingPost, caption: editCaption, time: editTime, timezone: editTimezone };
+    setEditingPost(updated);
+    setScheduledPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    setEditModalOpen(false);
+    setEditingPost(null);
+  }
+
+  /* ── Replace media ─────────────────────────────────────────────── */
+  async function handleReplaceMedia(file: File) {
+    if (!editingPost) return;
+    setUploadingMedia(true);
+    setPublishError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || "Upload failed");
+      const newType: "image" | "video" = file.type.startsWith("video/") ? "video" : "image";
+      setScheduledPosts((prev) => prev.map((p) => p.id === editingPost.id ? { ...p, mediaUrl: data.url, mediaType: newType } : p));
+      setEditingPost((prev) => prev ? { ...prev, mediaUrl: data.url, mediaType: newType } : prev);
+    } catch (err) {
+      setPublishError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploadingMedia(false);
+      if (replaceFileInputRef.current) replaceFileInputRef.current.value = "";
+    }
+  }
+
+  /* ── AI caption in modal ───────────────────────────────────────── */
+  async function handleGenerateCaptionInModal() {
+    if (!editingPost) return;
+    setGeneratingCaption(true);
+    try {
+      const imageUrl = editingPost.mediaType === "video"
+        ? (editingPost.mediaUrl) // best effort for video
+        : editingPost.mediaUrl;
+      const res = await fetch("/api/social/caption", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_url: imageUrl, platform: editingPost.platform || "instagram", locale: lang }),
+      });
+      if (res.ok) {
+        const { caption } = await res.json();
+        if (caption) setEditCaption(caption);
+      }
+    } catch {}
+    setGeneratingCaption(false);
+  }
+
+  /* ── Publish post (with temp-URL re-hosting) ───────────────────── */
   async function publishPost(post: CalendarPost) {
     if (!blotatoConnected) return;
     const accId = post.accountId || selectedAccountId;
     if (!accId) return;
 
+    setPublishingId(post.id);
+    setPublishError(null);
+    setScheduledPosts((prev) => prev.map((p) => p.id === post.id ? { ...p, status: "scheduled" } : p));
+
     try {
+      let mediaUrl = post.mediaUrl;
+      if (isTempUrl(mediaUrl)) {
+        const blob = await extractMediaBlob(post.mediaUrl, post.mediaType === "video");
+        if (blob) {
+          const ext = blob.type.includes("video") ? "mp4" : "jpg";
+          const file = new File([blob], `media.${ext}`, { type: blob.type });
+          const fd = new FormData();
+          fd.append("file", file);
+          const uploadRes = await fetch("/api/upload", { method: "POST", body: fd });
+          const uploadData = await uploadRes.json();
+          if (uploadData.url) {
+            mediaUrl = uploadData.url;
+            setScheduledPosts((prev) => prev.map((p) => p.id === post.id ? { ...p, mediaUrl: uploadData.url } : p));
+          }
+        }
+        if (isTempUrl(mediaUrl)) {
+          throw new Error(post.mediaType === "video"
+            ? "Video URL expired — please regenerate this video in Marketing tab."
+            : "Media URL expired — please regenerate this content in Marketing tab.");
+        }
+      }
+
       const res = await fetch("/api/blotato/publish", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-blotato-key": blotatoKey,
-        },
+        headers: { "Content-Type": "application/json", "x-blotato-key": blotatoKey },
         body: JSON.stringify({
           accountId: accId,
-          text: post.caption,
-          mediaUrls: [post.mediaUrl],
+          text: post.caption || ".",
+          mediaUrls: [mediaUrl],
           platform: post.platform || "instagram",
+          presetId: post.presetId || null,
         }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setScheduledPosts((prev) =>
-          prev.map((p) =>
-            p.id === post.id
-              ? { ...p, status: "scheduled", blotatoPostId: data.postSubmissionId ?? null }
-              : p
-          )
-        );
-        setEditingPost((prev) =>
-          prev?.id === post.id
-            ? { ...prev, status: "scheduled", blotatoPostId: data.postSubmissionId ?? null }
-            : prev
-        );
-      } else {
-        setScheduledPosts((prev) =>
-          prev.map((p) => (p.id === post.id ? { ...p, status: "failed" } : p))
-        );
-        setEditingPost((prev) =>
-          prev?.id === post.id ? { ...prev, status: "failed" } : prev
-        );
-      }
-    } catch {
-      setScheduledPosts((prev) =>
-        prev.map((p) => (p.id === post.id ? { ...p, status: "failed" } : p))
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Publish failed");
+
+      setScheduledPosts((prev) => prev.map((p) =>
+        p.id === post.id ? { ...p, status: "scheduled", blotatoPostId: data.postSubmissionId ?? null } : p
+      ));
+      setEditingPost((prev) => prev?.id === post.id
+        ? { ...prev, status: "scheduled", blotatoPostId: data.postSubmissionId ?? null } : prev
       );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error";
+      setPublishError(msg);
+      setScheduledPosts((prev) => prev.map((p) => p.id === post.id ? { ...p, status: "draft" } : p));
+      setEditingPost((prev) => prev?.id === post.id ? { ...prev, status: "draft" } : prev);
     }
+    setPublishingId(null);
   }
 
   /* ── Delete post ───────────────────────────────────────────────── */
@@ -428,18 +597,6 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
       setEditModalOpen(false);
       setEditingPost(null);
     }
-  }
-
-  /* ── Update editing post field ─────────────────────────────────── */
-  function updateEditingPost(field: keyof CalendarPost, value: string) {
-    setEditingPost((prev) => {
-      if (!prev) return prev;
-      const updated = { ...prev, [field]: value };
-      setScheduledPosts((posts) =>
-        posts.map((p) => (p.id === updated.id ? updated : p))
-      );
-      return updated;
-    });
   }
 
   /* ── Diagnosis helpers ─────────────────────────────────────────── */
@@ -540,6 +697,24 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
       {/* ── Schedule Tab ──────────────────────────────────────────── */}
       {tab === "schedule" && (
         <div className="space-y-4">
+
+          {/* Live clock + pending count */}
+          {now && (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-card border border-border">
+                <Timer className="w-3.5 h-3.5 text-muted" />
+                <span className="text-xs font-mono tabular-nums">
+                  {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                </span>
+              </div>
+              {scheduledPosts.filter((p) => p.status === "draft").length > 0 && (
+                <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-[10px] font-semibold">
+                  <Radio className="w-2.5 h-2.5 animate-pulse" />
+                  {scheduledPosts.filter((p) => p.status === "draft").length} draft
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Blotato Connection Panel */}
           <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
@@ -706,10 +881,7 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
                             {dayPosts.slice(0, 3).map((post) => (
                               <button
                                 key={post.id}
-                                onClick={() => {
-                                  setEditingPost(post);
-                                  setEditModalOpen(true);
-                                }}
+                                onClick={() => openEdit(post)}
                                 className="w-full flex items-center gap-1 rounded overflow-hidden group"
                                 title={post.caption || "Draft"}
                               >
@@ -817,123 +989,211 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
           {/* ── Edit Modal ──────────────────────────────────────────── */}
           {editModalOpen && editingPost && (
             <div
-              className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-              onClick={(e) => {
-                if (e.target === e.currentTarget) {
-                  setEditModalOpen(false);
-                }
-              }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              onClick={(e) => { if (e.target === e.currentTarget) saveEdit(); }}
             >
-              {/* Backdrop */}
-              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-
-              {/* Modal */}
+              <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
               <div className="relative z-10 w-full max-w-lg rounded-2xl bg-card border border-border shadow-2xl overflow-hidden">
+
                 {/* Header */}
                 <div className="flex items-center justify-between px-5 py-4 border-b border-border">
                   <div className="flex items-center gap-2">
-                    <span
-                      className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[editingPost.status]}`}
-                    />
-                    <span className="text-sm font-semibold text-foreground capitalize">
-                      {t(`social.post.${editingPost.status}` as TKey)}
-                    </span>
+                    <span className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[editingPost.status]}`} />
+                    <span className="text-sm font-semibold capitalize">{editingPost.status}</span>
+                    <span className="text-xs text-muted">{editingPost.date}</span>
                   </div>
-                  <button
-                    onClick={() => setEditModalOpen(false)}
-                    className="p-1.5 rounded-lg hover:bg-muted/10 transition-colors"
-                  >
+                  <button onClick={saveEdit} className="p-1.5 rounded-lg hover:bg-muted/10">
                     <X className="w-4 h-4 text-muted" />
                   </button>
                 </div>
 
-                <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
-                  {/* Media preview */}
-                  <div className="rounded-xl overflow-hidden bg-muted/5 border border-border">
-                    {editingPost.mediaType === "image" ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={editingPost.mediaUrl}
-                        alt=""
-                        className="w-full max-h-48 object-contain"
+                <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+
+                  {/* ① Media preview with replace overlay */}
+                  <div className="flex gap-4 items-start">
+                    <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-border shrink-0 group">
+                      {editingPost.mediaType === "video" ? (
+                        <video src={editingPost.mediaUrl} className="w-full h-full object-cover" muted />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={editingPost.mediaUrl} alt="" className="w-full h-full object-cover" />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => replaceFileInputRef.current?.click()}
+                        disabled={uploadingMedia}
+                        title="Replace media"
+                        className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-100"
+                      >
+                        {uploadingMedia
+                          ? <Loader2 className="w-5 h-5 text-white animate-spin" />
+                          : <Upload className="w-5 h-5 text-white" />}
+                      </button>
+                      <input
+                        ref={replaceFileInputRef}
+                        type="file"
+                        accept="image/*,video/*"
+                        className="hidden"
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleReplaceMedia(f); }}
                       />
-                    ) : (
-                      <div className="h-32 flex items-center justify-center">
-                        <span className="text-4xl opacity-40">&#9654;</span>
-                      </div>
-                    )}
+                    </div>
+                    <div className="flex-1 space-y-1.5">
+                      <button
+                        type="button"
+                        onClick={() => replaceFileInputRef.current?.click()}
+                        disabled={uploadingMedia}
+                        className="flex items-center gap-1.5 text-[11px] text-muted hover:text-foreground"
+                      >
+                        {uploadingMedia
+                          ? <><Loader2 className="w-3 h-3 animate-spin" /> Uploading…</>
+                          : <><Upload className="w-3 h-3" /> Replace media</>}
+                      </button>
+                      {isTempUrl(editingPost.mediaUrl) && editingPost.mediaType === "video" && (
+                        <p className="text-[10px] text-red-500 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" /> Temp URL — may expire before publish
+                        </p>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Caption */}
+                  {/* ② Caption + AI generate */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted">
-                      {t("social.post.caption" as TKey)}
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-medium text-muted">{t("social.post.caption" as TKey)}</label>
+                      <button
+                        onClick={handleGenerateCaptionInModal}
+                        disabled={generatingCaption}
+                        className="flex items-center gap-1 text-[11px] text-accent hover:text-accent/80 disabled:opacity-40"
+                      >
+                        {generatingCaption ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                        {generatingCaption ? "Generating…" : "AI Caption"}
+                      </button>
+                    </div>
                     <textarea
-                      value={editingPost.caption}
-                      onChange={(e) => updateEditingPost("caption", e.target.value)}
+                      value={editCaption}
+                      onChange={(e) => setEditCaption(e.target.value)}
                       rows={4}
-                      className="w-full px-3 py-2.5 rounded-xl bg-background border border-border text-sm placeholder:text-muted/40 focus:outline-none focus:border-foreground/30 transition-all resize-none"
-                      placeholder="Write your caption..."
+                      className="w-full px-3 py-2.5 rounded-xl bg-background border border-border text-sm placeholder:text-muted/40 focus:outline-none focus:border-foreground/30 resize-none"
+                      placeholder="Write your caption…"
                     />
                   </div>
 
-                  {/* Time + Platform row */}
+                  {/* ③ Time + Timezone */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-muted flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {t("social.post.time" as TKey)}
+                        <Clock className="w-3 h-3" />{t("social.post.time" as TKey)}
                       </label>
                       <input
                         type="time"
-                        value={editingPost.time}
-                        onChange={(e) => updateEditingPost("time", e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-background border border-border text-sm focus:outline-none focus:border-foreground/30 transition-all"
+                        value={editTime}
+                        onChange={(e) => setEditTime(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-background border border-border text-sm focus:outline-none focus:border-foreground/30"
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted">
-                        {t("social.post.platform" as TKey)}
-                      </label>
+                      <label className="text-xs font-medium text-muted">Timezone</label>
                       <select
-                        value={editingPost.platform || "instagram"}
-                        onChange={(e) => updateEditingPost("platform", e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-background border border-border text-sm focus:outline-none focus:border-foreground/30 transition-all capitalize"
+                        value={editTimezone}
+                        onChange={(e) => setEditTimezone(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-background border border-border text-sm focus:outline-none focus:border-foreground/30"
                       >
-                        {PLATFORMS.map((p) => (
-                          <option key={p} value={p} className="capitalize">
-                            {p.charAt(0).toUpperCase() + p.slice(1)}
-                          </option>
+                        {!COMMON_TIMEZONES.some(tz => tz.value === editTimezone) && (
+                          <option value={editTimezone}>{editTimezone}</option>
+                        )}
+                        {COMMON_TIMEZONES.map((tz) => (
+                          <option key={tz.value} value={tz.value}>{tz.label}</option>
                         ))}
                       </select>
                     </div>
                   </div>
 
-                  {/* Account selector if Blotato connected */}
-                  {blotatoConnected && blotatoAccounts.length > 0 && (
+                  {/* ④ Export preset (ig-post / ig-reels / ig-story) */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted">Post Type</label>
+                    <select
+                      value={editingPost.presetId || ""}
+                      onChange={(e) => {
+                        const id = e.target.value || null;
+                        const preset = IG_PRESETS.find((p) => p.id === id);
+                        const updated = { ...editingPost, presetId: id, presetLabel: preset?.label ?? null };
+                        setEditingPost(updated);
+                        setScheduledPosts((prev) => prev.map((p) => p.id === updated.id ? updated : p));
+                      }}
+                      className="w-full px-3 py-2 rounded-xl bg-background border border-border text-sm focus:outline-none focus:border-foreground/30"
+                    >
+                      <option value="">Instagram — Feed Post (default)</option>
+                      {IG_PRESETS.map((p) => (
+                        <option key={p.id} value={p.id}>{p.label}</option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-muted/60">
+                      Story and Reel use different placements in Blotato
+                    </p>
+                  </div>
+
+                  {/* ⑤ Account selector with ACCOUNT_BUNDLES */}
+                  {blotatoConnected && (
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted">Account</label>
-                      <select
-                        value={editingPost.accountId || selectedAccountId || ""}
-                        onChange={(e) => updateEditingPost("accountId", e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-background border border-border text-sm focus:outline-none focus:border-foreground/30 transition-all"
-                      >
-                        {blotatoAccounts.map((acc) => (
-                          <option key={acc.id} value={acc.id}>
-                            {acc.platform} — @{acc.username || acc.fullname}
-                          </option>
-                        ))}
-                      </select>
+                      <label className="text-xs font-medium text-muted">Publish To</label>
+                      {ACCOUNT_BUNDLES.length > 0 ? (
+                        <select
+                          value={editingPost.accountId || selectedAccountId || ""}
+                          onChange={(e) => {
+                            const newId = e.target.value || null;
+                            const live = blotatoAccounts.find((a) => a.id === newId);
+                            const nextPlatform = live?.platform || editingPost.platform;
+                            const updated = { ...editingPost, accountId: newId, platform: nextPlatform };
+                            setEditingPost(updated);
+                            setScheduledPosts((prev) => prev.map((p) => p.id === updated.id ? updated : p));
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-background border border-border text-sm focus:outline-none focus:border-foreground/30"
+                        >
+                          <option value="">Select account…</option>
+                          {ACCOUNT_BUNDLES.map((bundle) => {
+                            const live = blotatoAccounts.find((a) => a.id === bundle.id);
+                            return (
+                              <option key={bundle.id} value={bundle.id}>
+                                {bundle.label}{live ? ` — @${live.username}` : ""}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      ) : (
+                        <select
+                          value={editingPost.accountId || selectedAccountId || ""}
+                          onChange={(e) => {
+                            const newId = e.target.value;
+                            const live = blotatoAccounts.find((a) => a.id === newId);
+                            const updated = { ...editingPost, accountId: newId, platform: live?.platform || editingPost.platform };
+                            setEditingPost(updated);
+                            setScheduledPosts((prev) => prev.map((p) => p.id === updated.id ? updated : p));
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-background border border-border text-sm focus:outline-none focus:border-foreground/30"
+                        >
+                          {blotatoAccounts.map((acc) => (
+                            <option key={acc.id} value={acc.id}>
+                              {acc.platform} — @{acc.username || acc.fullname}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
+                  )}
+
+                  {/* Error */}
+                  {publishError && (
+                    <p className="text-xs text-red-500 flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />{publishError}
+                    </p>
                   )}
                 </div>
 
-                {/* Footer actions */}
+                {/* Footer */}
                 <div className="flex items-center gap-2 px-5 py-4 border-t border-border">
                   <button
                     onClick={() => deletePost(editingPost.id)}
-                    className="p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 text-muted hover:text-red-500 transition-all"
+                    className="p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 text-muted hover:text-red-500"
                     title={t("social.post.delete" as TKey)}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -942,29 +1202,30 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
                   {blotatoConnected && editingPost.status !== "scheduled" && editingPost.status !== "published" && (
                     <button
                       onClick={() => publishPost(editingPost)}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-foreground text-background text-sm font-medium hover:opacity-90 transition-all"
+                      disabled={publishingId === editingPost.id}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-foreground text-background text-sm font-medium hover:opacity-90 disabled:opacity-40"
                     >
-                      <Send className="w-3.5 h-3.5" />
+                      {publishingId === editingPost.id
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <Send className="w-3.5 h-3.5" />}
                       {t("social.post.publish" as TKey)}
                     </button>
                   )}
-                  {editingPost.status === "scheduled" && (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 text-xs font-medium">
+                  {(editingPost.status === "scheduled" || editingPost.status === "published") && (
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium ${
+                      editingPost.status === "published"
+                        ? "bg-green-500/10 text-green-600"
+                        : "bg-blue-500/10 text-blue-600"
+                    }`}>
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      {t("social.post.scheduled" as TKey)}
-                    </div>
-                  )}
-                  {editingPost.status === "published" && (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400 text-xs font-medium">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      {t("social.post.published" as TKey)}
+                      {t(`social.post.${editingPost.status}` as TKey)}
                     </div>
                   )}
                   <button
-                    onClick={() => setEditModalOpen(false)}
-                    className="px-4 py-2 rounded-xl bg-muted/10 hover:bg-muted/20 text-foreground text-sm font-medium transition-all"
+                    onClick={saveEdit}
+                    className="px-4 py-2 rounded-xl bg-muted/10 hover:bg-muted/20 text-foreground text-sm font-medium"
                   >
-                    {t("invoice.cancel" as TKey)}
+                    Save
                   </button>
                 </div>
               </div>
