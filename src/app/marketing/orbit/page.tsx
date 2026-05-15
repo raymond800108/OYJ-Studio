@@ -15,6 +15,22 @@ import OrbitCameraControl, { OrbitParams } from "@/components/OrbitCameraControl
 import { useAuth } from "@/lib/useAuth";
 import { useUsageTracking } from "@/lib/usage";
 import { useI18n, TKey } from "@/lib/i18n";
+import type { HistoryItem } from "@/components/HistoryPanel";
+import { ACTION_CREDITS } from "@/lib/credits";
+
+const HISTORY_KEY = "convra-history";
+
+function appendHistory(item: HistoryItem) {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    const list: HistoryItem[] = raw ? JSON.parse(raw) : [];
+    const next = [item, ...list].slice(0, 100);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+  } catch {
+    // ignore localStorage failures
+  }
+}
 
 /* ─── Motion styles ─────────────────────────────────────────────── */
 
@@ -162,6 +178,18 @@ export default function OrbitPage() {
   const [recordingWaypoint, setRecordingWaypoint] = useState(false);
 
   const activeStyle = MOTION_STYLES.find((s) => s.id === selectedStyleId) ?? MOTION_STYLES[0];
+
+  // Cost preview — orbit single still costs 1 camera-generate credit;
+  // motion video costs (waypointCount × camera-generate) + video-generate
+  // since each waypoint is a separate FAL submission and Kling stitches.
+  const stillCredits = ACTION_CREDITS["camera-generate"];
+  const videoCredits = ACTION_CREDITS["video-generate"];
+  const waypointCount = activeStyle.id === "custom"
+    ? Math.max(1, waypoints.filter((w) => w.imageUrl !== null).length || activeStyle.presetWaypoints.length)
+    : activeStyle.presetWaypoints.length;
+  const motionVideoTotalCredits = waypointCount * stillCredits + videoCredits;
+  const formatCredits = (n: number) =>
+    t(n === 1 ? "orbit.creditsSuffix" : "orbit.creditsSuffixPlural", { n });
   const readyWaypoints = waypoints.filter((w) => w.imageUrl !== null);
 
   /* ─── Upload ─────────────────────────────────────────────────── */
@@ -225,6 +253,20 @@ export default function OrbitPage() {
           if (pollData.status === "success" && pollData.images?.[0]?.url) {
             setResultUrl(pollData.images[0].url);
             logUsage?.("camera-generate", { status: "success", detail: `${orbit.horizontalAngle}/${orbit.verticalAngle}/${orbit.zoom}` });
+            appendHistory({
+              id: crypto.randomUUID(),
+              sourceUrl: sourceUrl ?? "",
+              resultUrl: pollData.images[0].url,
+              mode: "camera",
+              settings: {
+                rotate: orbit.horizontalAngle,
+                forward: orbit.zoom,
+                vertical: orbit.verticalAngle,
+                wide: false,
+                prompt: `Orbit ${orbit.horizontalAngle}°/${orbit.verticalAngle}° · ${orbit.zoom.toFixed(1)}×`,
+              },
+              timestamp: Date.now(),
+            });
             return;
           }
           if (pollData.status === "fail") throw new Error(pollData.error || "Generation failed");
@@ -388,6 +430,20 @@ export default function OrbitPage() {
         if (poll.status === "success" && poll.videos?.[0]?.url) {
           setVideoUrl(poll.videos[0].url);
           logUsage?.("video-generate", { status: "success", detail: `orbit-${activeStyle.id}` });
+          appendHistory({
+            id: crypto.randomUUID(),
+            sourceUrl: sourceUrl ?? "",
+            resultUrl: poll.videos[0].url,
+            mode: "video",
+            settings: {
+              rotate: 0,
+              forward: 0,
+              vertical: 0,
+              wide: false,
+              prompt: `Orbit · ${t(activeStyle.labelKey)} · ${activeWaypoints.length} waypoints`,
+            },
+            timestamp: Date.now(),
+          });
           return;
         }
         if (poll.status === "fail") throw new Error(poll.error || "Kling 3.0 video generation failed");
@@ -580,7 +636,9 @@ export default function OrbitPage() {
             className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-foreground text-background text-sm font-semibold hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {loading ? t("orbit.generatingImage") : t("orbit.generateImage")}
+            {loading
+              ? t("orbit.generatingImage")
+              : `${t("orbit.generateImage")} · ${formatCredits(stillCredits)}`}
           </button>
           <p className="text-[10px] text-muted text-center -mt-2">
             {t("orbit.generateImageHint")}
@@ -598,9 +656,11 @@ export default function OrbitPage() {
                 : t("orbit.videoStitchingPhase")
               : customBlocked
               ? t("orbit.waypointsNeedMore", { n: 2 - readyWaypoints.length })
-              : activeStyle.id === "custom"
-              ? t("orbit.videoCustom")
-              : t("orbit.videoPreset", { style: t(activeStyle.labelKey) })}
+              : `${
+                  activeStyle.id === "custom"
+                    ? t("orbit.videoCustom")
+                    : t("orbit.videoPreset", { style: t(activeStyle.labelKey) })
+                } · ${formatCredits(motionVideoTotalCredits)}`}
           </button>
           <p className="text-[10px] text-muted text-center -mt-2">
             {activeStyle.id === "custom"

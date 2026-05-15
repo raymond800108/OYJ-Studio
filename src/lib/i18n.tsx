@@ -562,6 +562,10 @@ const dict = {
   "orbit.label.left": { en: "Left", zh: "左側" },
   "orbit.label.frontLeft": { en: "Front-Left", zh: "左前方" },
 
+  // Cost preview on orbit CTAs
+  "orbit.creditsSuffix": { en: "{n} credit", zh: "{n} 點" },
+  "orbit.creditsSuffixPlural": { en: "{n} credits", zh: "{n} 點" },
+
   // ── Empty hints for ResultPanel on new pages ──
   "result.emptyEditHint": {
     en: "Upload an image, paint the area to edit, and describe what should appear there.",
