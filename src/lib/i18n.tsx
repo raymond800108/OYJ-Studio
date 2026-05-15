@@ -578,6 +578,67 @@ const dict = {
   "orbit.model.seedance": { en: "Seedance 2 Fast", zh: "Seedance 2 Fast" },
   "orbit.model.seedance.tag": { en: "All anchors", zh: "全錨點" },
 
+  // ── Social sub-nav ──
+  "social.nav.schedule": { en: "Schedule & Diagnosis", zh: "排程與診斷" },
+  "social.nav.ads": { en: "Meta Ads", zh: "Meta 廣告" },
+
+  // ── Meta Ads diagnosis page ──
+  "ads.connectTitle": { en: "Connect your Meta Ads account", zh: "連結 Meta 廣告帳號" },
+  "ads.connectSub": {
+    en: "Convra reads your ad performance and gives AI-powered recommendations.",
+    zh: "Convra 會讀取你的廣告表現並提供 AI 驅動的建議。",
+  },
+  "ads.bullet1": {
+    en: "Account-level + per-campaign + per-ad insights (last 30 days)",
+    zh: "帳號 / 廣告活動 / 廣告層級洞察（近 30 天）",
+  },
+  "ads.bullet2": {
+    en: "Highlights best campaign + ad + budget reallocation",
+    zh: "找出最佳廣告活動、最佳廣告與預算重新配置建議",
+  },
+  "ads.bullet3": {
+    en: "Read-only access — Convra never edits or pauses your ads",
+    zh: "只讀存取 — Convra 不會編輯或暫停你的廣告",
+  },
+  "ads.connectCta": { en: "Connect Meta Ads", zh: "連結 Meta 廣告" },
+  "ads.connectNote": {
+    en: "Requires Meta Business admin access. ads_read + ads_management scopes.",
+    zh: "需要 Meta Business 管理員權限。ads_read + ads_management 範圍。",
+  },
+  "ads.connected": { en: "Meta Ads connected", zh: "Meta 廣告已連結" },
+  "ads.connectedAs": { en: "Signed in as", zh: "登入身份" },
+  "ads.run": { en: "Run Diagnosis", zh: "執行診斷" },
+  "ads.refresh": { en: "Refresh", zh: "重新整理" },
+  "ads.switch": { en: "Switch Account", zh: "切換帳號" },
+  "ads.disconnect": { en: "Disconnect", zh: "中斷連結" },
+  "ads.confirmDisconnect": { en: "Disconnect Meta Ads?", zh: "確定要中斷 Meta 廣告連結？" },
+  "ads.idleHeadline": { en: "Ready to diagnose your Meta Ads", zh: "準備好分析你的 Meta 廣告" },
+  "ads.idleSub": {
+    en: "Pick an account, then click Run Diagnosis. Takes 20-40s.",
+    zh: "選擇帳號，然後點擊「執行診斷」。約需 20-40 秒。",
+  },
+  "ads.starting": { en: "Starting…", zh: "啟動中…" },
+  "ads.loadingSub": {
+    en: "We're fetching campaign-level + ad-level performance and running GPT-4o analysis.",
+    zh: "正在抓取廣告活動與廣告的成效，並執行 GPT-4o 分析。",
+  },
+  "ads.step.accounts": { en: "Fetching your ad accounts…", zh: "正在抓取廣告帳號…" },
+  "ads.step.insights": { en: "Pulling 30-day campaign data…", zh: "拉取近 30 天的廣告活動資料…" },
+  "ads.step.ai": { en: "Running AI performance analysis…", zh: "執行 AI 成效分析…" },
+  "ads.accountSummary": { en: "Account Summary", zh: "帳號總覽" },
+  "ads.working": { en: "What's Working", zh: "效果好的部分" },
+  "ads.notWorking": { en: "What's Not Working", zh: "效果不佳的部分" },
+  "ads.bestCampaign": { en: "Best Campaign", zh: "最佳廣告活動" },
+  "ads.bestAd": { en: "Best Ad", zh: "最佳廣告" },
+  "ads.spend": { en: "Spend", zh: "花費" },
+  "ads.budgetRec": { en: "Budget Recommendation", zh: "預算建議" },
+  "ads.nextCampaign": { en: "Your Next Campaign", zh: "建議下一個廣告活動" },
+  "ads.objective": { en: "Objective", zh: "目標" },
+  "ads.audience": { en: "Audience", zh: "受眾" },
+  "ads.budget": { en: "Budget", zh: "預算" },
+  "ads.hook": { en: "Hook", zh: "開場文案" },
+  "ads.generateInStudio": { en: "Generate creative in Studio", zh: "在 Studio 中生成素材" },
+
   // ── Empty hints for ResultPanel on new pages ──
   "result.emptyEditHint": {
     en: "Upload an image, paint the area to edit, and describe what should appear there.",
