@@ -28,6 +28,7 @@ import { useI18n } from "@/lib/i18n";
 import { useUsageTracking } from "@/lib/usage";
 import { useAuth } from "@/lib/useAuth";
 import UserMenu from "@/components/UserMenu";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 
 // Lazy-load heavy components (not SSR-friendly)
@@ -779,6 +780,16 @@ export default function Home() {
             {/* User Menu */}
             <UserMenu />
           </div>
+        </div>
+        {/* New Marketing routes banner */}
+        <div className="max-w-7xl mx-auto mt-2 px-2">
+          <Link
+            href="/marketing/orbit"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-[11px] font-medium text-accent hover:bg-accent/15 transition-all"
+          >
+            <Sparkles className="w-3 h-3" />
+            Try the new Marketing experience &rarr;
+          </Link>
         </div>
       </header>
 
