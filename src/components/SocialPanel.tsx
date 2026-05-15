@@ -923,10 +923,11 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
             )}
           </div>
 
-          {/* Two-column layout */}
-          <div className="flex gap-4" style={{ minHeight: "520px" }}>
-
-            {/* LEFT — Calendar Grid (2/3) */}
+          {/* Full-width calendar — content tray is now the shared
+              MarketingHistoryStrip at the bottom of the page (rendered
+              by /social/layout.tsx). Drag-from-strip drops onto a date
+              tile via the existing text/x-media-url handler. */}
+          <div className="space-y-3" style={{ minHeight: "520px" }}>
             <div className="flex-1 min-w-0 space-y-3">
               {/* Month navigator */}
               <div className="flex items-center justify-between">
@@ -1063,60 +1064,6 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
               </div>
             </div>
 
-            {/* RIGHT — Content Tray (1/3) */}
-            <div className="w-52 shrink-0 space-y-3">
-              <div>
-                <h4 className="text-xs font-semibold text-foreground mb-0.5">
-                  {t("social.tray.title" as TKey)}
-                </h4>
-                <p className="text-[10px] text-muted">
-                  {t("social.tray.drag" as TKey)}
-                </p>
-              </div>
-
-              <div className="space-y-2 overflow-y-auto" style={{ maxHeight: "480px" }}>
-                {trayItems.length === 0 && (
-                  <div className="rounded-xl border border-dashed border-border p-4 text-center">
-                    <Calendar className="w-6 h-6 text-muted/30 mx-auto mb-2" />
-                    <p className="text-[11px] text-muted leading-relaxed">
-                      {t("social.tray.empty" as TKey)}
-                    </p>
-                  </div>
-                )}
-                {trayItems.map((item, idx) => (
-                  <div
-                    key={idx}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData("text/x-media-url", item.url);
-                      e.dataTransfer.setData("text/x-media-type", item.type);
-                      setDraggedMediaUrl(item.url);
-                      setDraggedMediaType(item.type);
-                    }}
-                    className="relative rounded-xl overflow-hidden border border-border cursor-grab active:cursor-grabbing hover:border-foreground/30 transition-all group"
-                    style={{ aspectRatio: "1/1" }}
-                  >
-                    {item.type === "image" ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={item.url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                        draggable={false}
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-muted/10 flex items-center justify-center">
-                        <span className="text-2xl opacity-50">&#9654;</span>
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all" />
-                    <div className="absolute bottom-1 left-1 right-1 text-[9px] text-white/80 opacity-0 group-hover:opacity-100 transition-all font-medium drop-shadow text-center">
-                      {t("social.tray.drag" as TKey)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
 
           {/* ── Edit Modal ──────────────────────────────────────────── */}

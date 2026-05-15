@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Calendar, BarChart3 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import AuthGuard from "@/components/AuthGuard";
+import MarketingHistoryStrip from "@/components/MarketingHistoryStrip";
 import { useI18n, TKey } from "@/lib/i18n";
 
 const SUBNAV: { href: string; icon: typeof Calendar; labelKey: TKey }[] = [
@@ -47,6 +48,8 @@ export default function SocialLayout({ children }: { children: React.ReactNode }
       <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-5">
         <AuthGuard>{children}</AuthGuard>
       </main>
+
+      <MarketingHistoryStrip />
     </div>
   );
 }

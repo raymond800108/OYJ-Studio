@@ -107,6 +107,12 @@ export default function MarketingHistoryStrip() {
                 onDragStart={(e) => {
                   e.dataTransfer.setData("text/uri-list", item.resultUrl);
                   e.dataTransfer.setData("text/plain", item.resultUrl);
+                  // Social calendar drop handler reads these custom types:
+                  e.dataTransfer.setData("text/x-media-url", item.resultUrl);
+                  e.dataTransfer.setData(
+                    "text/x-media-type",
+                    isVideo ? "video" : "image"
+                  );
                   e.dataTransfer.effectAllowed = "copy";
                 }}
                 title={item.settings?.prompt || item.mode}
