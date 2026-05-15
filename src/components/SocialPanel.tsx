@@ -220,6 +220,21 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
   const [publishError, setPublishError] = useState<string | null>(null);
   const replaceFileInputRef = useRef<HTMLInputElement | null>(null);
 
+  /* ── Publisher mode (Phase 2C) ─────────────────────────────────── */
+  // Blotato remains default until Meta App Review approves publish scopes.
+  // Direct = call /api/instagram/publish or /api/facebook/publish directly.
+  type PublisherMode = "blotato" | "direct";
+  const [publisherMode, setPublisherMode] = useState<PublisherMode>(() => {
+    if (typeof window === "undefined") return "blotato";
+    const saved = localStorage.getItem("convra-publisher-mode");
+    return saved === "direct" ? "direct" : "blotato";
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("convra-publisher-mode", publisherMode);
+    }
+  }, [publisherMode]);
+
   // Auto-detect local timezone once
   const [defaultTimezone] = useState<string>(() => {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return "UTC"; }
@@ -529,6 +544,88 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
 
   /* ── Publish post (with temp-URL re-hosting) ───────────────────── */
   async function publishPost(post: CalendarPost) {
+    // Direct mode (Phase 2C) — call /api/instagram/publish or /api/facebook/publish.
+    // Does not need Blotato connection. Existing IG OAuth + Meta Ads connection
+    // (for Page tokens) must be in place. Returns SCOPE_MISSING (403) until
+    // Meta App Review approves instagram_business_content_publish.
+    if (publisherMode === "direct") {
+      setPublishingId(post.id);
+      setPublishError(null);
+      try {
+        // Re-host temp URLs first (same logic as Blotato path)
+        let mediaUrl = post.mediaUrl;
+        if (isTempUrl(mediaUrl)) {
+          const blob = await extractMediaBlob(post.mediaUrl, post.mediaType === "video");
+          if (blob) {
+            const ext = blob.type.includes("video") ? "mp4" : "jpg";
+            const file = new File([blob], `media.${ext}`, { type: blob.type });
+            const fd = new FormData();
+            fd.append("file", file);
+            const uploadRes = await fetch("/api/upload", { method: "POST", body: fd });
+            const uploadData = await uploadRes.json();
+            if (uploadData.url) {
+              mediaUrl = uploadData.url;
+              setScheduledPosts((prev) =>
+                prev.map((p) => (p.id === post.id ? { ...p, mediaUrl: uploadData.url } : p))
+              );
+            }
+          }
+          if (isTempUrl(mediaUrl)) {
+            throw new Error("Media URL expired — please regenerate this content.");
+          }
+        }
+
+        const platform = (post.platform || "instagram").toLowerCase();
+        const endpoint =
+          platform === "facebook" ? "/api/facebook/publish" : "/api/instagram/publish";
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mediaUrl,
+            mediaType: post.mediaType,
+            caption: post.caption || "",
+            presetId: post.presetId,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          if (data.code === "SCOPE_MISSING") {
+            throw new Error(
+              data.error ??
+                "Direct publish requires Meta App Review approval. Switch to Blotato or reconnect with publishing permissions."
+            );
+          }
+          throw new Error(data.error || `Publish failed (${res.status})`);
+        }
+
+        setScheduledPosts((prev) =>
+          prev.map((p) =>
+            p.id === post.id
+              ? { ...p, status: "published", blotatoPostId: data.postId ?? null }
+              : p
+          )
+        );
+        setEditingPost((prev) =>
+          prev?.id === post.id
+            ? { ...prev, status: "published", blotatoPostId: data.postId ?? null }
+            : prev
+        );
+      } catch (err) {
+        setPublishError(err instanceof Error ? err.message : "Direct publish failed");
+        setScheduledPosts((prev) =>
+          prev.map((p) => (p.id === post.id ? { ...p, status: "draft" } : p))
+        );
+        setEditingPost((prev) =>
+          prev?.id === post.id ? { ...prev, status: "draft" } : prev
+        );
+      } finally {
+        setPublishingId(null);
+      }
+      return;
+    }
+
+    // Blotato (legacy/default) path
     if (!blotatoConnected) return;
     const accId = post.accountId || selectedAccountId;
     if (!accId) return;
@@ -697,6 +794,42 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
       {/* ── Schedule Tab ──────────────────────────────────────────── */}
       {tab === "schedule" && (
         <div className="space-y-4">
+
+          {/* Publisher mode toggle (Phase 2C) */}
+          <div className="flex items-center justify-between flex-wrap gap-2 rounded-xl bg-card border border-border px-3 py-2">
+            <div className="flex items-center gap-1.5 text-xs text-muted">
+              <span className="font-medium text-foreground">Publisher:</span>
+              <span>
+                {publisherMode === "direct"
+                  ? "Direct Instagram / Facebook Graph API"
+                  : "Blotato (legacy)"}
+              </span>
+            </div>
+            <div className="flex items-center bg-background border border-border rounded-full p-0.5 gap-0.5">
+              <button
+                onClick={() => setPublisherMode("blotato")}
+                className={`px-3 py-1 rounded-full text-[11px] font-medium transition-all ${
+                  publisherMode === "blotato"
+                    ? "bg-foreground text-background"
+                    : "text-muted hover:text-foreground"
+                }`}
+                title="Multi-platform fanout via Blotato — works today, no Meta App Review needed."
+              >
+                Blotato
+              </button>
+              <button
+                onClick={() => setPublisherMode("direct")}
+                className={`px-3 py-1 rounded-full text-[11px] font-medium transition-all ${
+                  publisherMode === "direct"
+                    ? "bg-foreground text-background"
+                    : "text-muted hover:text-foreground"
+                }`}
+                title="Direct Instagram & Facebook Graph API. Requires Meta App Review approval for instagram_business_content_publish + pages_manage_posts scopes."
+              >
+                Direct <span className="text-[9px] opacity-60 ml-0.5">BETA</span>
+              </button>
+            </div>
+          </div>
 
           {/* Live clock + pending count */}
           {now && (
