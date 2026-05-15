@@ -594,6 +594,10 @@ interface MarketingPanelProps {
   otherPageMode: string;
   onSwitchMode: (mode: "camera" | "inpaint" | "3d" | "marketing" | "lighting" | "usage") => void;
   logUsage?: (action: ApiAction, opts?: { status?: "success" | "error"; tokensIn?: number; tokensOut?: number; costOverride?: number; detail?: string }) => void;
+  /** Initial content type — defaults to "image" */
+  initialContentType?: ContentType;
+  /** Hide the image/video toggle (for routes that pin a single mode) */
+  lockContentType?: boolean;
 }
 
 export default function MarketingPanel({
@@ -607,11 +611,13 @@ export default function MarketingPanel({
   otherPageMode,
   onSwitchMode,
   logUsage,
+  initialContentType = "image",
+  lockContentType = false,
 }: MarketingPanelProps) {
   const { t } = useI18n();
 
   // Content type
-  const [contentType, setContentType] = useState<ContentType>("image");
+  const [contentType, setContentType] = useState<ContentType>(initialContentType);
 
   // Multiple source images
   const [sourceImages, setSourceImages] = useState<SourceImage[]>([]);
@@ -1763,33 +1769,33 @@ export default function MarketingPanel({
   return (
     <div className="space-y-5">
       {/* Content Type Toggle */}
-      <div className="flex items-center gap-2">
-        {(
-          [
+      {lockContentType ? null : (
+        <div className="flex items-center gap-2">
+          {([
             { key: "image" as const, icon: Image, labelKey: "mkt.staticImage" as const },
             { key: "video" as const, icon: Video, labelKey: "mkt.video" as const },
-          ]
-        ).map(({ key, icon: Icon, labelKey }) => (
-          <button
-            key={key}
-            onClick={() => {
-              setContentType(key);
-              setAspectRatio(key === "video" ? "16:9" : "4:3");
-              setGeneratedImages([]);
-              setGeneratedVideo(null);
-              setError(null);
-            }}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all border ${
-              contentType === key
-                ? "bg-foreground text-background border-foreground shadow-sm"
-                : "bg-card text-muted border-border hover:border-foreground/20 hover:text-foreground"
-            }`}
-          >
-            <Icon className="w-3.5 h-3.5" />
-            {t(labelKey)}
-          </button>
-        ))}
-      </div>
+          ]).map(({ key, icon: Icon, labelKey }) => (
+            <button
+              key={key}
+              onClick={() => {
+                setContentType(key);
+                setAspectRatio(key === "video" ? "16:9" : "4:3");
+                setGeneratedImages([]);
+                setGeneratedVideo(null);
+                setError(null);
+              }}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all border ${
+                contentType === key
+                  ? "bg-foreground text-background border-foreground shadow-sm"
+                  : "bg-card text-muted border-border hover:border-foreground/20 hover:text-foreground"
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {t(labelKey)}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Other page generation banner */}
       {otherPageLoading && (

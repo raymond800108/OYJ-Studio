@@ -26,7 +26,7 @@ export default function AppHeader() {
 
   return (
     <header className="border-b border-border px-6 py-4 bg-card">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 flex-wrap">
         <Link href="/" className="flex items-center gap-3 shrink-0">
           <img
             src="/logo.svg"
@@ -36,7 +36,7 @@ export default function AppHeader() {
           />
         </Link>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <nav className="flex items-center bg-background border border-border rounded-full p-0.5 gap-0.5">
             {NAV.map(({ href, matchPrefix, icon: Icon, label }) => {
               const active = pathname === matchPrefix || pathname.startsWith(matchPrefix + "/");
