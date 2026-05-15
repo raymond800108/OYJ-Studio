@@ -6,7 +6,14 @@ import { getSession, getUserProfile } from "@/lib/auth";
 
 const LEGACY_KEY = "ce:usage:entries";
 const USER_KEY_PREFIX = "ce:usage:user:";
-const MAX_ENTRIES = 1000;
+/** Hard safety cap to prevent a single user from blowing up Redis.
+ *  Entries are otherwise kept indefinitely until the admin sends an
+ *  invoice for the billing period. */
+const SAFETY_CAP = 50000;
+/** Max entries returned by list endpoints — equal to SAFETY_CAP so the
+ *  client always sees the full accumulated count, never an artificial
+ *  truncation. Entries only ever shrink when admin sends an invoice. */
+const MAX_ENTRIES = SAFETY_CAP;
 const SUPER_ADMIN = "raymond800108@gmail.com";
 // Always-visible accounts in the admin dropdown (even if they have 0 entries)
 const KNOWN_ACCOUNTS = [
@@ -28,8 +35,46 @@ function emailToKey(email: string): string {
   return `${USER_KEY_PREFIX}${safe}`;
 }
 
+/**
+ * Recover a canonical email address from a Redis key, handling both:
+ *   - current format: "ce:usage:user:foo@bar.com"
+ *   - legacy format:  "ce:usage:user:foo__at__bar_com" (or similar _dot_ variants)
+ */
 function keyToEmail(key: string): string {
-  return key.replace(USER_KEY_PREFIX, "");
+  const raw = key.replace(USER_KEY_PREFIX, "");
+  // Legacy: `__at__` → `@`
+  let email = raw.replace(/__at__/gi, "@");
+  // Legacy: `_dot_` → `.`
+  email = email.replace(/_dot_/gi, ".");
+  // If it contains `@`, the domain portion is the part after @ —
+  // legacy keys typically encoded `.` as `_` in the domain.
+  const atIdx = email.indexOf("@");
+  if (atIdx >= 0) {
+    const local = email.slice(0, atIdx);
+    const domain = email.slice(atIdx + 1);
+    // Only rewrite domain `_` → `.` if there's no explicit `.` already
+    // (safe because real email domains cannot contain underscores).
+    if (!domain.includes(".") && domain.includes("_")) {
+      email = `${local}@${domain.replace(/_/g, ".")}`;
+    }
+  }
+  return email.toLowerCase();
+}
+
+/**
+ * Map storage keys to their canonical email, grouping duplicates
+ * (e.g. a legacy `foo__at__gmail_com` key plus a current `foo@gmail.com` key
+ * both resolve to `foo@gmail.com`).
+ */
+function groupKeysByEmail(keys: string[]): Map<string, string[]> {
+  const byEmail = new Map<string, string[]>();
+  for (const k of keys) {
+    const email = keyToEmail(k);
+    const list = byEmail.get(email) || [];
+    list.push(k);
+    byEmail.set(email, list);
+  }
+  return byEmail;
 }
 
 async function getCurrentUserEmail(): Promise<string | null> {
@@ -94,10 +139,14 @@ export async function GET(req: NextRequest) {
         );
       }
       const keys = await scanUserKeys(redis);
+      const grouped = groupKeysByEmail(keys);
       const byEmail = new Map<string, number>();
-      for (const key of keys) {
-        const count = await redis.llen(key);
-        byEmail.set(keyToEmail(key), Number(count));
+      for (const [email, keyGroup] of grouped.entries()) {
+        let total = 0;
+        for (const k of keyGroup) {
+          total += Number(await redis.llen(k));
+        }
+        byEmail.set(email, total);
       }
       // Ensure all known accounts appear even if they have 0 entries
       for (const em of KNOWN_ACCOUNTS) {
@@ -121,9 +170,33 @@ export async function GET(req: NextRequest) {
           { status: 400 }
         );
       }
-      const key = emailToKey(emailParam);
-      const entries = await redis.lrange(key, 0, MAX_ENTRIES - 1);
-      return NextResponse.json({ entries: entries || [], source: "kv", key });
+      // Read from any stored key that resolves to this email (current + legacy)
+      const allKeys = await scanUserKeys(redis);
+      const matching = allKeys.filter((k) => keyToEmail(k) === emailParam);
+      // Always include the canonical key even if currently empty
+      const canonical = emailToKey(emailParam);
+      if (!matching.includes(canonical)) matching.push(canonical);
+
+      const merged: string[] = [];
+      for (const k of matching) {
+        const rows = await redis.lrange(k, 0, MAX_ENTRIES - 1);
+        if (rows && rows.length) merged.push(...(rows as string[]));
+      }
+      // Sort newest first by timestamp
+      const parsed = merged
+        .map((e) => (typeof e === "string" ? safeParse(e) : (e as Record<string, unknown>)))
+        .filter((x): x is Record<string, unknown> => x !== null);
+      parsed.sort((a, b) => {
+        const bt = typeof b.timestamp === "number" ? b.timestamp : 0;
+        const at = typeof a.timestamp === "number" ? a.timestamp : 0;
+        return bt - at;
+      });
+
+      return NextResponse.json({
+        entries: parsed.slice(0, MAX_ENTRIES).map((p) => JSON.stringify(p)),
+        source: "kv",
+        key: canonical,
+      });
     }
 
     if (scope === "all") {
@@ -218,7 +291,7 @@ export async function POST(req: NextRequest) {
         await redis.lpush(targetKey, JSON.stringify(stamped));
         migrated++;
       }
-      await redis.ltrim(targetKey, 0, MAX_ENTRIES - 1);
+      await redis.ltrim(targetKey, 0, SAFETY_CAP - 1);
       // Clear the legacy key so we don't double-migrate
       await redis.del(LEGACY_KEY);
 
@@ -245,7 +318,9 @@ export async function POST(req: NextRequest) {
       await redis.lpush(key, JSON.stringify(stamped));
     }
 
-    await redis.ltrim(key, 0, MAX_ENTRIES - 1);
+    // Only trim at the safety cap — entries are otherwise retained
+    // until admin sends an invoice for the billing period.
+    await redis.ltrim(key, 0, SAFETY_CAP - 1);
 
     return NextResponse.json({ ok: true, added: entries.length, key });
   } catch (err) {
@@ -299,8 +374,14 @@ export async function DELETE(req: NextRequest) {
           { status: 400 }
         );
       }
-      await redis.del(emailToKey(emailParam));
-      return NextResponse.json({ ok: true });
+      // Delete both the canonical key and any legacy keys that resolve to
+      // this email.
+      const allKeys = await scanUserKeys(redis);
+      const matching = allKeys.filter((k) => keyToEmail(k) === emailParam);
+      const canonical = emailToKey(emailParam);
+      if (!matching.includes(canonical)) matching.push(canonical);
+      for (const k of matching) await redis.del(k);
+      return NextResponse.json({ ok: true, cleared: matching.length });
     }
 
     // Default: clear only current user's entries

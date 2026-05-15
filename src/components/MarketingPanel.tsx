@@ -14,6 +14,7 @@ import {
   Clock,
   Maximize2,
   Plus,
+  Wand2,
 } from "lucide-react";
 import type { HistoryItem } from "./HistoryPanel";
 import TemplatePreview from "./TemplatePreview";
@@ -30,6 +31,7 @@ interface Template {
   description: string;
   prompt: string;
   dynamic?: boolean;
+  popular?: boolean;
 }
 
 // Prefix prepended to every template prompt to enforce product consistency
@@ -38,28 +40,12 @@ const CONSISTENCY_PREFIX =
 
 const TEMPLATES = [
   {
-    id: "glass-display",
-    label: "Glass Display Box",
-    icon: "🔮",
-    description: "Museum-grade glass showcase on polished marble base with soft highlights",
-    prompt:
-      "Create a hyper-real, ultra high-resolution photograph of the exact jewelry piece from the reference image displayed inside a crystal-clear, museum-grade glass showcase. The jewelry rests elegantly on a polished black marble stone base with natural white veining, subtly reflecting light to enhance the richness of the piece. Capture in extreme close-up, revealing intricate craftsmanship, precision-cut details, refined textures, and a flawless finish. Use cinematic studio lighting with soft highlights and controlled shadows to emphasize depth, brilliance, and material quality. The surrounding environment should feel like a high-end luxury boutique or private jewellery gallery, minimal yet opulent, with a shallow depth of field ensuring the jewelry remains the central attraction. Hyper-realism, 8K quality, photoreal textures, luxury advertising aesthetic.",
-  },
-  {
     id: "natural-surface",
     label: "Natural Surface",
     icon: "🪨",
-    description: "Raw stone, marble, sand or wood surface with organic texture contrast",
+    description: "Light pale stone, marble or sand surface with soft organic texture contrast",
     prompt:
-      "Create a hyper-real, ultra high-resolution studio photograph of the exact jewelry piece from the reference image placed directly on a raw natural stone surface with subtle textures and organic imperfections. The rugged matte finish of the stone contrasts sharply with the refined polish and intricate craftsmanship of the jewelry. Capture extreme close-up details showcasing fine engravings, precise metalwork, gemstone clarity, and flawless finish. Use professional studio lighting with soft directional highlights and controlled shadows to enhance depth, texture, and brilliance. The background should remain minimal and unobtrusive, allowing the jewelry to dominate the frame. Shot on a high-end professional camera with perfect exposure, sharp focus, and cinematic depth of field, delivering a refined luxury editorial aesthetic.",
-  },
-  {
-    id: "dark-dramatic",
-    label: "Dark & Dramatic",
-    icon: "🌑",
-    description: "Deep black backdrop with bold directional key light and crisp highlights",
-    prompt:
-      "Create a hyper-real, ultra high-resolution studio photograph of the exact jewelry piece from the reference image placed against a deep black, seamless yet creative and premium studio background. Use a strong directional key light to create crisp highlights that accentuate polished metal, gemstone brilliance, and intricate craftsmanship. Allow controlled shadows to fall naturally, adding drama and depth without losing detail. Capture extreme close-up clarity revealing fine engravings, sharp edges, and reflective surfaces. The image should feel bold, powerful, and refined, shot on a high-end professional camera with perfect exposure, high contrast, and a shallow depth of field, delivering a dramatic luxury advertising aesthetic.",
+      "Create a hyper-real, ultra high-resolution studio photograph of the exact jewelry piece from the reference image placed directly on a light-toned pale stone surface — think soft white limestone, cream travertine, or light grey marble with subtle natural veining. The pale, matte finish of the stone creates an elegant and airy contrast with the refined polish and intricate craftsmanship of the jewelry. Capture extreme close-up details showcasing fine engravings, precise metalwork, gemstone clarity, and flawless finish. Use professional studio lighting with soft directional highlights and controlled shadows to enhance depth, texture, and brilliance. The background should remain minimal and unobtrusive, allowing the jewelry to dominate the frame. Shot on a high-end professional camera with perfect exposure, sharp focus, and cinematic depth of field, delivering a refined luxury editorial aesthetic.",
   },
   {
     id: "floating-abstract",
@@ -74,6 +60,7 @@ const TEMPLATES = [
     label: "Clean & Neutral",
     icon: "◻",
     description: "Pure white or soft neutral seamless background with balanced studio lighting",
+    popular: true,
     prompt:
       "A high quality studio photo of the exact jewelry piece from the reference image positioned in the center on a monochrome pedestal. The background is a solid, warm sand-colored studio wall. The lighting is diffused through the scene, creating a soft, ethereal glow on the product's surface. Shot using a Fujifilm GFX 100S, 110mm lens, f/5.6 to create a gentle fall-off in focus. Inspired by the delicate, tactile campaigns of Hermès, this uses shadows to create depth and interest, ensuring the composition is unique and premium while maintaining a grounded, realistic atmosphere.",
   },
@@ -82,6 +69,7 @@ const TEMPLATES = [
     label: "Elemental & Artistic",
     icon: "💧",
     description: "Water droplets, smoke wisps or prism light refractions around the piece",
+    popular: true,
     prompt:
       "A high quality studio photo of the exact jewelry piece from the reference image positioned on heap of thin fine white silica sand, creating a small \"mountains\" of sand around the product. The background is a warm, out-of-focus beige. Photographed with a Sony A1, 90mm Macro, f/11, 1/2000s. Lighting is a hard side-light to emphasize the individual grains of sand and the sparkle of the product. This elemental shot is inspired by the \"passage of time\" concepts in high-end watchmaking, creating a tactile, detailed, and unique scene that feels both artistic and grounded in reality. Isometric top view.",
   },
@@ -89,49 +77,50 @@ const TEMPLATES = [
     id: "detail-closeup",
     label: "Detail Close-Up",
     icon: "🔍",
-    description: "Extreme macro focus on engravings, metal joins and gemstone settings",
+    description: "Extreme macro focus on engravings, metal joins and gemstone settings — distortion-free",
     prompt:
-      "Create a hyper-real, ultra high-resolution studio photograph of the exact jewelry piece from the reference image captured in extreme macro close-up. Focus tightly on the intricate craftsmanship, revealing fine engravings, precise metal joins, gemstone settings, and surface polish. Use controlled studio lighting to create crisp highlights and soft shadows that enhance texture and depth without glare. The background should be minimal and unobtrusive, allowing every micro-detail to stand out. Shot on a professional high-end camera with a macro lens, perfect focus stacking, and flawless exposure for a refined luxury editorial look.",
+      "Create a hyper-real, ultra high-resolution studio photograph of the exact jewelry piece from the reference image captured in extreme macro close-up. Focus tightly on the intricate craftsmanship, revealing fine engravings, precise metal joins, gemstone settings, and surface polish. Use controlled studio lighting to create crisp highlights and soft shadows that enhance texture and depth without glare. The background should be minimal and unobtrusive, allowing every micro-detail to stand out. CRITICAL ANTI-DISTORTION RULES: Do NOT warp, stretch, bend, or distort any part of the jewelry. All geometric shapes (circles, ovals, rectangles, symmetrical patterns) must remain perfectly true to the original. Metal lines must be straight, curves must be smooth and natural. Do NOT hallucinate or add extra stones, prongs, or design elements that are not in the original. Reproduce the exact geometry and proportion of every component faithfully. Shot on a professional high-end camera with a macro lens, perfect focus stacking, and flawless exposure for a refined luxury editorial look.",
   },
   {
     id: "packaging-box",
     label: "Packaging Box",
     icon: "🎁",
-    description: "Inside an open luxury jewellery box with plush cushion interior",
-    prompt:
-      "Create a hyper-real, ultra high-resolution studio photograph of the exact jewelry piece from the reference image elegantly placed inside an open rigid jewellery box with a soft, plush cushion interior. The jewelry rests naturally, following the contours of the cushion, highlighting its craftsmanship, polished metal, and gemstone brilliance. Use controlled studio lighting to create refined highlights and gentle shadows that enhance depth and texture. The exterior of the box should feel minimal and luxurious, with a clean background that keeps attention on the jewellery. Shot on a professional high-end camera with perfect exposure, sharp focus, and cinematic depth of field for a refined luxury brand aesthetic.",
+    description: "Place jewelry in your custom packaging — upload a packaging image or use the default luxury box",
+    prompt: "__PACKAGING_BOX__",
+    dynamic: true,
   },
   {
     id: "natural-branches",
     label: "Natural Branches",
     icon: "🌿",
-    description: "Draped over sculptural tree branch with organic curves and bark texture",
-    prompt:
-      "Create a hyper-real, ultra high-resolution studio photograph of the exact jewelry piece from the reference image gently draped over a sculptural natural tree branch with organic curves and subtle texture. The contrast between the raw, matte bark and the polished metal and stones enhances the craftsmanship and shine. Use controlled studio lighting to highlight intricate details, reflective surfaces, and gemstone brilliance while preserving natural shadows. The background should remain soft and neutral yet creative, keeping full focus on the jewellery. Shot on a professional high-end camera with perfect exposure, sharp focus, and cinematic depth of field, delivering a refined natural luxury aesthetic.",
+    description: "5 branch styles — draped, stand, twig frame, wood grain, or floating branch",
+    prompt: "__BRANCH_STYLE__",
+    dynamic: true,
   },
   {
     id: "vintage-inspired",
     label: "Vintage Heritage",
     icon: "📜",
-    description: "Classic heritage setting with aged linen, warm tones and old-world elegance",
-    prompt:
-      "Create a hyper-real, high-resolution studio photograph of the exact jewelry piece from the reference image styled in a classic heritage-inspired setting. The jewelry is placed on a softly textured vintage surface, such as aged linen or fine parchment tones, evoking old-world elegance. Use warm, directional studio lighting to create gentle highlights and natural shadows that emphasize craftsmanship, engraved details, and metal finish. Color tones should feel slightly warm and muted, with refined contrast. Shot on a professional high-end camera with precise exposure and sharp focus, delivering a timeless luxury jewellery image.",
+    description: "Classic heritage setting — customize fabric, neutral table, and velvet cloth",
+    prompt: "__VINTAGE__",
+    dynamic: true,
   },
   {
     id: "moss-rock",
     label: "Moss & Rock",
     icon: "🌿",
     description: "Nestled on moss-covered rock with soft cream background, editorial top view",
+    popular: true,
     prompt:
-      "A high quality studio photo of the exact jewelry piece from the reference image nestled on top of a rock that is covered in thick dense moss. The background is a soft, neutral cream. Captured with a Canon EOS R5, 100mm Macro, f/5.6 for a beautiful, shallow depth of field. Lighting is a large silk scrim for a soft, fashion-editorial glow. Inspired by the minimalist floral work of Robert Mapplethorpe, this prompt uses the moss growth to frame the product, creating a sophisticated, high-end, and incredibly elegant composition that feels unique and timeless. Top view isometric angle.",
+      "A high quality studio photo of the exact jewelry piece from the reference image nestled on top of a rock that is covered in thick dense moss. The moss must have a muted, low-saturation grayish-green tone — desaturated and earthy, NOT vivid or bright green. Think aged, weathered, olive-toned moss rather than fresh lush green. The background is a soft, neutral cream. Captured with a Canon EOS R5, 100mm Macro, f/5.6 for a beautiful, shallow depth of field. Lighting is a large silk scrim for a soft, fashion-editorial glow. Inspired by the minimalist floral work of Robert Mapplethorpe, this prompt uses the moss growth to frame the product, creating a sophisticated, high-end, and incredibly elegant composition that feels unique and timeless. Top view isometric angle.",
   },
   {
-    id: "consistent-model",
-    label: "Consistent Model",
-    icon: "👤",
-    description: "Same model character wears all your jewelry — upload character reference first",
-    prompt: "__CONSISTENT_MODEL__",
-    dynamic: true,
+    id: "seashell",
+    label: "Seashell",
+    icon: "🐚",
+    description: "A single perfect shell cradles or holds the jewelry — poetic, minimal, high-end coastal editorial",
+    prompt:
+      "A high quality luxury editorial photograph of the exact jewelry piece from the reference image. A single, perfect natural shell — either a smooth ivory cowrie, a lustrous mother-of-pearl abalone fragment, or an elegant spiral nautilus — is used as the sole supporting element: the jewelry rests inside the shell's curved interior, is draped over its lip, or is held gently within it. The shell and jewelry are the only two subjects. No sand, no collections of shells, no sea debris. The surface beneath is a bare, minimal pale stone or soft linen — clean and uncluttered. The background is a soft, luminous off-white with subtle depth. Lighting is a single large diffused source, creating a gentle gradient of light across both the shell and the jewelry — highlighting the iridescent inner surface of the shell alongside the metal and gemstone of the piece. The composition feels intimate and poetic, as if the ocean offered the shell as a vessel for the jewelry. Captured with a Hasselblad X2D, 90mm, f/5.6. Inspired by the spare, contemplative still-life work of Irving Penn. Close macro angle, slightly elevated.",
   },
   {
     id: "consistent-wearing",
@@ -140,17 +129,246 @@ const TEMPLATES = [
     description: "Source image shows jewelry already worn correctly — reproduce the EXACT wearing style with your model's face and clothes",
     prompt: "__CONSISTENT_WEARING__",
     dynamic: true,
+    popular: true,
   },
   {
-    id: "white-background",
-    label: "Clean White Studio",
-    icon: "⬜",
-    description: "Transforms any messy photo into a clean white background product shot",
-    prompt:
-      "ABSOLUTE STRICT RULE: The jewelry piece in the generated image must be a PIXEL-PERFECT, IDENTICAL reproduction of the EXACT product from the reference image. Do NOT alter, reimagine, redesign, simplify, or change ANY detail whatsoever — every single gemstone, every prong, every engraving, every curve, every metal texture, every setting, every proportion, every color, every scratch, every imperfection must be preserved EXACTLY as shown in the reference. The product must look like the SAME physical object photographed again, not a similar or inspired version. Zero creative liberty on the product itself. " +
-      "Create a hyper-real, ultra high-resolution professional e-commerce product photograph of this EXACT jewelry piece. Place it on a pure, seamless white background with absolutely no distractions, shadows from surroundings, or background elements. The piece should be perfectly centered, photographed from the SAME angle as the reference image, well-lit with soft diffused studio lighting from multiple angles to eliminate harsh shadows. Remove ALL original background clutter, textures, surfaces, and environmental elements — replace everything with a perfectly clean, bright white studio backdrop. The jewelry must appear as if the SAME physical piece was moved into a professional product photography studio with a white cyclorama and re-photographed. Maintain razor-sharp focus on every detail — metal finish, gemstone clarity, engravings, surface reflections, patina, and wear marks must ALL match the reference EXACTLY. Use professional color-accurate lighting with a slight warm fill to enhance metal tones. Camera: Phase One IQ4, 120mm macro, f/11, ISO 50, focus-stacked for edge-to-edge sharpness. The final image should be suitable for luxury e-commerce, catalog, or website hero usage. Pure white background, no shadows on background, product only. REMINDER: The product must be IDENTICAL to the reference — same piece, same design, same details, no changes.",
+    id: "solid-color",
+    label: "Solid Color Studio",
+    icon: "🎨",
+    description: "Custom solid color or gradient background — choose from presets or enter your own color",
+    prompt: "__SOLID_COLOR__",
+    dynamic: true,
   },
 ] as Template[];
+
+// ── Solid color / gradient background options ─────────────────────────────────
+
+interface BgColorOption {
+  id: string;
+  label: string;
+  hex: string; // for swatch display
+  desc: string; // injected into prompt
+}
+
+// ── Studio background style sub-options (replaces old gradient pills) ────────
+
+interface StudioBgStyle {
+  id: string;
+  label: string;
+  icon: string;
+  description: string;
+  gradient: string; // CSS fallback when preview image is missing
+  prompt: string;
+}
+
+const STUDIO_BG_STYLES: StudioBgStyle[] = [
+  {
+    id: "studio-editorial",
+    label: "Powder Blue",
+    icon: "🔵",
+    description: "Soft powder-blue background, high-key overhead diffusion, Acne Studios editorial — bright and airy",
+    gradient: "linear-gradient(135deg, #c8dff0 0%, #e0eff8 50%, #f5f9ff 100%)",
+    prompt:
+      "A high quality studio photo of the exact jewelry piece from the reference image. Centered against a soft powder-blue background flooded with bright, even light, the composition feels inspired by high-end editorial still life photography from Acne Studios. The lighting is high-key and airy, achieved through a large overhead diffusion panel, white bounce cards on both sides, and a bright fill from below, creating a luminous glow across the scene with virtually no shadows. The piece appears weightless and radiant, isolated from any visual noise against the bright backdrop. Shot using a Canon EOS R5 with a 100mm macro lens at f/10, ISO 100, the focus is pin-sharp across all planes. The environment is bright, serene, and minimal — evoking quiet luxury and museum-level presentation in a sunlit atelier.",
+  },
+  {
+    id: "studio-celine",
+    label: "Ivory Cream",
+    icon: "🤍",
+    description: "Warm bright ivory-cream, dual strip lights, Celine editorial — Hasselblad precision",
+    gradient: "linear-gradient(135deg, #f5ede0 0%, #faf4ec 50%, #fdfaf5 100%)",
+    prompt:
+      "A high quality studio photo of the exact jewelry piece from the reference image. The piece sits perfectly centered within a bright warm ivory-cream background inspired by contemporary Celine jewelry campaigns. The backdrop is luminous and light, featuring a barely-perceptible warm tone that adds softness without distraction. Lighting uses dual bright soft strip lights positioned symmetrically, supplemented by large white reflectors that flood the scene with even, high-key illumination to sculpt edges with gentle gradients across polished surfaces. A soft diffused shadow pools barely beneath the piece. Captured with a Hasselblad H6D, 100mm macro lens, f/13, ISO 64. The mood is bright, modern, restrained, and timeless, allowing the piece's geometry and finish to dominate the airy composition.",
+  },
+  {
+    id: "studio-lemaire",
+    label: "Pearl Grey",
+    icon: "◻",
+    description: "Light pearl grey, bright Scandinavian northern light, levitating pedestal — Lemaire editorial",
+    gradient: "linear-gradient(135deg, #d8d8d8 0%, #e8e8e8 50%, #f5f5f5 100%)",
+    prompt:
+      "A high quality studio photo of the exact jewelry piece from the reference image laid out flat centered against a bright light pearl-grey backdrop with soft diffused shadows. Captured using a Canon EOS R5 with 100mm f/2.8L macro lens at f/5.6, ISO 100, creating a shallow depth of field that renders the background as a luminous bright atmosphere. A massive scrim diffuses brilliant natural window light from camera left, while a large white card floods bright fill light from the right, achieving Scandinavia's coveted bright 'northern light' quality — airy and high-key. The piece sits on an invisible acrylic pedestal, creating the illusion of levitation in the bright space. Inspired by Lemaire's understated campaigns, the bright composition breathes with intentional emptiness. The camera angle is precisely perpendicular to the piece's primary plane, shot from a three-quarter height perspective.",
+  },
+  {
+    id: "studio-complementary",
+    label: "Complementary",
+    icon: "✦",
+    description: "Bright pastel complementary color backdrop at 45°, high-key Aesop & Loewe editorial",
+    gradient: "linear-gradient(135deg, #f0c8e0 0%, #f8e0f0 50%, #fdf0f8 100%)",
+    prompt:
+      "A high quality studio photo of the exact jewelry piece from the reference image. The piece is framed centrally against a bright, light pastel monochromatic backdrop, using a bright and luminous complementary color of the piece for the backdrop — light, airy, and high-key — positioned at a 45 degree angle. Reminiscent of the bright, sunlit luxury product visuals by Aesop and Loewe. The lighting is bright and soft, using a large key light from above supplemented by two fill lights and white bounce cards that flood the scene with even, radiant illumination, creating delicate highlights and minimal shadow contours. Captured on a medium-format camera with a 110mm lens at f/12, ISO 50. The mood is bright, calm, modern, and editorial, celebrating craftsmanship in a luminous airy space.",
+  },
+  {
+    id: "studio-bottega",
+    label: "Luminous Taupe",
+    icon: "🪶",
+    description: "Bright luminous taupe void, ghost reflection, Bottega Veneta quiet luxury — Sony A1 overhead",
+    gradient: "linear-gradient(135deg, #ede5d8 0%, #f5efe4 50%, #fdfaf5 100%)",
+    prompt:
+      "A high quality studio photo of the exact jewelry piece from the reference image positioned flat on a floor in a seamless bright luminous warm-taupe studio flooded with soft white light, channeling Bottega Veneta's quiet luxury ethos. Captured with a Sony A1 using a 90mm macro lens at f/7.1, ISO 100. A large overhead beauty dish and two bright fill panels create a high-key, airy pool of radiant light that bathes the entire scene in warm luminosity, with minimal shadows and brilliant surface detail. Foam core reflectors positioned at strategic angles bounce additional fill light to brighten every zone. The piece rests on a transparent surface creating a soft ghost reflection barely visible below. The camera shoots from a gentle overhead angle, approximately 20 degrees from vertical. The overall atmosphere is bright, ethereal, and weightless.",
+  },
+];
+
+const SOLID_BG_COLORS: BgColorOption[] = [
+  { id: "white", label: "Pure White", hex: "#FFFFFF", desc: "pure white seamless studio background, hex #FFFFFF, RGB(255,255,255)" },
+  { id: "cream", label: "Soft Cream", hex: "#FFF8EE", desc: "soft cream seamless studio background, hex #FFF8EE, RGB(255,248,238)" },
+  { id: "beige", label: "Warm Beige", hex: "#F5EFE6", desc: "warm beige seamless studio background, hex #F5EFE6, RGB(245,239,230)" },
+  { id: "sand", label: "Sand", hex: "#E5DDD0", desc: "warm sand seamless studio background, hex #E5DDD0, RGB(229,221,208)" },
+  { id: "pale-gold", label: "Pale Gold", hex: "#F5EDD5", desc: "pale gold seamless studio background, hex #F5EDD5, RGB(245,237,213)" },
+  { id: "blush", label: "Blush Pink", hex: "#F5E6E8", desc: "soft blush pink seamless studio background, hex #F5E6E8, RGB(245,230,232)" },
+  { id: "sage", label: "Sage Green", hex: "#E8EDE5", desc: "pale sage green seamless studio background, hex #E8EDE5, RGB(232,237,229)" },
+  { id: "dusty-blue", label: "Dusty Blue", hex: "#E5ECF0", desc: "dusty blue seamless studio background, hex #E5ECF0, RGB(229,236,240)" },
+  { id: "light-grey", label: "Light Grey", hex: "#F0F0F0", desc: "light grey seamless studio background, hex #F0F0F0, RGB(240,240,240)" },
+  { id: "warm-grey", label: "Warm Grey", hex: "#E8E4E0", desc: "warm grey seamless studio background, hex #E8E4E0, RGB(232,228,224)" },
+  { id: "charcoal", label: "Charcoal", hex: "#3C3C3C", desc: "dark charcoal seamless studio background, hex #3C3C3C, RGB(60,60,60)" },
+  { id: "black", label: "Deep Black", hex: "#1A1A1A", desc: "deep black seamless studio background, hex #1A1A1A, RGB(26,26,26)" },
+];
+
+// ── Branch style sub-options ──────────────────────────────────────────────────
+
+interface BranchStyle {
+  id: string;
+  label: string;
+  icon: string;
+  description: string;
+  gradient: string;
+  prompt: string;
+}
+
+const BRANCH_STYLES: BranchStyle[] = [
+  {
+    id: "branch-draped",
+    label: "Draped",
+    icon: "🌿",
+    description: "Gently draped over a sculptural tree branch with organic curves and bark texture",
+    gradient: "linear-gradient(135deg, #2d4a2d 0%, #4a6b3a 50%, #8fbc8f 100%)",
+    prompt:
+      "Create a hyper-real, ultra high-resolution studio photograph of the exact jewelry piece from the reference image gently draped over a sculptural natural tree branch with organic curves and subtle texture. The contrast between the raw, matte bark and the polished metal and stones enhances the piece's craftsmanship and shine. Use controlled studio lighting to highlight intricate details, reflective surfaces, and gemstone brilliance while preserving natural shadows. The background should remain soft and neutral yet creative, keeping full focus on the jewellery. Shot on a professional high-end camera with perfect exposure, sharp focus, and cinematic depth of field, delivering a refined natural luxury aesthetic.",
+  },
+  {
+    id: "branch-stand",
+    label: "Branch Stand",
+    icon: "🌱",
+    description: "Displayed on a clean minimal branch acting as a natural stand, modern editorial",
+    gradient: "linear-gradient(135deg, #3a5a2a 0%, #5a7a4a 50%, #a0c080 100%)",
+    prompt:
+      "Create a hyper-realistic, studio-quality photograph of the exact jewelry piece from the reference image displayed on a clean, minimal branch positioned against a soft neutral yet creative and elegant background. The branch acts as a natural stand, elevating the piece without overpowering it. Focus on macro-level clarity to capture engravings, metal polish, and stone settings. Use diffused studio lighting to maintain elegance and balance between natural texture and refined jewellery. Captured with a professional flagship camera, precise lighting control, and shallow depth of field for a modern luxury editorial look.",
+  },
+  {
+    id: "branch-twigs",
+    label: "Twig Frame",
+    icon: "🍃",
+    description: "Artfully placed among fine natural twigs arranged to frame the piece without hiding it",
+    gradient: "linear-gradient(135deg, #4a5a2a 0%, #6a7a3a 50%, #9aaa6a 100%)",
+    prompt:
+      "Create an ultra-real, premium studio photograph of the exact jewelry piece from the reference image artfully placed among fine natural twigs, arranged to frame the jewellery without hiding it. Soft, directional lighting filters across the scene, creating gentle highlights on the jewelry and subtle shadows across the organic elements. Emphasize craftsmanship, gemstone clarity, and surface reflections through close-up composition while maintaining the background creative and luxurious. Shot on a high-end professional camera with perfect focus, balanced contrast, and refined styling, resulting in an elegant nature-inspired luxury visual.",
+  },
+  {
+    id: "branch-wood",
+    label: "Wood Grain",
+    icon: "🪵",
+    description: "Showcased on a smooth natural wood branch with visible grain patterns and warm contrast",
+    gradient: "linear-gradient(135deg, #6b4a2a 0%, #8b6a4a 50%, #c0956a 100%)",
+    prompt:
+      "Create a hyper-real, studio-grade photograph of the exact jewelry piece from the reference image showcased on a smooth natural wood branch with visible grain patterns. Use sculpted studio lighting to create a dynamic interplay of light and shadow across both the branch and the jewellery. The organic warmth of the wood contrasts with the cool precision of polished metal and stones. Keep the background aesthetic and premium. Capture intricate detail and texture with a professional camera using macro precision, shallow depth of field, and flawless exposure for a high-end editorial aesthetic.",
+  },
+  {
+    id: "branch-floating",
+    label: "Floating Branch",
+    icon: "✦",
+    description: "Balanced on a suspended floating branch, creating a sense of lightness and harmony",
+    gradient: "linear-gradient(135deg, #2a4a3a 0%, #4a6a5a 50%, #7a9a8a 100%)",
+    prompt:
+      "Create an ultra-high-definition, hyper-realistic studio photograph of the exact jewelry piece from the reference image balanced on a floating natural branch in a controlled studio environment. The branch appears suspended, creating a sense of lightness and harmony with the jewellery. Use precise studio lighting to highlight craftsmanship, metal shine, and gemstone sparkle while maintaining soft, natural shadows while keeping the background creative yet subtle. Shot on a professional high-end camera with cinematic clarity, perfect color balance, and refined composition, producing a sophisticated nature-meets-luxury visual.",
+  },
+];
+
+function buildSolidColorPrompt(bgDesc: string): string {
+  return (
+    `A high quality studio photo of the exact jewelry piece from the reference image, perfectly centered against a ${bgDesc}. ` +
+    "The lighting is broad and soft, achieved through a large overhead diffusion panel and bounce cards, creating luminous highlights and soft shadow transitions. " +
+    "A subtle shadow pools directly beneath the piece, grounding it naturally within the frame. " +
+    "The piece appears weightless yet precise — isolated from any visual noise on the clean studio backdrop. " +
+    "Shot using a Phase One IQ4 with a 120mm macro lens at f/11, ISO 50, focus-stacked for edge-to-edge sharpness. " +
+    "Razor-sharp focus across every detail — metal finish, gemstone clarity, engravings, surface reflections. " +
+    "Replace ALL original background clutter and environmental elements with the specified studio backdrop. " +
+    "The environment is serene and minimal, evoking quiet luxury and museum-level presentation."
+  );
+}
+
+// ── Vintage Heritage dynamic prompt builder ───────────────────────────────────
+
+interface VintageConfig {
+  showFabric: boolean;
+  fabricColor: string;
+  fabricMaterial: string;
+  showTable: boolean;
+  tableMaterial: string;
+  showVelvet: boolean;
+  velvetColor: string;
+}
+
+const VINTAGE_FABRIC_COLORS = [
+  { id: "ivory",      hex: "#F5EED8", zh: "象牙白",   en: "ivory" },
+  { id: "warm-sand",  hex: "#C9A87A", zh: "暖沙色",   en: "warm sand" },
+  { id: "dusty-blue", hex: "#7A9BB0", zh: "霧藍",     en: "dusty blue" },
+  { id: "sage-green", hex: "#9BAE96", zh: "鼠尾草綠", en: "sage green" },
+  { id: "tea-rose",   hex: "#C08080", zh: "茶玫瑰",   en: "tea rose" },
+] as const;
+
+const VINTAGE_FABRIC_MATERIALS = [
+  { id: "linen",  zh: "亞麻", en: "linen" },
+  { id: "silk",   zh: "絲緞", en: "silk satin" },
+  { id: "cotton", zh: "棉布", en: "soft cotton" },
+] as const;
+
+const VINTAGE_TABLE_MATERIALS = [
+  { id: "marble",     zh: "大理石",   en: "ivory white marble" },
+  { id: "light-oak",  zh: "淺橡木",   en: "light oak wood" },
+  { id: "terrazzo",   zh: "磨石子",   en: "light terrazzo" },
+  { id: "limestone",  zh: "石灰岩",   en: "smooth limestone" },
+  { id: "brass",      zh: "拉絲黃銅", en: "brushed brass" },
+] as const;
+
+const VINTAGE_VELVET_COLORS = [
+  { id: "dusty-rose",    hex: "#C4908A", zh: "淡玫瑰", en: "dusty rose" },
+  { id: "forest-green",  hex: "#5A7A55", zh: "森林綠", en: "forest green" },
+  { id: "midnight-navy", hex: "#3B4D6B", zh: "午夜藍", en: "midnight navy" },
+  { id: "charcoal",      hex: "#545454", zh: "炭灰",   en: "charcoal" },
+  { id: "warm-cream",    hex: "#E0D0B8", zh: "暖奶白", en: "warm cream" },
+] as const;
+
+function buildVintagePrompt(config: VintageConfig): string {
+  const elements: string[] = [];
+  if (config.showFabric) {
+    elements.push(
+      `a piece of ${config.fabricColor} ${config.fabricMaterial} fabric softly draped in the scene background`
+    );
+  }
+  if (config.showTable) {
+    elements.push(
+      `a minimalist neutral ${config.tableMaterial} surface or low pedestal supporting the jewelry`
+    );
+  }
+  if (config.showVelvet) {
+    elements.push(
+      `a ${config.velvetColor} velvet cloth cushion beneath the jewelry`
+    );
+  }
+
+  const sceneDesc =
+    elements.length > 0
+      ? `The scene features: ${elements.join("; ")}.`
+      : "A clean, minimal vintage-inspired setting with warm neutral tones.";
+
+  return (
+    "Create a hyper-real, high-resolution studio photograph of the exact jewelry piece from the reference image styled in a classic vintage heritage-inspired setting. " +
+    sceneDesc +
+    " Use warm, directional studio lighting to create gentle highlights and natural shadows that emphasize craftsmanship, engraved details, and metal finish. " +
+    "Color tones should feel slightly warm and muted, with refined contrast — evoking old-world elegance and timeless luxury. " +
+    "Shot on a professional high-end camera (Hasselblad X2D, 90mm, f/5.6) with precise exposure and sharp focus, delivering a timeless luxury jewellery editorial image."
+  );
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -199,6 +417,170 @@ const VIDEO_RATIOS = [
   { value: "1:1", label: "1:1 Square" },
 ];
 
+// ── Branch style card (used inside branch picker sub-panel) ──────────────────
+
+function BranchStyleCard({
+  style,
+  selected,
+  onClick,
+}: {
+  style: BranchStyle;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const previewSrc = `/templates/${style.id}.jpg`;
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <button
+        onClick={onClick}
+        className={`w-full text-left rounded-xl border overflow-hidden transition-all ${
+          selected
+            ? "border-foreground shadow-sm ring-1 ring-foreground"
+            : "border-border hover:border-foreground/30"
+        }`}
+      >
+        <div className="aspect-square relative overflow-hidden">
+          {!imgError ? (
+            <img
+              src={previewSrc}
+              alt={style.label}
+              className="w-full h-full object-cover"
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <div
+              className="w-full h-full flex items-center justify-center text-2xl"
+              style={{ background: style.gradient }}
+            >
+              {style.icon}
+            </div>
+          )}
+          {selected && (
+            <div className="absolute inset-0 bg-foreground/10 pointer-events-none" />
+          )}
+        </div>
+        <div className={`px-2 py-1.5 text-center ${selected ? "bg-foreground text-background" : "bg-card"}`}>
+          <p className="text-[10px] font-semibold leading-tight truncate">{style.label}</p>
+        </div>
+      </button>
+
+      {hovered && (
+        <div className="absolute z-50 w-56 rounded-2xl overflow-hidden border border-border shadow-2xl bottom-full mb-2 left-1/2 -translate-x-1/2 pointer-events-none">
+          {!imgError ? (
+            <div className="h-36 overflow-hidden">
+              <img
+                src={previewSrc}
+                alt={style.label}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          ) : (
+            <div
+              className="h-32 flex items-center justify-center text-4xl"
+              style={{ background: style.gradient }}
+            >
+              {style.icon}
+            </div>
+          )}
+          <div className="bg-card p-3">
+            <h4 className="font-semibold text-xs mb-1">{style.label}</h4>
+            <p className="text-[11px] text-muted leading-relaxed">{style.description}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Studio background style card ─────────────────────────────────────────────
+
+function StudioStyleCard({
+  style,
+  selected,
+  onClick,
+}: {
+  style: StudioBgStyle;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const previewSrc = `/templates/${style.id}.jpg`;
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <button
+        onClick={onClick}
+        className={`w-full text-left rounded-xl border overflow-hidden transition-all ${
+          selected
+            ? "border-foreground shadow-sm ring-1 ring-foreground"
+            : "border-border hover:border-foreground/30"
+        }`}
+      >
+        <div className="aspect-square relative overflow-hidden">
+          {!imgError ? (
+            <img
+              src={previewSrc}
+              alt={style.label}
+              className="w-full h-full object-cover"
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <div
+              className="w-full h-full flex items-center justify-center text-2xl"
+              style={{ background: style.gradient }}
+            >
+              {style.icon}
+            </div>
+          )}
+          {selected && (
+            <div className="absolute inset-0 bg-foreground/10 pointer-events-none" />
+          )}
+        </div>
+        <div className={`px-2 py-1.5 text-center ${selected ? "bg-foreground text-background" : "bg-card"}`}>
+          <p className="text-[10px] font-semibold leading-tight truncate">{style.label}</p>
+        </div>
+      </button>
+
+      {hovered && (
+        <div className="absolute z-50 w-56 rounded-2xl overflow-hidden border border-border shadow-2xl bottom-full mb-2 left-1/2 -translate-x-1/2 pointer-events-none">
+          {!imgError ? (
+            <div className="h-36 overflow-hidden">
+              <img
+                src={previewSrc}
+                alt={style.label}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          ) : (
+            <div
+              className="h-32 flex items-center justify-center text-4xl"
+              style={{ background: style.gradient }}
+            >
+              {style.icon}
+            </div>
+          )}
+          <div className="bg-card p-3">
+            <h4 className="font-semibold text-xs mb-1">{style.label}</h4>
+            <p className="text-[11px] text-muted leading-relaxed">{style.description}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 interface MarketingPanelProps {
@@ -210,8 +592,12 @@ interface MarketingPanelProps {
   onProgressChange: (progress: string) => void;
   otherPageLoading: boolean;
   otherPageMode: string;
-  onSwitchMode: (mode: "camera" | "inpaint" | "3d" | "marketing" | "usage") => void;
+  onSwitchMode: (mode: "camera" | "inpaint" | "3d" | "marketing" | "lighting" | "usage") => void;
   logUsage?: (action: ApiAction, opts?: { status?: "success" | "error"; tokensIn?: number; tokensOut?: number; costOverride?: number; detail?: string }) => void;
+  /** Initial content type — defaults to "image" */
+  initialContentType?: ContentType;
+  /** Hide the image/video toggle (for routes that pin a single mode) */
+  lockContentType?: boolean;
 }
 
 export default function MarketingPanel({
@@ -225,11 +611,13 @@ export default function MarketingPanel({
   otherPageMode,
   onSwitchMode,
   logUsage,
+  initialContentType = "image",
+  lockContentType = false,
 }: MarketingPanelProps) {
   const { t } = useI18n();
 
   // Content type
-  const [contentType, setContentType] = useState<ContentType>("image");
+  const [contentType, setContentType] = useState<ContentType>(initialContentType);
 
   // Multiple source images
   const [sourceImages, setSourceImages] = useState<SourceImage[]>([]);
@@ -247,11 +635,32 @@ export default function MarketingPanel({
 
   // Template selection
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  // Solid-color template: selected background color/gradient id
+  const [solidBgColor, setSolidBgColor] = useState<string>("white");
+  // Natural-branches template: selected branch style id
+  const [branchStyle, setBranchStyle] = useState<string>("branch-draped");
+  // Packaging-box template: user-uploaded packaging reference images
+  const [packagingImages, setPackagingImages] = useState<SourceImage[]>([]);
+  const [packagingDropOver, setPackagingDropOver] = useState(false);
+  const packagingInputRef = useRef<HTMLInputElement>(null);
+
+  // Vintage-Heritage template: configurable scene elements
+  const [vintageConfig, setVintageConfig] = useState<VintageConfig>({
+    showFabric: true,
+    fabricColor: "ivory",
+    fabricMaterial: "linen",
+    showTable: true,
+    tableMaterial: "ivory white marble",
+    showVelvet: true,
+    velvetColor: "dusty rose",
+  });
 
   // Settings
   const [aspectRatio, setAspectRatio] = useState("4:3");
   const [videoModel, setVideoModel] = useState<string>("kling-2.6");
   const [jewelryDimension, setJewelryDimension] = useState("");
+  const [gemDimension, setGemDimension] = useState("");
+  const [chainDimension, setChainDimension] = useState("");
 
   // Generation state
   const [loading, setLoading] = useState(false);
@@ -260,9 +669,12 @@ export default function MarketingPanel({
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [generatedVideo, setGeneratedVideo] = useState<GeneratedVideo | null>(null);
   const [maximizedImage, setMaximizedImage] = useState<string | null>(null);
-  // For consistent-model video: user picks a generated image as video base
+  // For consistent-wearing video: user picks a generated image as video base
   const [videoBaseImage, setVideoBaseImage] = useState<string | null>(null);
   const [videoFromImageLoading, setVideoFromImageLoading] = useState(false);
+  // Video prompt (user high-level text + AI-refined)
+  const [videoPrompt, setVideoPrompt] = useState("");
+  const [refiningPrompt, setRefiningPrompt] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [sourceDropOver, setSourceDropOver] = useState(false);
@@ -522,6 +934,47 @@ export default function MarketingPanel({
     }
   }, [addOutfitFromUrl]);
 
+  // ── Packaging image management ──
+  const addPackagingFromUrl = useCallback((url: string, file: File | null) => {
+    setPackagingImages((prev) => {
+      if (prev.some((s) => s.url === url)) return prev;
+      return [...prev, { id: crypto.randomUUID(), url, file }];
+    });
+  }, []);
+
+  const removePackaging = useCallback((id: string) => {
+    setPackagingImages((prev) => prev.filter((s) => s.id !== id));
+  }, []);
+
+  const handlePackagingFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.type.startsWith("image/")) continue;
+      addPackagingFromUrl(URL.createObjectURL(file), file);
+    }
+    if (packagingInputRef.current) packagingInputRef.current.value = "";
+  }, [addPackagingFromUrl]);
+
+  const handlePackagingDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    setPackagingDropOver(false);
+    const historyData = e.dataTransfer.getData("application/x-history-item");
+    const droppedUrl = e.dataTransfer.getData("text/plain");
+    if (historyData || (droppedUrl && droppedUrl.startsWith("http"))) {
+      const url = historyData ? JSON.parse(historyData).resultUrl : droppedUrl;
+      addPackagingFromUrl(url, null);
+      return;
+    }
+    const files = e.dataTransfer.files;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.type.startsWith("image/")) continue;
+      addPackagingFromUrl(URL.createObjectURL(file), file);
+    }
+  }, [addPackagingFromUrl]);
+
   // Convert any image source to a PNG File using canvas (handles HEIC, WebP, etc.)
   const convertToPng = async (src: string): Promise<File> => {
     return new Promise((resolve, reject) => {
@@ -638,15 +1091,6 @@ export default function MarketingPanel({
     "Do NOT substitute, redesign, simplify, or alter the jewelry in ANY way. The product must look like the SAME physical object filmed in real life. " +
     "The jewelry is the undisputed hero and centerpiece of every frame. ";
 
-  // 4 shot types for consistent model generation
-  // Default outfit description when user doesn't provide one
-  const DEFAULT_OUTFIT =
-    "a trendy East Asian Gen-Z inspired outfit — bold, fashion-forward streetwear-meets-luxury style. " +
-    "Think oversized structured blazer over a cropped top, or a sleek leather jacket with high-waisted wide-leg pants, " +
-    "or a minimalist asymmetric designer top with statement accessories. The vibe is confident, edgy, and effortlessly cool — " +
-    "inspired by Seoul and Tokyo street fashion with a high-fashion twist.";
-
-  // Resolve outfit description: user-provided > default
   // Convert cm dimension + jewelry type into body-relative scale language
   const getSizePrompt = (type: string, bodyPlacement: string): string => {
     if (!jewelryDimension.trim()) return "";
@@ -691,81 +1135,80 @@ export default function MarketingPanel({
       else sizeDesc = "a moderately sized piece — but still proportional to the body, NOT oversized";
     }
 
+    const gemPart = gemDimension.trim()
+      ? ` Gemstone diameter: ${gemDimension.trim()} — render each stone at this exact size, no enlargement.`
+      : "";
+    const chainPart = chainDimension.trim()
+      ? ` Chain thickness: ${chainDimension.trim()} — the chain must appear fine and delicate at this exact width.`
+      : "";
+
     return (
-      `CRITICAL SIZE RULE: The jewelry is ${sizeDesc} (${raw} cm). ` +
+      `CRITICAL SIZE RULE: The jewelry is ${sizeDesc} (${raw} cm).${gemPart}${chainPart} ` +
       "Do NOT enlarge or exaggerate the jewelry. It must appear at REALISTIC proportions relative to the model's body. " +
       "If anything, err on the side of making it slightly SMALLER rather than bigger. " +
       "The jewelry should look like a real photograph — real jewelry is always small relative to the human body. "
     );
   };
 
-  const getOutfitPrompt = () => {
-    if (outfitDescription.trim()) return outfitDescription.trim();
-    if (outfitImages.length > 0) return "the EXACT outfit shown in the outfit reference images";
-    return DEFAULT_OUTFIT;
+  // For still-life templates: append size accuracy note when any dimension is filled.
+  const getStillLifeSizeNote = (): string => {
+    const parts: string[] = [];
+    if (jewelryDimension.trim()) parts.push(`overall piece: ${jewelryDimension.trim()}`);
+    if (gemDimension.trim()) parts.push(`gemstone: ${gemDimension.trim()}`);
+    if (chainDimension.trim()) parts.push(`chain: ${chainDimension.trim()}`);
+    if (parts.length === 0) return "";
+    return ` IMPORTANT: Render the jewelry at physically accurate real-world proportions — ${parts.join(", ")}. Do NOT enlarge or exaggerate any component.`;
   };
 
-  const buildShotPrompts = () => {
-    const outfit = getOutfitPrompt();
-    const outfitRule = outfitImages.length > 0
-      ? `OUTFIT RULE: The model MUST wear the EXACT outfit shown in the outfit reference images. Reproduce every detail of the clothing — fabric, color, cut, fit, style, and accessories. ${outfitDescription.trim() ? `The outfit is: ${outfitDescription.trim()}. ` : ""}`
-      : `OUTFIT RULE: The model must wear ${outfit}. `;
-
+  // Minimal shot prompts that ONLY change camera angle.
+  // Every other element (pose, jewelry, outfit, body position) is locked to the source image.
+  const buildWearingShotPrompts = () => {
+    const lockRule =
+      "CRITICAL: Preserve the EXACT pose, body position, jewelry, jewelry placement, wearing orientation, outfit, and skin from the reference images. " +
+      "Only the camera position changes — do NOT change anything the model is wearing or doing.";
     return [
       {
         id: "closeup-front",
         label: "Close-Up Front",
         scenePrompt:
-          "SHOT TYPE: Close-up shot from the FRONT angle, tightly framed on the jewelry piece and the body area where it is worn. " +
-          "The model faces the camera directly. Her face is partially visible (jawline, neck, décolletage, ear, or hand depending on jewelry type) to confirm character identity. " +
-          outfitRule +
-          "Macro-level detail — every facet of the gemstones, metal finish, and craftsmanship is razor-sharp and in perfect focus. " +
-          "Lighting: soft, refined studio lighting with a strong key light that makes the jewelry sparkle brilliantly. Shallow depth of field with creamy bokeh. " +
-          "Background: clean, softly blurred neutral studio backdrop. " +
-          "Shot on Hasselblad H6D-100c, 120mm Macro, f/2.8, ISO 64.",
+          "CAMERA: Tight close-up framing from the FRONT of the model, centered on the jewelry piece and the body area where it is worn. " +
+          "Macro sharpness on the jewelry, soft shallow-DOF background. Refined studio-style key light that makes the gemstones sparkle. " +
+          "Hasselblad H6D-100c, 120mm macro, f/2.8, ISO 64. " +
+          lockRule,
       },
       {
         id: "closeup-side",
         label: "Close-Up Side",
         scenePrompt:
-          "SHOT TYPE: Close-up shot from a 45-degree SIDE angle, giving a three-quarter perspective on the jewelry. " +
-          "Tightly framed on the jewelry piece and surrounding body area. The model's side profile or three-quarter face is partially visible to confirm character identity. " +
-          outfitRule +
-          "This angle reveals different facets, depth, and dimensionality of the jewelry that the front close-up does not show. " +
-          "Lighting: dramatic directional side lighting that sculpts the jewelry's form and creates dynamic highlights and shadows across the gemstones and metal. " +
-          "Background: clean, softly blurred neutral backdrop. " +
-          "Shot on Hasselblad H6D-100c, 100mm Macro, f/3.2, ISO 64. Shallow depth of field.",
+          "CAMERA: Tight close-up framing from a 45-degree SIDE angle (three-quarter view) of the same model. " +
+          "Dramatic directional side light sculpts the jewelry form. Shallow depth of field. " +
+          "Hasselblad H6D-100c, 100mm macro, f/3.2, ISO 64. " +
+          lockRule,
       },
       {
         id: "closeup-above",
         label: "Close-Up Above",
         scenePrompt:
-          "SHOT TYPE: Close-up shot from a slightly ELEVATED angle (about 30 degrees above), looking down at the jewelry on the model. " +
-          "This bird's-eye-adjacent perspective showcases the top surface of the jewelry — the crown of gemstones, the setting from above, the symmetry of the design. " +
-          "The model's head, shoulders, or hand are partially visible from above to maintain character identity. " +
-          outfitRule +
-          "Lighting: overhead key light with soft fill creating beautiful top-down highlights on every surface of the jewelry. " +
-          "Background: softly blurred, clean neutral tones. " +
-          "Shot on Hasselblad H6D-100c, 90mm Macro, f/2.8, ISO 64. Extremely shallow depth of field.",
+          "CAMERA: Tight close-up framing from a slightly ELEVATED angle (~30 degrees above), looking down onto the jewelry. " +
+          "Overhead key light with soft fill. Extremely shallow depth of field. " +
+          "Hasselblad H6D-100c, 90mm macro, f/2.8, ISO 64. " +
+          lockRule,
       },
       {
         id: "lifestyle",
         label: "Daily Life",
         scenePrompt:
-          "SHOT TYPE: Lifestyle / daily life candid editorial shot, medium to full body. " +
-          outfitRule +
-          "She is in a beautiful real-world setting — a sunlit café terrace, a modern art gallery, an elegant city street, or a stylish rooftop. " +
-          "The mood is candid, aspirational, and effortlessly cool — she's living her stylish daily life while wearing the jewelry. " +
-          "Her full outfit is clearly visible in this wider shot. " +
-          "Natural lighting mixed with ambient light. Shot on Sony A1, 50mm f/1.4, ISO 200. " +
-          "Warm, lifestyle editorial color grading. The jewelry is visible and catches natural light beautifully. " +
-          "This shot shows the jewelry is wearable and stunning in everyday life, not just in a studio.",
+          "CAMERA: Waist-up or bust-up framing of the same model — close enough that the jewelry and the model's face are both clearly visible in a single frame. " +
+          "Shoot in a tasteful real-world setting (sunlit café, art gallery, elegant street, rooftop). " +
+          "The jewelry must be large and prominent in the frame — do NOT pull the camera back to show full-body or legs. " +
+          "Natural ambient lighting, warm editorial color grading. Sony A1, 85mm, f/1.4, ISO 200. " +
+          lockRule,
       },
     ];
   };
 
   // Cache jewelry analysis to avoid repeated API calls for 4 shots of same piece
-  const jewelryAnalysisCache = useRef<Record<string, { type: string; description: string; body_placement: string }>>({});
+  const jewelryAnalysisCache = useRef<Record<string, { type: string; description: string; body_placement: string; outfit_description: string | null }>>({});
 
   const analyzeJewelryCached = async (jewelryUrl: string) => {
     if (jewelryAnalysisCache.current[jewelryUrl]) return jewelryAnalysisCache.current[jewelryUrl];
@@ -776,105 +1219,174 @@ export default function MarketingPanel({
     });
     const analysis = await res.json();
     const result = analysis.error
-      ? { type: "jewelry piece", description: "luxury jewelry", body_placement: "elegantly" }
-      : { type: analysis.type || "jewelry piece", description: analysis.description || "luxury jewelry", body_placement: analysis.body_placement || "elegantly" };
+      ? { type: "jewelry piece", description: "luxury jewelry", body_placement: "elegantly", outfit_description: null }
+      : {
+          type: analysis.type || "jewelry piece",
+          description: analysis.description || "luxury jewelry",
+          body_placement: analysis.body_placement || "elegantly",
+          outfit_description: analysis.outfit_description || null,
+        };
     logUsage?.("analyze-jewelry", { status: analysis.error ? "error" : "success" });
     jewelryAnalysisCache.current[jewelryUrl] = result;
     return result;
   };
 
-  // Build consistent model prompt for a specific shot type
-  const buildConsistentModelPrompt = async (
-    jewelryUrl: string,
-    numCharRefs: number,
-    shotPrompt: string
-  ): Promise<string> => {
-    const { type, description, body_placement } = await analyzeJewelryCached(jewelryUrl);
+  // Cache packaging analysis — keyed on packaging image URL
+  const packagingAnalysisCache = useRef<Record<string, string>>({});
 
-    const hasOutfitRefs = outfitImages.length > 0;
-    const outfitRefNote = hasOutfitRefs
-      ? `OUTFIT REFERENCE: Some reference images show the outfit the model must wear. Reproduce this outfit EXACTLY — same fabric, color, cut, fit, and style. `
-      : "";
-
-    return (
-      `ABSOLUTE RULE — CHARACTER IDENTITY: The first ${numCharRefs} reference image${numCharRefs > 1 ? "s" : ""} show the EXACT person who must appear in the generated image. ` +
-      "You MUST reproduce this SPECIFIC person — her EXACT face, facial bone structure, eye shape, nose, lips, jawline, skin tone, hair color, hair style, hair texture, and body type. " +
-      "This is NOT a generic model — she is a SPECIFIC real person and MUST be recognizable as the SAME individual across every generated image. " +
-      "Copy her appearance from the reference photos as precisely as a portrait photographer would. " +
-      "\n\n" +
-      outfitRefNote +
-      "JEWELRY RULE: The LAST reference image shows the exact jewelry product. " +
-      `The jewelry is a ${type}: ${description}. ` +
-      getSizePrompt(type, body_placement) +
-      `It must be worn ${body_placement} and must be the EXACT same product — every gemstone, metal detail, and design element preserved perfectly. ` +
-      "The jewelry is the hero of the shot, prominently visible and in sharp focus. " +
-      "\n\n" +
-      shotPrompt +
-      "\n\n" +
-      "The final result must look like one shot from a cohesive luxury campaign series — same person, same outfit style, across all images."
-    );
+  const analyzePackagingCached = async (pkgUrl: string): Promise<string> => {
+    if (packagingAnalysisCache.current[pkgUrl]) return packagingAnalysisCache.current[pkgUrl];
+    try {
+      const res = await fetch("/api/analyze-packaging", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_url: pkgUrl }),
+      });
+      const analysis = await res.json();
+      const prose: string = analysis.prose || "a luxury jewelry packaging box";
+      logUsage?.("analyze-packaging", { status: analysis.error ? "error" : "success" });
+      packagingAnalysisCache.current[pkgUrl] = prose;
+      return prose;
+    } catch {
+      return "a luxury jewelry packaging box";
+    }
   };
 
-  // Build consistent wearing prompt: source image dictates the EXACT wearing style.
-  // Unlike consistent-model, here the source image already shows the piece being
-  // worn correctly, so we (a) analyze the piece for structured text grounding,
-  // (b) put the wearing rule LAST so later instructions dominate, and
-  // (c) explicitly decouple "camera angle" from "wearing placement" so the shot
-  // prompt can't be misread as authorization to re-place the jewelry.
-  const buildConsistentWearingPrompt = async (
-    jewelryUrl: string,
-    numCharRefs: number,
-    shotPrompt: string
-  ): Promise<string> => {
-    const { type, description, body_placement } = await analyzeJewelryCached(jewelryUrl);
+  // Cache character analysis — keyed on sorted URL list so same set of refs always hits cache
+  const characterAnalysisCache = useRef<Record<string, string>>({});
 
-    const hasOutfitRefs = outfitImages.length > 0;
-    const outfitRefNote = hasOutfitRefs
-      ? `OUTFIT REFERENCE: Some reference images show the outfit the model must wear. Reproduce this outfit EXACTLY — same fabric, color, cut, fit, and style. `
-      : "";
+  const analyzeCharacterCached = async (charUrls: string[]): Promise<string> => {
+    const cacheKey = [...charUrls].sort().join("|");
+    if (characterAnalysisCache.current[cacheKey]) return characterAnalysisCache.current[cacheKey];
+    const res = await fetch("/api/analyze-character", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image_urls: charUrls.slice(0, 4) }),
+    });
+    const analysis = await res.json();
+    const prose: string = analysis.prose || "an elegant model";
+    logUsage?.("analyze-character", { status: analysis.error ? "error" : "success" });
+    characterAnalysisCache.current[cacheKey] = prose;
+    return prose;
+  };
+
+  // Build consistent wearing prompt.
+  // Strategy: source image appears ONCE in refs (so the model doesn't try to
+  // copy/paste it). Jewelry identity + wearing style are conveyed via DETAILED
+  // TEXT from the analyze-jewelry API. This generates a fresh photo guided by
+  // text + single visual ref instead of compositing from multiple copies.
+  const buildConsistentWearingPrompt = (
+    charProse: string,
+    shotPrompt: string,
+    numCharRefs: number,
+    hasOutfitRefs: boolean,
+    jewelryAnalysis: { type: string; description: string; body_placement: string; outfit_description: string | null }
+  ): string => {
+    const hasFaceRefs = numCharRefs > 0;
+    const { type, description, body_placement, outfit_description } = jewelryAnalysis;
+
+    const outfitRule = hasOutfitRefs
+      ? "OUTFIT: The model must wear the outfit shown in the OUTFIT REFERENCE IMAGES. " +
+        "Reproduce that outfit exactly — same garment type, fabric, color, cut, fit, neckline, sleeves, and accessories across all shots."
+      : outfit_description
+        ? `OUTFIT: The model must wear exactly this: ${outfit_description}. ` +
+          "Reproduce the same garment type, fabric, color, neckline, and fit across all four shots."
+        : "OUTFIT: The model should wear elegant, minimal clothing that does not compete with the jewelry.";
 
     return (
-      `ABSOLUTE RULE — CHARACTER IDENTITY: The first ${numCharRefs} reference image${numCharRefs > 1 ? "s" : ""} show the EXACT person who must appear in the generated image. ` +
-      "You MUST reproduce this SPECIFIC person — her EXACT face, facial bone structure, eye shape, nose, lips, jawline, skin tone, hair color, hair style, hair texture, and body type. " +
-      "This is NOT a generic model — she is a SPECIFIC real person and MUST be recognizable as the SAME individual across every generated image. " +
-      "Copy her appearance from the reference photos as precisely as a portrait photographer would. " +
-      "\n\n" +
-      outfitRefNote +
-      "CAMERA & FRAMING — The following describes ONLY the camera angle, lens, lighting, and framing of this particular shot. It does NOT authorize you to change where or how the jewelry is worn, nor to re-style, re-place, flip, mirror, or re-angle the piece:\n" +
-      shotPrompt +
-      "\n\n" +
-      "═══════════════════════════════════════════════════════════\n" +
-      "ABSOLUTE RULE — JEWELRY IDENTITY & WEARING STYLE\n" +
-      "(HIGHEST PRIORITY — overrides every other instruction above)\n" +
-      "═══════════════════════════════════════════════════════════\n" +
-      `The LAST reference image is the GROUND TRUTH: a ${type} — ${description} — already worn by a model in the EXACT correct way. In the source the piece is worn ${body_placement}. ` +
+      "Generate a NEW, high-quality professional luxury jewelry campaign photograph. " +
+      "This must look like a freshly shot photo — no compositing, no blending, no inpainting artifacts, no pasted regions.\n\n" +
+
+      "CHARACTER / FACE:\n" +
+      (hasFaceRefs
+        ? `The last ${numCharRefs} reference image${numCharRefs > 1 ? "s" : ""} in image_input show the SPECIFIC person who must appear. ` +
+          "Reproduce her exact facial features — bone structure, eye shape, nose, lips, jawline, skin tone, hair color, hair style, and hair texture. "
+        : "") +
+      (charProse ? charProse + " " : "") +
+      "She must be recognizable as the SAME individual across all generated images.\n\n" +
+
+      "JEWELRY — THE HERO OF THE SHOT:\n" +
+      `The model is wearing a ${type}: ${description}. ` +
+      `It is worn ${body_placement}. ` +
       getSizePrompt(type, body_placement) +
-      "\n" +
-      "(1) JEWELRY IDENTITY — The output MUST show the SAME physical piece, not a similar one. Preserve every gemstone (exact count, cut, color, clarity, arrangement, setting), every metal detail (color, finish, engravings, prongs, chains, links, clasps), every facet, every proportion, every imperfection. This is the SAME object, photographed again — zero creative liberty on the product itself.\n" +
-      "(2) WEARING PLACEMENT — The jewelry must appear on the EXACT same body part, the EXACT same side (left vs right), and the EXACT same sub-position as the source reference. " +
-      "If the source shows an earring on a specific ear and lobe position → same ear, same lobe position. " +
-      "If the source shows a ring on a specific finger of a specific hand → same finger, same hand. " +
-      "If the source shows a bracelet on a specific wrist at a specific position → same wrist, same position. " +
-      "If the source shows a necklace at a specific drop length → same drop length on the same side of the collarbone / sternum. " +
-      "If the source shows a brooch pinned at a specific angle on a specific side → same angle, same side. " +
-      "If the source shows an anklet on a specific ankle → same ankle.\n" +
-      "(3) WEARING ORIENTATION — The orientation of the piece relative to the body must be IDENTICAL: same up/down, same front/back, same rotation, same tilt. Do NOT flip, mirror, rotate, or re-angle the piece to suit the new camera.\n" +
-      "(4) CONTACT & DRAPE — The way the piece interacts with skin, hair, and clothing must match the source: same tuck of hair behind/over the piece, same drape of chains, same resting line on the collarbone, same pressure and contact points against the skin or fabric.\n" +
-      "(5) CAMERA vs. WEARING — ONLY the camera angle, framing, lens, and lighting may change between shots. The way the jewelry is worn must NOT change. When the camera moves to a new angle, we must see the SAME worn piece from that new angle — NEVER a re-styled, re-placed, or re-oriented version.\n" +
-      "(6) NO REINTERPRETATION — Do NOT reinterpret, restyle, re-place, flip, mirror, re-angle, resize, 'improve', 'balance', or 'complete' the jewelry or its placement. Treat the LAST reference image as the immutable ground truth for BOTH the product and how it is worn.\n" +
-      "\n" +
-      "The jewelry is the hero of the shot — prominently visible, in razor-sharp focus, and IDENTICAL to the source reference in both product identity and wearing style. " +
-      "The final result must look like one frame from a cohesive luxury campaign series: same person, same outfit, SAME exact jewelry worn in the SAME exact way — only the camera changes."
+      "The FIRST reference image in image_input shows this EXACT piece already worn on a model — use it as the visual reference for the jewelry's exact appearance, design details, gemstones, metal finish, and proportions. " +
+      "Your output must feature the SAME jewelry piece with the SAME design — do not invent a different piece, do not modify the design. " +
+      "The piece must be worn on the SAME body part, at the SAME position. " +
+      "Do not flip, mirror, or reposition it. The jewelry must be prominently visible and in sharp focus.\n\n" +
+
+      outfitRule + "\n\n" +
+
+      "CAMERA FOR THIS SHOT:\n" +
+      shotPrompt + "\n\n" +
+
+      "QUALITY: Professional, artifact-free, seamlessly generated photograph. " +
+      "The entire image must be coherent — one unified shot, not a composite."
     );
   };
 
   const handleGenerate = async () => {
-    if (!selectedTemplate || sourceImages.length === 0) return;
+    if (sourceImages.length === 0) return;
 
+    // Video mode: direct generation without template
+    if (contentType === "video") {
+      setLoading(true);
+      setError(null);
+      setGeneratedVideo(null);
+      try {
+        const newTasks: TaskInfo[] = [];
+        for (const src of sourceImages) {
+          const hostedUrl = await uploadForReference(src);
+          if (!hostedUrl) continue;
+
+          // For image-to-video: the input image IS the visual reference.
+          // The text prompt should ONLY describe motion, camera, and behavior —
+          // NOT describe the product appearance (that comes from the image).
+          const userPrompt = videoPrompt.trim();
+          const prompt = userPrompt
+            ? `Animate this image into a video. ${userPrompt}. Keep the product and scene exactly as shown in the image.`
+            : "Animate this image into a cinematic product video. Slow elegant camera movement, gentle rotation to showcase from multiple angles. Studio lighting, shallow depth of field, luxurious mood. Keep everything exactly as shown in the image.";
+
+          const res = await fetch("/api/kie", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "video",
+              prompt,
+              aspect_ratio: aspectRatio,
+              video_model: videoModel,
+              reference_image: hostedUrl,
+            }),
+          });
+          const data = await res.json();
+          if (data.error) {
+            logUsage?.("video-generate", { status: "error", detail: data.error });
+            setError((prev) => prev ? `${prev}\n${data.error}` : data.error);
+            continue;
+          }
+          logUsage?.("video-generate", { status: "success", detail: "direct-video" });
+          newTasks.push({
+            sourceId: src.id,
+            sourceUrl: src.url,
+            taskId: data.taskId,
+            status: "waiting",
+            taskType: "video",
+          });
+        }
+        if (newTasks.length === 0) throw new Error(t("mkt.failedToStart"));
+        setActiveTasks(newTasks);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to start generation");
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Image mode: requires template
+    if (!selectedTemplate) return;
     const template = TEMPLATES.find((t) => t.id === selectedTemplate);
     if (!template) return;
 
-    const isConsistentFlow = template.id === "consistent-model" || template.id === "consistent-wearing";
+    const isConsistentFlow = template.id === "consistent-wearing";
 
     // Validate consistent templates require character references
     if (isConsistentFlow && characterImages.length === 0) {
@@ -926,35 +1438,38 @@ export default function MarketingPanel({
             if (hostedUrl) outfitUrls.push(hostedUrl);
           }
 
-          if (contentType === "video") {
-            // ── Consistent model video: force image generation first ──
-            // User must generate images first, then pick one as the base for video.
-            // So when in video mode, we still generate images (4 shots).
-            // The "Generate Video" button will appear on each result image.
-          }
-
           // ── Image mode: fire 4 shots per jewelry piece ──
-          // Build refs: character images + outfit images + jewelry image (up to 14)
-          const jewelrySlots = 1;
-          const outfitSlots = Math.min(outfitUrls.length, 3);
-          const charSlots = 14 - jewelrySlots - outfitSlots;
-
+          // Kie nano-banana-pro cap: 8 reference images total.
+          // Source appears ONCE (text description carries jewelry identity to avoid
+          // the model trying to copy-paste / composite from repeated source images).
+          // Budget: source ×1 (jewelry visual ref), outfit ×0-2, char fills remainder
+          // Layout: [src, outfit?, outfit?, char, char, char, char, char?]
+          const MAX_REFS = 8;
+          const outfitSlots = Math.min(outfitUrls.length, 2);
+          const charSlots = MAX_REFS - 1 - outfitSlots; // 1 for source
           let charRefs = [...characterUrls];
-          while (charRefs.length < charSlots && charRefs.length < characterUrls.length * 6) {
+          while (charRefs.length < charSlots && charRefs.length < characterUrls.length * 4) {
             charRefs = [...charRefs, ...characterUrls];
           }
           charRefs = charRefs.slice(0, charSlots);
           const numCharRefs = charRefs.length;
+          const refs = [
+            src.url,
+            ...outfitUrls.slice(0, outfitSlots),
+            ...charRefs,
+          ].slice(0, MAX_REFS);
 
-          const refs = [...charRefs, ...outfitUrls.slice(0, outfitSlots), src.url].slice(0, 14);
+          // Build 4 shot prompts
+          const shots = buildWearingShotPrompts();
 
-          // Build 4 shot prompts with outfit context
-          const shots = buildShotPrompts();
+          // Get text-based face description + detailed jewelry analysis
+          const charProse = characterUrls.length > 0
+            ? await analyzeCharacterCached(characterUrls)
+            : "";
+          const wearingAnalysis = await analyzeJewelryCached(src.url);
 
           for (const shot of shots) {
-            const shotPrompt = template.id === "consistent-wearing"
-              ? await buildConsistentWearingPrompt(src.url, numCharRefs, shot.scenePrompt)
-              : await buildConsistentModelPrompt(src.url, numCharRefs, shot.scenePrompt);
+            const shotPrompt = buildConsistentWearingPrompt(charProse, shot.scenePrompt, numCharRefs, outfitUrls.length > 0, wearingAnalysis);
 
             const shotRes = await fetch("/api/kie", {
               method: "POST",
@@ -985,12 +1500,91 @@ export default function MarketingPanel({
             });
           }
           continue; // Skip the single-task creation below
-        } else if (contentType === "video") {
-          const jewelryDesc = await analyzeJewelryForVideo(src.url);
-          prompt = VIDEO_CONSISTENCY_PREFIX + jewelryDesc + template.prompt;
-          imageRefs = [];
+        } else if (template.id === "solid-color") {
+          const studioStyle = STUDIO_BG_STYLES.find((s) => s.id === solidBgColor);
+          if (studioStyle) {
+            prompt = CONSISTENCY_PREFIX + studioStyle.prompt;
+          } else {
+            const colorOpt = SOLID_BG_COLORS.find((c) => c.id === solidBgColor);
+            const bgDesc = colorOpt?.desc ?? "pure white seamless studio background, hex #FFFFFF";
+            prompt = CONSISTENCY_PREFIX + buildSolidColorPrompt(bgDesc);
+          }
+          imageRefs = [src.url];
+        } else if (template.id === "packaging-box") {
+          if (packagingImages.length > 0) {
+            // Upload the first packaging image and get its hosted URL
+            const pkgHosted = await uploadForReference(packagingImages[0]);
+            if (pkgHosted) {
+              // Analyze packaging with GPT-4o to get a text description
+              const pkgProse = await analyzePackagingCached(pkgHosted);
+
+              // GPT-Image-2: packaging ×6 first (dominant scene anchor),
+              // jewelry ×2 last (item to place inside). 8 total, well within 16 limit.
+              const gptInputUrls = [
+                pkgHosted, pkgHosted, pkgHosted, pkgHosted, pkgHosted, pkgHosted, // pkg ×6
+                src.url, src.url, // jewelry ×2
+              ];
+
+              prompt =
+                "You are a luxury product photographer. " +
+                "The first 6 images all show the SAME packaging. " +
+                (pkgProse ? `Packaging description: ${pkgProse} ` : "") +
+                "Reproduce this EXACT packaging — same box type, shape, exterior color, finish, material, branding, logo, and interior cushion or tray. Open the lid naturally. Do NOT invent or substitute a different box. " +
+                "The last 2 images show the jewelry piece to place inside. " +
+                "Reproduce the jewelry exactly — same design, gemstones, metal color, finish, and proportions. " +
+                "Place the jewelry naturally inside the open packaging, resting on the interior cushion or tray. " +
+                "Hyper-real studio photography, soft highlights, gentle shadows, minimal clean background. " +
+                "One unified freshly shot luxury photograph.";
+
+              // Fire directly via Kie with GPT-Image-2 model — uses same polling system
+              const gptRes = await fetch("/api/kie", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  type: "image",
+                  model: "gpt-image-2-image-to-image",
+                  prompt,
+                  input_urls: gptInputUrls,
+                }),
+              });
+              const gptData = await gptRes.json();
+
+              if (gptData.error) {
+                logUsage?.("image-generate", { status: "error", detail: gptData.error });
+                setError((prev) => prev ? `${prev}\n${gptData.error}` : gptData.error);
+              } else {
+                logUsage?.("image-generate", { status: "success", detail: "packaging-box GPT-Image-2" });
+                newTasks.push({
+                  sourceId: src.id,
+                  sourceUrl: src.url,
+                  taskId: gptData.taskId,
+                  status: "waiting",
+                  taskType: "image",
+                });
+              }
+              continue; // skip the regular nano-banana-2 call below
+            } else {
+              // Upload failed — fall back to default
+              imageRefs = [src.url];
+              prompt = CONSISTENCY_PREFIX +
+                "Create a hyper-real studio photograph of the exact jewelry piece from the reference image elegantly placed inside an open rigid jewellery box with a soft plush cushion interior. Studio lighting, minimal background, luxury aesthetic.";
+            }
+          } else {
+            // No custom packaging uploaded: fall back to default luxury box prompt
+            prompt =
+              CONSISTENCY_PREFIX +
+              "Create a hyper-real, ultra high-resolution studio photograph of the exact jewelry piece from the reference image elegantly placed inside an open rigid jewellery box with a soft, plush cushion interior. The jewelry rests naturally, following the contours of the cushion, highlighting its craftsmanship, polished metal, and gemstone brilliance. Use controlled studio lighting to create refined highlights and gentle shadows that enhance depth and texture. The exterior of the box should feel minimal and luxurious, with a clean background that keeps attention on the jewellery. Shot on a professional high-end camera with perfect exposure, sharp focus, and cinematic depth of field for a refined luxury brand aesthetic.";
+            imageRefs = [src.url];
+          }
+        } else if (template.id === "natural-branches") {
+          const style = BRANCH_STYLES.find((s) => s.id === branchStyle);
+          prompt = CONSISTENCY_PREFIX + (style?.prompt ?? BRANCH_STYLES[0].prompt) + getStillLifeSizeNote();
+          imageRefs = [src.url];
+        } else if (template.id === "vintage-inspired") {
+          prompt = CONSISTENCY_PREFIX + buildVintagePrompt(vintageConfig) + getStillLifeSizeNote();
+          imageRefs = [src.url];
         } else {
-          prompt = CONSISTENCY_PREFIX + template.prompt;
+          prompt = CONSISTENCY_PREFIX + template.prompt + getStillLifeSizeNote();
           imageRefs = [src.url];
         }
 
@@ -998,29 +1592,28 @@ export default function MarketingPanel({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            type: contentType === "video" ? "video" : "image",
+            type: "image",
             prompt,
             aspect_ratio: aspectRatio,
             resolution: "2K",
-            video_model: videoModel,
             image_input: imageRefs.length > 0 ? imageRefs : undefined,
           }),
         });
         const data = await res.json();
 
         if (data.error) {
-          logUsage?.(contentType === "video" ? "video-generate" : "image-generate", { status: "error", detail: data.error });
+          logUsage?.("image-generate", { status: "error", detail: data.error });
           setError((prev) => prev ? `${prev}\n${data.error}` : data.error);
           continue;
         }
 
-        logUsage?.(contentType === "video" ? "video-generate" : "image-generate", { status: "success", detail: template.label });
+        logUsage?.("image-generate", { status: "success", detail: template.label });
         newTasks.push({
           sourceId: src.id,
           sourceUrl: src.url,
           taskId: data.taskId,
           status: "waiting",
-          taskType: contentType === "video" ? "video" : "image",
+          taskType: "image",
         });
       }
 
@@ -1035,9 +1628,9 @@ export default function MarketingPanel({
     }
   };
 
-  // ── Generate video from a selected generated image (consistent-model workflow) ──
+  // ── Generate video from a selected generated image (consistent-wearing workflow) ──
   const handleGenerateVideoFromImage = async (baseImageUrl: string) => {
-    if (!selectedTemplate || selectedTemplate !== "consistent-model") return;
+    if (!selectedTemplate || selectedTemplate !== "consistent-wearing") return;
     if (sourceImages.length === 0) return;
 
     setVideoFromImageLoading(true);
@@ -1135,8 +1728,39 @@ export default function MarketingPanel({
     }
   };
 
-  const canGenerate = !!selectedTemplate && sourceImages.length > 0 && !loading;
-  const isConsistentModel = selectedTemplate === "consistent-model" || selectedTemplate === "consistent-wearing";
+  // ── AI Refine prompt ──
+  const handleRefinePrompt = async () => {
+    if (!videoPrompt.trim() || refiningPrompt) return;
+    setRefiningPrompt(true);
+    try {
+      // Optionally send first source image for context
+      let imageUrl: string | undefined;
+      if (sourceImages.length > 0) {
+        const hosted = await uploadForReference(sourceImages[0]);
+        if (hosted) imageUrl = hosted;
+      }
+      const res = await fetch("/api/refine-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: videoPrompt, image_url: imageUrl }),
+      });
+      const data = await res.json();
+      if (data.prompt) {
+        setVideoPrompt(data.prompt);
+      } else if (data.error) {
+        setError(data.error);
+      }
+    } catch {
+      setError("Failed to refine prompt");
+    } finally {
+      setRefiningPrompt(false);
+    }
+  };
+
+  const canGenerate = contentType === "video"
+    ? sourceImages.length > 0 && !loading
+    : !!selectedTemplate && sourceImages.length > 0 && !loading;
+  const isConsistentModel = selectedTemplate === "consistent-wearing";
   const isConsistentModelVideo = isConsistentModel && contentType === "video";
   const ratios = contentType === "video" ? VIDEO_RATIOS : IMAGE_RATIOS;
   const completedCount = generatedImages.length;
@@ -1145,33 +1769,33 @@ export default function MarketingPanel({
   return (
     <div className="space-y-5">
       {/* Content Type Toggle */}
-      <div className="flex items-center gap-2">
-        {(
-          [
+      {lockContentType ? null : (
+        <div className="flex items-center gap-2">
+          {([
             { key: "image" as const, icon: Image, labelKey: "mkt.staticImage" as const },
             { key: "video" as const, icon: Video, labelKey: "mkt.video" as const },
-          ]
-        ).map(({ key, icon: Icon, labelKey }) => (
-          <button
-            key={key}
-            onClick={() => {
-              setContentType(key);
-              setAspectRatio(key === "video" ? "16:9" : "4:3");
-              setGeneratedImages([]);
-              setGeneratedVideo(null);
-              setError(null);
-            }}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all border ${
-              contentType === key
-                ? "bg-foreground text-background border-foreground shadow-sm"
-                : "bg-card text-muted border-border hover:border-foreground/20 hover:text-foreground"
-            }`}
-          >
-            <Icon className="w-3.5 h-3.5" />
-            {t(labelKey)}
-          </button>
-        ))}
-      </div>
+          ]).map(({ key, icon: Icon, labelKey }) => (
+            <button
+              key={key}
+              onClick={() => {
+                setContentType(key);
+                setAspectRatio(key === "video" ? "16:9" : "4:3");
+                setGeneratedImages([]);
+                setGeneratedVideo(null);
+                setError(null);
+              }}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all border ${
+                contentType === key
+                  ? "bg-foreground text-background border-foreground shadow-sm"
+                  : "bg-card text-muted border-border hover:border-foreground/20 hover:text-foreground"
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {t(labelKey)}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Other page generation banner */}
       {otherPageLoading && (
@@ -1414,7 +2038,7 @@ export default function MarketingPanel({
                         </p>
                       </div>
                     )}
-                    {/* Always-visible "Generate Video" button for consistent-model + video */}
+                    {/* Always-visible "Generate Video" button for consistent-wearing + video */}
                     {isConsistentModel && !videoFromImageLoading && (
                       <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent z-20">
                         <button
@@ -1562,8 +2186,32 @@ export default function MarketingPanel({
                 type="text"
                 value={jewelryDimension}
                 onChange={(e) => setJewelryDimension(e.target.value)}
-                placeholder="e.g. 2×3"
+                placeholder="e.g. 2×3cm"
                 className="w-24 px-3 py-2 rounded-xl bg-card border border-border text-sm focus:outline-none focus:border-foreground/30 focus:ring-1 focus:ring-foreground/10 transition-all placeholder:text-muted/40"
+              />
+            </div>
+            <div className="shrink-0">
+              <label className="text-[11px] font-medium text-foreground/70 mb-1 block">
+                {t("mkt.gemSize")}
+              </label>
+              <input
+                type="text"
+                value={gemDimension}
+                onChange={(e) => setGemDimension(e.target.value)}
+                placeholder="e.g. 5mm"
+                className="w-20 px-3 py-2 rounded-xl bg-card border border-border text-sm focus:outline-none focus:border-foreground/30 focus:ring-1 focus:ring-foreground/10 transition-all placeholder:text-muted/40"
+              />
+            </div>
+            <div className="shrink-0">
+              <label className="text-[11px] font-medium text-foreground/70 mb-1 block">
+                {t("mkt.chainSize")}
+              </label>
+              <input
+                type="text"
+                value={chainDimension}
+                onChange={(e) => setChainDimension(e.target.value)}
+                placeholder="e.g. 1mm"
+                className="w-20 px-3 py-2 rounded-xl bg-card border border-border text-sm focus:outline-none focus:border-foreground/30 focus:ring-1 focus:ring-foreground/10 transition-all placeholder:text-muted/40"
               />
             </div>
             {contentType === "video" && (
@@ -1605,8 +2253,8 @@ export default function MarketingPanel({
         </div>
       </div>
 
-      {/* ── Character Model Reference ── */}
-      {(selectedTemplate === "consistent-model" || selectedTemplate === "consistent-wearing" || characterImages.length > 0) && (
+      {/* ── Character Model Reference (image mode only) ── */}
+      {contentType !== "video" && (selectedTemplate === "consistent-wearing" || characterImages.length > 0) && (
         <div className="rounded-2xl border border-border bg-card/50 p-4">
           <div className="flex items-center justify-between mb-2">
             <div>
@@ -1793,7 +2441,41 @@ export default function MarketingPanel({
         </div>
       )}
 
-      {/* ── Studio Themes ── */}
+      {/* ── Video Prompt (only in video mode) ── */}
+      {contentType === "video" && (
+        <div className="rounded-2xl border border-border bg-card/50 p-4 space-y-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
+            {t("mkt.videoPromptTitle")}
+          </h2>
+          <textarea
+            value={videoPrompt}
+            onChange={(e) => setVideoPrompt(e.target.value)}
+            placeholder={t("mkt.videoPromptPlaceholder")}
+            rows={3}
+            className="w-full rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-foreground placeholder:text-muted/40 focus:outline-none focus:ring-2 focus:ring-foreground/20 resize-none"
+          />
+          <button
+            onClick={handleRefinePrompt}
+            disabled={!videoPrompt.trim() || refiningPrompt}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all border bg-card text-foreground border-border hover:border-foreground/20 hover:bg-card-hover disabled:opacity-30"
+          >
+            {refiningPrompt ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                {t("mkt.refining")}
+              </>
+            ) : (
+              <>
+                <Wand2 className="w-3.5 h-3.5" />
+                {t("mkt.aiRefine")}
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* ── Studio Themes (hidden in video mode) ── */}
+      {contentType !== "video" && (
       <div>
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">
           {t("mkt.studioTheme")}
@@ -1803,12 +2485,21 @@ export default function MarketingPanel({
             <TemplatePreview key={tmpl.id} template={tmpl}>
               <button
                 onClick={() => setSelectedTemplate(tmpl.id)}
-                className={`w-full text-left px-3 py-2.5 rounded-xl transition-all border ${
+                className={`w-full text-left px-3 py-2.5 rounded-xl transition-all border relative ${
                   selectedTemplate === tmpl.id
                     ? "bg-foreground text-background border-foreground shadow-sm"
                     : "bg-card text-foreground/80 border-border hover:border-foreground/20 hover:bg-card-hover"
                 }`}
               >
+                {tmpl.popular && (
+                  <span className={`absolute top-1.5 right-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none ${
+                    selectedTemplate === tmpl.id
+                      ? "bg-background/20 text-background"
+                      : "bg-accent/15 text-accent"
+                  }`}>
+                    {t("mkt.popular" as TKey)}
+                  </span>
+                )}
                 <div className="flex items-center gap-2 mb-0.5">
                   <span className="text-sm">{tmpl.icon}</span>
                   <span className="text-[12px] font-semibold leading-tight">{t(`tmpl.${tmpl.id}` as TKey)}</span>
@@ -1822,7 +2513,286 @@ export default function MarketingPanel({
             </TemplatePreview>
           ))}
         </div>
+
+        {/* ── Packaging Image Upload (shown when packaging-box template is selected) ── */}
+        {selectedTemplate === "packaging-box" && (
+          <div className="mt-3 p-4 rounded-2xl bg-card border border-border space-y-3">
+            <div>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted mb-0.5">
+                {t("mkt.packagingUploadTitle" as TKey)}
+              </h3>
+              <p className="text-[10px] text-muted/60">
+                {t("mkt.packagingUploadHint" as TKey)}
+              </p>
+            </div>
+
+            {/* Drop area */}
+            <div
+              onDrop={handlePackagingDrop}
+              onDragOver={(e) => { e.preventDefault(); setPackagingDropOver(true); }}
+              onDragLeave={() => setPackagingDropOver(false)}
+              onClick={() => packagingInputRef.current?.click()}
+              className={`relative border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${
+                packagingDropOver
+                  ? "border-foreground/60 bg-foreground/5"
+                  : "border-border hover:border-foreground/30 hover:bg-card-hover"
+              }`}
+            >
+              <input
+                ref={packagingInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handlePackagingFileSelect}
+              />
+              <Upload className="w-4 h-4 text-muted/50 mx-auto mb-1" />
+              <p className="text-[10px] text-muted/60">{t("mkt.packagingDropHere" as TKey)}</p>
+            </div>
+
+            {/* Packaging thumbnails */}
+            {packagingImages.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {packagingImages.map((pk) => (
+                  <div key={pk.id} className="relative w-14 h-14 rounded-lg overflow-hidden border border-border group">
+                    <img src={pk.url} alt="packaging" className="w-full h-full object-cover" />
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removePackaging(pk.id); }}
+                      className="absolute top-0.5 right-0.5 bg-black/60 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-2.5 h-2.5 text-white" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Branch Style Picker (shown when natural-branches template is selected) ── */}
+        {selectedTemplate === "natural-branches" && (
+          <div className="mt-3 p-4 rounded-2xl bg-card border border-border space-y-3">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+              Branch Style
+            </h3>
+            <div className="grid grid-cols-5 gap-2">
+              {BRANCH_STYLES.map((style) => (
+                <BranchStyleCard
+                  key={style.id}
+                  style={style}
+                  selected={branchStyle === style.id}
+                  onClick={() => setBranchStyle(style.id)}
+                />
+              ))}
+            </div>
+            <p className="text-[10px] text-muted/50">
+              Selected:{" "}
+              <span className="font-medium text-foreground/70">
+                {BRANCH_STYLES.find((s) => s.id === branchStyle)?.label ?? "Draped"}
+              </span>
+            </p>
+          </div>
+        )}
+
+        {/* ── Solid Color Picker (shown when solid-color template is selected) ── */}
+        {selectedTemplate === "solid-color" && (
+          <div className="mt-3 p-4 rounded-2xl bg-card border border-border space-y-3">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+              {t("mkt.bgColorPicker" as TKey)}
+            </h3>
+
+            {/* Solid colors */}
+            <div>
+              <p className="text-[10px] text-muted/60 mb-1.5">{t("mkt.solidColors" as TKey)}</p>
+              <div className="flex flex-wrap gap-2">
+                {SOLID_BG_COLORS.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setSolidBgColor(c.id)}
+                    title={c.label}
+                    className={`w-8 h-8 rounded-full border-2 transition-all ${
+                      solidBgColor === c.id
+                        ? "border-foreground scale-110 shadow-md"
+                        : "border-border hover:border-foreground/40 hover:scale-105"
+                    }`}
+                    style={{ backgroundColor: c.hex, outline: c.hex === "#FFFFFF" ? "1px solid #e8e6e3" : undefined }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Studio Styles */}
+            <div>
+              <p className="text-[10px] text-muted/60 mb-2">Studio Style</p>
+              <div className="grid grid-cols-5 gap-2">
+                {STUDIO_BG_STYLES.map((style) => (
+                  <StudioStyleCard
+                    key={style.id}
+                    style={style}
+                    selected={solidBgColor === style.id}
+                    onClick={() => setSolidBgColor(style.id)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Selected label */}
+            <p className="text-[10px] text-muted/50">
+              {t("mkt.selectedBg" as TKey)}{": "}
+              <span className="font-medium text-foreground/70">
+                {SOLID_BG_COLORS.find(c => c.id === solidBgColor)?.label ??
+                 STUDIO_BG_STYLES.find(s => s.id === solidBgColor)?.label ?? solidBgColor}
+              </span>
+            </p>
+          </div>
+        )}
+
+        {/* ── Vintage Heritage Config (shown when vintage-inspired template is selected) ── */}
+        {selectedTemplate === "vintage-inspired" && (
+          <div className="mt-3 p-4 rounded-2xl bg-card border border-border space-y-4">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+              {t("mkt.vintageConfig" as TKey)}
+            </h3>
+
+            {/* Fabric row */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="vintage-fabric"
+                  checked={vintageConfig.showFabric}
+                  onChange={(e) => setVintageConfig((c) => ({ ...c, showFabric: e.target.checked }))}
+                  className="w-3.5 h-3.5 rounded"
+                />
+                <label htmlFor="vintage-fabric" className="text-[11px] font-medium text-foreground/80">
+                  {t("mkt.vintageFabric" as TKey)}
+                </label>
+              </div>
+              {vintageConfig.showFabric && (
+                <div className="pl-5 space-y-2.5">
+                  {/* Fabric color swatches */}
+                  <p className="text-[10px] text-muted/60">{t("mkt.vintageFabricColor" as TKey)}</p>
+                  <div className="flex gap-2 items-center">
+                    {VINTAGE_FABRIC_COLORS.map((c) => (
+                      <button
+                        key={c.id}
+                        title={c.zh}
+                        type="button"
+                        onClick={() => setVintageConfig((cfg) => ({ ...cfg, fabricColor: c.en }))}
+                        className={`w-7 h-7 rounded-full border-2 transition-all hover:scale-105 ${
+                          vintageConfig.fabricColor === c.en
+                            ? "border-foreground scale-110 shadow-md"
+                            : "border-transparent hover:border-foreground/30"
+                        }`}
+                        style={{ backgroundColor: c.hex }}
+                      />
+                    ))}
+                    <span className="text-[10px] text-muted/60 ml-1">
+                      {VINTAGE_FABRIC_COLORS.find((c) => c.en === vintageConfig.fabricColor)?.zh ?? vintageConfig.fabricColor}
+                    </span>
+                  </div>
+                  {/* Fabric material pills */}
+                  <p className="text-[10px] text-muted/60">{t("mkt.vintageFabricMaterial" as TKey)}</p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {VINTAGE_FABRIC_MATERIALS.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setVintageConfig((cfg) => ({ ...cfg, fabricMaterial: m.en }))}
+                        className={`px-2.5 py-1 rounded-full text-[10px] border transition-all ${
+                          vintageConfig.fabricMaterial === m.en
+                            ? "border-foreground bg-foreground text-background"
+                            : "border-border text-foreground/70 hover:border-foreground/40"
+                        }`}
+                      >
+                        {m.zh}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Table/Stand row */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="vintage-table"
+                  checked={vintageConfig.showTable}
+                  onChange={(e) => setVintageConfig((c) => ({ ...c, showTable: e.target.checked }))}
+                  className="w-3.5 h-3.5 rounded"
+                />
+                <label htmlFor="vintage-table" className="text-[11px] font-medium text-foreground/80">
+                  {t("mkt.vintageTable" as TKey)}
+                </label>
+              </div>
+              {vintageConfig.showTable && (
+                <div className="pl-5 space-y-2.5">
+                  <p className="text-[10px] text-muted/60">{t("mkt.vintageTableMaterial" as TKey)}</p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {VINTAGE_TABLE_MATERIALS.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setVintageConfig((cfg) => ({ ...cfg, tableMaterial: m.en }))}
+                        className={`px-2.5 py-1 rounded-full text-[10px] border transition-all ${
+                          vintageConfig.tableMaterial === m.en
+                            ? "border-foreground bg-foreground text-background"
+                            : "border-border text-foreground/70 hover:border-foreground/40"
+                        }`}
+                      >
+                        {m.zh}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Velvet row */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="vintage-velvet"
+                  checked={vintageConfig.showVelvet}
+                  onChange={(e) => setVintageConfig((c) => ({ ...c, showVelvet: e.target.checked }))}
+                  className="w-3.5 h-3.5 rounded"
+                />
+                <label htmlFor="vintage-velvet" className="text-[11px] font-medium text-foreground/80">
+                  {t("mkt.vintageVelvet" as TKey)}
+                </label>
+              </div>
+              {vintageConfig.showVelvet && (
+                <div className="pl-5 space-y-2.5">
+                  <p className="text-[10px] text-muted/60">{t("mkt.vintageVelvetColor" as TKey)}</p>
+                  <div className="flex gap-2 items-center">
+                    {VINTAGE_VELVET_COLORS.map((c) => (
+                      <button
+                        key={c.id}
+                        title={c.zh}
+                        type="button"
+                        onClick={() => setVintageConfig((cfg) => ({ ...cfg, velvetColor: c.en }))}
+                        className={`w-7 h-7 rounded-full border-2 transition-all hover:scale-105 ${
+                          vintageConfig.velvetColor === c.en
+                            ? "border-foreground scale-110 shadow-md"
+                            : "border-transparent hover:border-foreground/30"
+                        }`}
+                        style={{ backgroundColor: c.hex }}
+                      />
+                    ))}
+                    <span className="text-[10px] text-muted/60 ml-1">
+                      {VINTAGE_VELVET_COLORS.find((c) => c.en === vintageConfig.velvetColor)?.zh ?? vintageConfig.velvetColor}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
+      )}
 
       {/* Generation History */}
       {history.length > 0 && (

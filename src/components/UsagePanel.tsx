@@ -59,6 +59,8 @@ const ACTION_LABELS: Record<ApiAction, { en: string; zh: string }> = {
   "analyze-jewelry": { en: "Jewelry Analysis", zh: "珠寶分析" },
   "analyze-character": { en: "Character Analysis", zh: "角色分析" },
   "analyze-outfit": { en: "Outfit Analysis", zh: "服裝分析" },
+  "analyze-packaging": { en: "Packaging Analysis", zh: "包裝分析" },
+  "relight": { en: "Relighting", zh: "燈光調整" },
   "estimate": { en: "Price Estimate", zh: "價格估算" },
 };
 
@@ -115,23 +117,42 @@ export default function UsagePanel({ entries, summary, onClear, kvAvailable, onR
     })();
   }, [isAdmin, viewMode]);
 
-  // Daily cost chart data (last 7 days)
+  // Daily cost chart data — current calendar month
+  const monthInfo = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const label = now.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    const startTs = new Date(year, month, 1).getTime();
+    const endTs = new Date(year, month + 1, 1).getTime();
+    return { year, month, daysInMonth, label, startTs, endTs };
+  }, []);
+
   const dailyCosts = useMemo(() => {
-    const days: { label: string; cost: number; calls: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const days: { day: number; cost: number; calls: number }[] = [];
+    for (let i = 1; i <= monthInfo.daysInMonth; i++) {
+      const dayStart = new Date(monthInfo.year, monthInfo.month, i).getTime();
       const dayEnd = dayStart + 86400000;
       const dayEntries = entries.filter((e) => e.timestamp >= dayStart && e.timestamp < dayEnd);
       days.push({
-        label: d.toLocaleDateString(undefined, { weekday: "short" }),
+        day: i,
         cost: dayEntries.reduce((s, e) => s + e.costUsd, 0),
         calls: dayEntries.length,
       });
     }
     return days;
-  }, [entries]);
+  }, [entries, monthInfo]);
+
+  const monthTotals = useMemo(() => {
+    const inMonth = entries.filter(
+      (e) => e.timestamp >= monthInfo.startTs && e.timestamp < monthInfo.endTs
+    );
+    return {
+      calls: inMonth.length,
+      cost: inMonth.reduce((s, e) => s + e.costUsd, 0),
+    };
+  }, [entries, monthInfo]);
 
   const maxDayCost = Math.max(...dailyCosts.map((d) => d.cost), 0.01);
 
@@ -276,24 +297,44 @@ export default function UsagePanel({ entries, summary, onClear, kvAvailable, onR
         </div>
       </div>
 
-      {/* ── 7-day chart ── */}
+      {/* ── Month-to-date chart ── */}
       <div className="p-4 rounded-2xl bg-card border border-border">
-        <h3 className="text-xs font-semibold mb-3">{t("usage.last7Days" as TKey)}</h3>
-        <div className="flex items-end gap-1.5 h-24">
-          {dailyCosts.map((day, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1">
-              <span className="text-[9px] font-mono text-muted">
-                {day.cost > 0 ? formatCost(day.cost) : ""}
-              </span>
-              <div className="w-full relative" style={{ height: 60 }}>
-                <div
-                  className="absolute bottom-0 w-full rounded-t bg-foreground/15 transition-all"
-                  style={{ height: `${Math.max((day.cost / maxDayCost) * 100, day.cost > 0 ? 4 : 0)}%` }}
-                />
+        <div className="flex items-baseline justify-between mb-3">
+          <h3 className="text-xs font-semibold">
+            {t("usage.monthChart" as TKey)} — {monthInfo.label}
+          </h3>
+          <div className="flex items-baseline gap-3 text-[10px] text-muted">
+            <span>
+              {monthTotals.calls} {t("usage.apiRequests" as TKey)}
+            </span>
+            <span className="font-mono font-semibold text-foreground">
+              {formatCost(monthTotals.cost)}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-end gap-[2px] h-24">
+          {dailyCosts.map((day) => {
+            const showLabel = day.day === 1 || day.day % 5 === 0 || day.day === monthInfo.daysInMonth;
+            return (
+              <div
+                key={day.day}
+                className="flex-1 flex flex-col items-center gap-1"
+                title={`Day ${day.day}: ${formatCost(day.cost)} · ${day.calls} calls`}
+              >
+                <div className="w-full relative" style={{ height: 72 }}>
+                  <div
+                    className="absolute bottom-0 w-full rounded-t bg-foreground/15 hover:bg-foreground/30 transition-all"
+                    style={{
+                      height: `${Math.max((day.cost / maxDayCost) * 100, day.cost > 0 ? 3 : 0)}%`,
+                    }}
+                  />
+                </div>
+                <span className="text-[8px] text-muted leading-none h-2.5">
+                  {showLabel ? day.day : ""}
+                </span>
               </div>
-              <span className="text-[9px] text-muted">{day.label}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

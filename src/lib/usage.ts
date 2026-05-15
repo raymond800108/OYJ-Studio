@@ -15,6 +15,8 @@ export type ApiAction =
   | "analyze-jewelry"
   | "analyze-character"
   | "analyze-outfit"
+  | "analyze-packaging"
+  | "relight"
   | "estimate";
 
 export interface UsageEntry {
@@ -56,6 +58,8 @@ export const PRICE_TABLE: Record<ApiAction, { service: ApiService; model: string
   "analyze-jewelry": { service: "openai", model: "gpt-4o", costUsd: 0.05 },
   "analyze-character": { service: "openai", model: "gpt-4o", costUsd: 0.10 },
   "analyze-outfit": { service: "openai", model: "gpt-4o", costUsd: 0.10 },
+  "analyze-packaging": { service: "openai", model: "gpt-4o", costUsd: 0.05 },
+  "relight": { service: "fal", model: "image-apps-v2/relighting", costUsd: 0.08 },
   "estimate": { service: "openai", model: "gpt-4o", costUsd: 0.075 },
 };
 

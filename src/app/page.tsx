@@ -15,17 +15,20 @@ import {
   Megaphone,
   Globe,
   BarChart3,
+  Sun,
+  Share2,
 } from "lucide-react";
 import ImageUploader from "@/components/ImageUploader";
 import CameraOrbit from "@/components/CameraOrbit";
 import CameraControls from "@/components/CameraControls";
 import ResultPanel from "@/components/ResultPanel";
-import PriceEstimate from "@/components/PriceEstimate";
+import GoldEstimate from "@/components/GoldEstimate";
 import HistoryPanel, { HistoryItem } from "@/components/HistoryPanel";
 import { useI18n } from "@/lib/i18n";
 import { useUsageTracking } from "@/lib/usage";
 import { useAuth } from "@/lib/useAuth";
 import UserMenu from "@/components/UserMenu";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 
 // Lazy-load heavy components (not SSR-friendly)
@@ -59,6 +62,18 @@ const MarketingPanel = dynamic(
   }
 );
 
+const LightingPanel = dynamic(
+  () => import("@/components/LightingPanel"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center min-h-[400px] rounded-2xl bg-card border border-border">
+        <Loader2 className="w-5 h-5 animate-spin text-muted" />
+      </div>
+    ),
+  }
+);
+
 const UsagePanel = dynamic(
   () => import("@/components/UsagePanel"),
   {
@@ -71,7 +86,21 @@ const UsagePanel = dynamic(
   }
 );
 
-type Mode = "camera" | "inpaint" | "3d" | "marketing" | "usage";
+import SocialPanel from "@/components/SocialPanel";
+
+const AdminInvoiceHub = dynamic(
+  () => import("@/components/AdminInvoiceHub"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center min-h-[400px] rounded-2xl bg-card border border-border">
+        <Loader2 className="w-5 h-5 animate-spin text-muted" />
+      </div>
+    ),
+  }
+);
+
+type Mode = "camera" | "inpaint" | "3d" | "marketing" | "lighting" | "usage" | "social";
 
 interface Estimation {
   product_name: string;
@@ -88,7 +117,21 @@ export default function Home() {
   const { user, openLogin, refresh: refreshAuth, ready, loading: authLoading } = useAuth();
   // Admin view mode: "self" | "all" | "<email>"
   const [usageViewMode, setUsageViewMode] = useState<"self" | "all" | string>("self");
+  const [usageSubTab, setUsageSubTab] = useState<"dashboard" | "invoices">("dashboard");
   const { entries: usageEntries, logUsage, clearUsage, summary: usageSummary, kvAvailable, refreshFromServer } = useUsageTracking(user?.email, usageViewMode);
+  const isAdminUser = user?.email?.toLowerCase() === "raymond800108@gmail.com";
+
+  // "Billed to" info for non-admin users
+  const [myCompany, setMyCompany] = useState<{ id: string; name: string } | null>(null);
+  useEffect(() => {
+    if (!user?.email) { setMyCompany(null); return; }
+    let cancelled = false;
+    fetch("/api/me/company")
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setMyCompany(d?.company ?? null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user?.email]);
 
   // Detect auth_error=not_allowed from OAuth redirect
   const [authError, setAuthError] = useState<string | null>(null);
@@ -125,6 +168,9 @@ export default function Home() {
   const [verticalAngle, setVerticalAngle] = useState(0);
   const [zoom, setZoom] = useState(5);
 
+  // Lighting controls
+  const [lightingStyle, setLightingStyle] = useState<string>("natural");
+
   // Inpaint state
   const [maskDataUrl, setMaskDataUrl] = useState<string | null>(null);
 
@@ -140,6 +186,9 @@ export default function Home() {
   const [estimateLoading, setEstimateLoading] = useState(false);
   const [estimateError, setEstimateError] = useState<string | null>(null);
 
+  // Gold estimate — calibrated 3D bounding box in mm
+  const [calibratedBboxMm, setCalibratedBboxMm] = useState<{ x: number; y: number; z: number } | null>(null);
+
   // Prompt
   const [prompt, setPrompt] = useState("");
 
@@ -153,8 +202,23 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // History
-  const [history, setHistory] = useState<HistoryItem[]>([]);
+  // History — initialised from localStorage so it survives page refreshes
+  const [history, setHistory] = useState<HistoryItem[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = localStorage.getItem("convra-history");
+      return saved ? (JSON.parse(saved) as HistoryItem[]) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Persist history to localStorage whenever it changes
+  useEffect(() => {
+    if (history.length > 0) {
+      localStorage.setItem("convra-history", JSON.stringify(history));
+    }
+  }, [history]);
 
   // Shared latest generated results — visible across all pages
   const [sharedResults, setSharedResults] = useState<string[]>([]);
@@ -184,6 +248,7 @@ export default function Home() {
     setMeshyStatus(null);
     setEstimation(null);
     setEstimateError(null);
+    setCalibratedBboxMm(null);
   }, []);
 
   const handleClearImage = useCallback(() => {
@@ -198,6 +263,7 @@ export default function Home() {
     setMeshyStatus(null);
     setEstimation(null);
     setEstimateError(null);
+    setCalibratedBboxMm(null);
   }, []);
 
   // Upload file to fal storage (cached)
@@ -394,6 +460,27 @@ export default function Home() {
         if (!generatedUrl) throw new Error("No image in response");
         setResultUrl(generatedUrl);
         setSharedResults([generatedUrl]);
+      } else if (mode === "lighting") {
+        // Relighting flow
+        const res = await fetch("/api/relight", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            image_url: imageUrl,
+            lighting_style: lightingStyle,
+          }),
+        });
+        const data = await res.json();
+        if (data.error) {
+          logUsage("relight", { status: "error", detail: data.error });
+          throw new Error(data.error);
+        }
+        logUsage("relight", { status: "success", detail: `style=${lightingStyle}` });
+
+        generatedUrl = data.images?.[0]?.url;
+        if (!generatedUrl) throw new Error("No image in response");
+        setResultUrl(generatedUrl);
+        setSharedResults([generatedUrl]);
       } else {
         // Camera angle flow
         const res = await fetch("/api/generate", {
@@ -432,7 +519,7 @@ export default function Home() {
           id: crypto.randomUUID(),
           sourceUrl: sourceUrl!,
           resultUrl: generatedUrl,
-          mode: mode === "inpaint" ? "inpaint" as const : "camera" as const,
+          mode: mode === "inpaint" ? "inpaint" as const : mode === "lighting" ? "lighting" as const : "camera" as const,
           settings: {
             rotate: horizontalAngle,
             forward: zoom,
@@ -470,6 +557,7 @@ export default function Home() {
     sourceUrl &&
     !loading &&
     (mode === "camera" ||
+      mode === "lighting" ||
       mode === "3d" ||
       (mode === "inpaint" && maskDataUrl && prompt));
 
@@ -477,10 +565,12 @@ export default function Home() {
     if (loading) {
       if (mode === "3d") return `${t("generate.generating3d")} ${meshyProgress}%`;
       if (mode === "inpaint") return t("generate.editingRegion");
+      if (mode === "lighting") return t("generate.relighting");
       return t("generate.generating");
     }
     if (mode === "3d") return t("generate.generate3d");
     if (mode === "inpaint") return t("generate.editRegion");
+    if (mode === "lighting") return t("generate.lighting");
     return t("generate.generate");
   };
 
@@ -545,6 +635,7 @@ export default function Home() {
                 { icon: Paintbrush, label: lang === "zh" ? "AI 編輯" : "AI Edit" },
                 { icon: Box, label: lang === "zh" ? "3D 建模" : "3D Modeling" },
                 { icon: Megaphone, label: lang === "zh" ? "行銷素材" : "Marketing" },
+                { icon: Sun, label: lang === "zh" ? "燈光角度" : "Lighting Angle" },
               ].map(({ icon: Icon, label }) => (
                 <span
                   key={label}
@@ -634,30 +725,61 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Mode Switcher */}
+            {/* Mode Switcher — Camera stays here on /; everything else navigates by URL */}
             <div className="flex items-center bg-background border border-border rounded-full p-0.5 gap-0.5">
-              {(
-                [
-                  { key: "camera", icon: Camera, labelKey: "mode.camera" as const },
-                  { key: "inpaint", icon: Paintbrush, labelKey: "mode.edit" as const },
-                  { key: "3d", icon: Box, labelKey: "mode.3d" as const },
-                  { key: "marketing", icon: Megaphone, labelKey: "mode.marketing" as const },
-                  { key: "usage", icon: BarChart3, labelKey: "mode.usage" as const },
-                ] as const
-              ).map(({ key, icon: Icon, labelKey }) => (
-                <button
-                  key={key}
-                  onClick={() => setMode(key)}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
-                    mode === key
-                      ? "bg-foreground text-background shadow-sm"
-                      : "text-muted hover:text-foreground"
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {t(labelKey)}
-                </button>
-              ))}
+              <button
+                onClick={() => setMode("camera")}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  mode === "camera"
+                    ? "bg-foreground text-background shadow-sm"
+                    : "text-muted hover:text-foreground"
+                }`}
+              >
+                <Camera className="w-3.5 h-3.5" />
+                {t("mode.camera")}
+              </button>
+              <Link
+                href="/marketing/edit"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium text-muted hover:text-foreground transition-all"
+              >
+                <Paintbrush className="w-3.5 h-3.5" />
+                {t("mode.edit")}
+              </Link>
+              <Link
+                href="/3d"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium text-muted hover:text-foreground transition-all"
+              >
+                <Box className="w-3.5 h-3.5" />
+                {t("mode.3d")}
+              </Link>
+              <Link
+                href="/marketing/static"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium text-muted hover:text-foreground transition-all"
+              >
+                <Megaphone className="w-3.5 h-3.5" />
+                {t("mode.marketing")}
+              </Link>
+              <Link
+                href="/marketing/lighting"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium text-muted hover:text-foreground transition-all"
+              >
+                <Sun className="w-3.5 h-3.5" />
+                {t("mode.lighting")}
+              </Link>
+              <Link
+                href="/social"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium text-muted hover:text-foreground transition-all"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                {t("mode.social")}
+              </Link>
+              <Link
+                href="/usage"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium text-muted hover:text-foreground transition-all"
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                {t("mode.usage")}
+              </Link>
             </div>
 
             {/* Language Toggle */}
@@ -692,21 +814,61 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-5">
-        {mode === "usage" ? (
+        {mode === "social" ? (
+          <SocialPanel lang={lang} user={user} logUsage={logUsage} history={history} />
+        ) : mode === "usage" ? (
           <div className="space-y-4">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
-              {t("usage.title" as import("@/lib/i18n").TKey)}
-            </h2>
-            <UsagePanel
-              entries={usageEntries}
-              summary={usageSummary}
-              onClear={clearUsage}
-              kvAvailable={kvAvailable}
-              onRefresh={refreshFromServer}
-              userEmail={user?.email}
-              viewMode={usageViewMode}
-              onViewModeChange={setUsageViewMode}
-            />
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
+                {t("usage.title" as import("@/lib/i18n").TKey)}
+              </h2>
+              {/* Non-admin: billed-to badge */}
+              {!isAdminUser && myCompany && (
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-card border border-border text-[11px]">
+                  <span className="text-muted">{t("invoice.billedTo" as import("@/lib/i18n").TKey)}</span>
+                  <span className="font-medium">{myCompany.name}</span>
+                </div>
+              )}
+              {/* Admin sub-tabs */}
+              {isAdminUser && (
+                <div className="flex items-center gap-1 p-1 rounded-full bg-card border border-border">
+                  <button
+                    onClick={() => setUsageSubTab("dashboard")}
+                    className={`px-3 py-1 rounded-full text-[11px] transition-colors ${
+                      usageSubTab === "dashboard"
+                        ? "bg-foreground text-background"
+                        : "text-muted hover:text-foreground"
+                    }`}
+                  >
+                    {t("invoice.usageDashboard" as import("@/lib/i18n").TKey)}
+                  </button>
+                  <button
+                    onClick={() => setUsageSubTab("invoices")}
+                    className={`px-3 py-1 rounded-full text-[11px] transition-colors ${
+                      usageSubTab === "invoices"
+                        ? "bg-foreground text-background"
+                        : "text-muted hover:text-foreground"
+                    }`}
+                  >
+                    {t("invoice.hub" as import("@/lib/i18n").TKey)}
+                  </button>
+                </div>
+              )}
+            </div>
+            {isAdminUser && usageSubTab === "invoices" ? (
+              <AdminInvoiceHub />
+            ) : (
+              <UsagePanel
+                entries={usageEntries}
+                summary={usageSummary}
+                onClear={clearUsage}
+                kvAvailable={kvAvailable}
+                onRefresh={refreshFromServer}
+                userEmail={user?.email}
+                viewMode={usageViewMode}
+                onViewModeChange={setUsageViewMode}
+              />
+            )}
           </div>
         ) : mode === "marketing" ? (
           <MarketingPanel
@@ -834,6 +996,15 @@ export default function Home() {
                 </div>
               </div>
             )}
+
+            {/* Lighting Controls — only in lighting mode */}
+            {mode === "lighting" && sourceUrl && (
+              <LightingPanel
+                lightingStyle={lightingStyle as import("@/components/LightingPanel").LightingStyle}
+                onStyleChange={setLightingStyle}
+                disabled={loading}
+              />
+            )}
           </div>
 
           {/* Right Panel — Result */}
@@ -846,7 +1017,7 @@ export default function Home() {
             {mode === "3d" ? (
               <>
                 {modelUrl ? (
-                  <ModelViewer modelUrl={modelUrl} />
+                  <ModelViewer modelUrl={modelUrl} onCalibrationChange={setCalibratedBboxMm} />
                 ) : loading && meshyTaskId ? (
                   <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-card min-h-[320px] p-8 shadow-sm">
                     <Loader2 className="w-8 h-8 animate-spin text-foreground" />
@@ -880,12 +1051,13 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* Price Estimation — shown below 3D viewer */}
-                {(estimation || estimateLoading || estimateError) && (
-                  <PriceEstimate
+                {/* Unified Gold Jewelry Estimate — shown when 3D model is ready */}
+                {modelUrl && (
+                  <GoldEstimate
+                    bboxMm={calibratedBboxMm}
                     estimation={estimation}
-                    loading={estimateLoading}
-                    error={estimateError}
+                    estimateLoading={estimateLoading}
+                    estimateError={estimateError}
                   />
                 )}
               </>
@@ -899,7 +1071,7 @@ export default function Home() {
 
             {/* Prompt + Generate */}
             <div className="space-y-3">
-              {mode !== "3d" && (
+              {mode !== "3d" && mode !== "lighting" && (
                 <div>
                   <label className="text-xs font-medium text-foreground/80 mb-1.5 block">
                     {mode === "inpaint"
@@ -938,6 +1110,8 @@ export default function Home() {
                   <>
                     {mode === "3d" ? (
                       <Box className="w-4 h-4" />
+                    ) : mode === "lighting" ? (
+                      <Sun className="w-4 h-4" />
                     ) : (
                       <Wand2 className="w-4 h-4" />
                     )}
@@ -946,8 +1120,8 @@ export default function Home() {
                 )}
               </button>
 
-              {/* Advanced Settings — not for 3D mode */}
-              {mode !== "3d" && (
+              {/* Advanced Settings — only for camera/inpaint modes */}
+              {mode !== "3d" && mode !== "lighting" && (
                 <>
                   <button
                     onClick={() => setShowAdvanced(!showAdvanced)}

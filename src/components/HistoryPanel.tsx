@@ -8,7 +8,7 @@ export interface HistoryItem {
   id: string;
   sourceUrl: string;
   resultUrl: string;
-  mode?: "camera" | "inpaint" | "3d" | "video";
+  mode?: "camera" | "inpaint" | "3d" | "video" | "lighting";
   settings: {
     rotate: number;
     forward: number;

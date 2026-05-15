@@ -7,12 +7,15 @@ interface ResultPanelProps {
   resultUrl: string | null;
   loading: boolean;
   error: string | null;
+  /** Optional override for the empty-state secondary hint */
+  emptyHint?: string;
 }
 
 export default function ResultPanel({
   resultUrl,
   loading,
   error,
+  emptyHint,
 }: ResultPanelProps) {
   const { t } = useI18n();
   const handleDownload = async () => {
@@ -99,7 +102,7 @@ export default function ResultPanel({
       </div>
       <p className="text-sm text-muted mt-4">{t("result.willAppear")}</p>
       <p className="text-xs text-muted/60 mt-1">
-        {t("result.uploadAdjust")}
+        {emptyHint ?? t("result.uploadAdjust")}
       </p>
     </div>
   );

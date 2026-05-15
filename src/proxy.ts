@@ -35,6 +35,7 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     "/api/generate/:path*",
+    "/api/fal/:path*",
     "/api/inpaint/:path*",
     "/api/kie/:path*",
     "/api/meshy/:path*",

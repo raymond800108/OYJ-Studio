@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
               '- "description": a brief description of the piece including materials, gemstones, style (e.g., "gold ring with emerald-cut blue topaz flanked by trillion-cut emeralds")\n' +
               '- "body_placement": exactly where and how this piece is worn on the body (e.g., "on the ring finger of the left hand", "dangling from the earlobe", "around the neck resting on the collarbone", "on the wrist")\n' +
               '- "pose_suggestion": a specific pose suggestion for a model wearing this piece that best showcases it in a close-up photo (e.g., "hand gently raised near the chin, fingers slightly spread to display the ring", "head tilted slightly, tucking hair behind the ear to reveal the earring")\n' +
+              '- "outfit_description": if a model is visible wearing clothing in the image, describe the clothing precisely (e.g., "white silk blouse with V-neck and small pearl buttons", "black ribbed turtleneck sweater", "off-shoulder cream linen dress"). If no clothing or model is visible, return null.\n' +
               "Respond ONLY with the JSON object, no other text.",
           },
           {
