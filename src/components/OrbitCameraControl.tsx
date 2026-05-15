@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useI18n, TKey } from "@/lib/i18n";
 
 const W = 560;
 const H = 400;
@@ -30,10 +31,20 @@ interface OrbitCameraControlProps {
 
 type DragTarget = "azimuth" | "elevation" | "zoom" | null;
 
-function horizontalLabel(deg: number): string {
+const HORIZONTAL_LABEL_KEYS: TKey[] = [
+  "orbit.label.front",
+  "orbit.label.frontRight",
+  "orbit.label.right",
+  "orbit.label.backRight",
+  "orbit.label.back",
+  "orbit.label.backLeft",
+  "orbit.label.left",
+  "orbit.label.frontLeft",
+];
+
+function horizontalLabelKey(deg: number): TKey {
   const bucket = Math.round(((deg % 360) + 360) % 360 / 45) % 8;
-  return ["Front", "Front-Right", "Right", "Back-Right",
-          "Back", "Back-Left", "Left", "Front-Left"][bucket];
+  return HORIZONTAL_LABEL_KEYS[bucket];
 }
 
 function clamp(v: number, lo: number, hi: number) {
@@ -48,6 +59,7 @@ export default function OrbitCameraControl({
 }: OrbitCameraControlProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [dragging, setDragging] = useState<DragTarget>(null);
+  const { t } = useI18n();
 
   const { horizontalAngle, verticalAngle, zoom } = value;
 
@@ -223,22 +235,22 @@ export default function OrbitCameraControl({
       <div className="flex items-center justify-center gap-4 mt-2 text-[11px] text-muted">
         <span className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full" style={{ background: TEAL }} />
-          Horizontal
+          {t("orbit.legend.horizontal")}
         </span>
         <span className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full" style={{ background: PINK }} />
-          Vertical
+          {t("orbit.legend.vertical")}
         </span>
         <span className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full" style={{ background: AMBER }} />
-          Zoom
+          {t("orbit.legend.zoom")}
         </span>
       </div>
 
       <p className="text-center text-[11px] text-foreground mt-1 font-mono tabular-nums">
-        {horizontalAngle}° {horizontalLabel(horizontalAngle)} ·{" "}
+        {horizontalAngle}° {t(horizontalLabelKey(horizontalAngle))} ·{" "}
         {verticalAngle >= 0 ? `+${verticalAngle}` : verticalAngle}° ·{" "}
-        {zoom.toFixed(1)}× zoom
+        {zoom.toFixed(1)}× {t("orbit.legend.zoom").toLowerCase()}
       </p>
     </div>
   );

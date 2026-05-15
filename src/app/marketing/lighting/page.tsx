@@ -142,7 +142,7 @@ export default function MarketingLightingPage() {
           resultUrl={resultUrl}
           loading={loading}
           error={null}
-          emptyHint="Upload an image and pick a lighting style — the AI will re-light your product photo."
+          emptyHint={t("result.emptyLightingHint")}
         />
       </div>
     </div>

@@ -14,14 +14,15 @@ import {
 import OrbitCameraControl, { OrbitParams } from "@/components/OrbitCameraControl";
 import { useAuth } from "@/lib/useAuth";
 import { useUsageTracking } from "@/lib/usage";
-import { useTMaybe } from "@/lib/i18n";
+import { useI18n, TKey } from "@/lib/i18n";
 
 /* ─── Motion styles ─────────────────────────────────────────────── */
 
 interface MotionStyle {
   id: string;
-  label: string;
-  description: string;
+  labelKey: TKey;
+  descKey: TKey;
+  /** English-only — fed to Kling, not user-visible */
   prompt: string;
   presetWaypoints: OrbitParams[];
 }
@@ -29,8 +30,8 @@ interface MotionStyle {
 const MOTION_STYLES: MotionStyle[] = [
   {
     id: "cinematic-float",
-    label: "Cinematic Float",
-    description: "Slow weightless glide — luxury slider feel, soft bokeh",
+    labelKey: "orbit.style.cinematicFloat",
+    descKey: "orbit.style.cinematicFloat.desc",
     presetWaypoints: [
       { horizontalAngle: 0,   verticalAngle: 5,  zoom: 6 },
       { horizontalAngle: 30,  verticalAngle: 10, zoom: 5 },
@@ -45,8 +46,8 @@ const MOTION_STYLES: MotionStyle[] = [
   },
   {
     id: "editorial-cut",
-    label: "Editorial Cut",
-    description: "Sharp jump cuts between angles — fashion campaign aesthetic",
+    labelKey: "orbit.style.editorialCut",
+    descKey: "orbit.style.editorialCut.desc",
     presetWaypoints: [
       { horizontalAngle: 0,  verticalAngle: 0,   zoom: 5 },
       { horizontalAngle: 90, verticalAngle: 0,   zoom: 5 },
@@ -60,8 +61,8 @@ const MOTION_STYLES: MotionStyle[] = [
   },
   {
     id: "kinetic-orbit",
-    label: "Kinetic Orbit",
-    description: "Fast energetic arc with momentum — product launch energy",
+    labelKey: "orbit.style.kineticOrbit",
+    descKey: "orbit.style.kineticOrbit.desc",
     presetWaypoints: [
       { horizontalAngle: 0,   verticalAngle: -5,  zoom: 4 },
       { horizontalAngle: 90,  verticalAngle: -10, zoom: 4 },
@@ -74,8 +75,8 @@ const MOTION_STYLES: MotionStyle[] = [
   },
   {
     id: "slow-reveal",
-    label: "Slow Reveal",
-    description: "Imperceptibly slow drift — fine jewellery prestige, maximum tension",
+    labelKey: "orbit.style.slowReveal",
+    descKey: "orbit.style.slowReveal.desc",
     presetWaypoints: [
       { horizontalAngle: 0,  verticalAngle: 8,  zoom: 6 },
       { horizontalAngle: 20, verticalAngle: 10, zoom: 5.5 },
@@ -89,8 +90,8 @@ const MOTION_STYLES: MotionStyle[] = [
   },
   {
     id: "custom",
-    label: "Custom Path",
-    description: "Define your own camera path — record each angle manually",
+    labelKey: "orbit.style.custom",
+    descKey: "orbit.style.custom.desc",
     presetWaypoints: [],
     prompt:
       "Smooth continuous camera movement through the user-defined keyframe path. " +
@@ -101,13 +102,13 @@ const MOTION_STYLES: MotionStyle[] = [
 
 /* ─── Camera presets (single still) ────────────────────────────── */
 
-const PRESETS: { label: string; params: OrbitParams }[] = [
-  { label: "Front",       params: { horizontalAngle: 0,  verticalAngle: 0,   zoom: 5 } },
-  { label: "Front-Right", params: { horizontalAngle: 45, verticalAngle: 15,  zoom: 5 } },
-  { label: "Side (R)",    params: { horizontalAngle: 90, verticalAngle: 0,   zoom: 5 } },
-  { label: "Top-Down",    params: { horizontalAngle: 0,  verticalAngle: 85,  zoom: 6 } },
-  { label: "Low Angle",   params: { horizontalAngle: 0,  verticalAngle: -25, zoom: 4 } },
-  { label: "3/4 Hero",    params: { horizontalAngle: 30, verticalAngle: 20,  zoom: 4 } },
+const PRESETS: { labelKey: TKey; params: OrbitParams }[] = [
+  { labelKey: "orbit.preset.front",       params: { horizontalAngle: 0,  verticalAngle: 0,   zoom: 5 } },
+  { labelKey: "orbit.preset.frontRight",  params: { horizontalAngle: 45, verticalAngle: 15,  zoom: 5 } },
+  { labelKey: "orbit.preset.sideR",       params: { horizontalAngle: 90, verticalAngle: 0,   zoom: 5 } },
+  { labelKey: "orbit.preset.topDown",     params: { horizontalAngle: 0,  verticalAngle: 85,  zoom: 6 } },
+  { labelKey: "orbit.preset.lowAngle",    params: { horizontalAngle: 0,  verticalAngle: -25, zoom: 4 } },
+  { labelKey: "orbit.preset.hero34",      params: { horizontalAngle: 30, verticalAngle: 20,  zoom: 4 } },
 ];
 
 interface Waypoint {
@@ -133,7 +134,7 @@ function angleLabel(h: number) {
 export default function OrbitPage() {
   const { user, openLogin } = useAuth();
   const { logUsage } = useUsageTracking(user?.email);
-  const tm = useTMaybe();
+  const { t } = useI18n();
 
   // Upload
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
@@ -413,7 +414,7 @@ export default function OrbitPage() {
         {/* Upload */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">
-            Product Image
+            {t("orbit.productImage")}
           </h3>
           {!sourceUrl ? (
             <button
@@ -427,7 +428,7 @@ export default function OrbitPage() {
                 <Upload className="w-5 h-5 text-muted" />
               )}
               <p className="text-xs text-muted">
-                {uploading ? "Uploading…" : "Upload a product image"}
+                {uploading ? t("orbit.uploading") : t("orbit.uploadProductImage")}
               </p>
             </button>
           ) : (
@@ -437,7 +438,7 @@ export default function OrbitPage() {
                 onClick={() => { setSourceUrl(null); setResultUrl(null); setVideoUrl(null); setWaypoints([]); }}
                 className="absolute top-2 right-2 px-2 py-1 rounded-full bg-black/60 text-white text-[10px] font-medium"
               >
-                Replace
+                {t("orbit.replace")}
               </button>
             </div>
           )}
@@ -453,7 +454,7 @@ export default function OrbitPage() {
         {/* Camera angle */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">
-            Camera Angle
+            {t("orbit.cameraAngle")}
           </h3>
           <OrbitCameraControl
             value={orbit}
@@ -462,15 +463,15 @@ export default function OrbitPage() {
             disabled={loading || videoGenerating || recordingWaypoint}
           />
           <div className="flex flex-wrap gap-2 mt-3">
-            <span className="text-[10px] uppercase tracking-wider text-muted self-center">Presets:</span>
+            <span className="text-[10px] uppercase tracking-wider text-muted self-center">{t("orbit.presets")}</span>
             {PRESETS.map((p) => (
               <button
-                key={p.label}
+                key={p.labelKey}
                 onClick={() => setOrbit(p.params)}
                 disabled={loading || videoGenerating || recordingWaypoint}
                 className="px-3 py-1.5 rounded-full bg-background border border-border text-[11px] font-medium hover:border-accent/30 disabled:opacity-40"
               >
-                {p.label}
+                {t(p.labelKey)}
               </button>
             ))}
           </div>
@@ -479,10 +480,10 @@ export default function OrbitPage() {
         {/* Motion style */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted mb-2">
-            Motion Style
+            {t("orbit.motionStyle")}
           </h3>
           <p className="text-[11px] text-muted mb-3">
-            Preset styles auto-capture their signature camera path. Pick &ldquo;Custom&rdquo; to set your own.
+            {t("orbit.motionHint")}
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {MOTION_STYLES.map((style) => {
@@ -497,19 +498,19 @@ export default function OrbitPage() {
                   } ${isCustom ? "border-dashed" : ""}`}
                 >
                   <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="text-xs font-semibold">{style.label}</span>
+                    <span className="text-xs font-semibold">{t(style.labelKey)}</span>
                     {isCustom && (
                       <span className="text-[8px] px-1 py-0.5 rounded bg-accent/15 text-accent font-bold tracking-wider">
-                        MANUAL
+                        {t("orbit.manualBadge")}
                       </span>
                     )}
                   </div>
                   <div className="text-[10px] text-muted leading-tight">
-                    {style.description}
+                    {t(style.descKey)}
                   </div>
                   {!isCustom && (
                     <div className="text-[9px] text-muted/70 mt-1">
-                      {style.presetWaypoints.length} auto shots
+                      {t("orbit.autoShots", { n: style.presetWaypoints.length })}
                     </div>
                   )}
                 </button>
@@ -523,20 +524,20 @@ export default function OrbitPage() {
           <section className="rounded-2xl border border-dashed border-border bg-card p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
-                Waypoints ({readyWaypoints.length}/4)
+                {t("orbit.waypoints")} ({readyWaypoints.length}/4)
               </h3>
               {waypoints.length > 0 && (
                 <button
                   onClick={clearWaypoints}
                   className="flex items-center gap-1 text-[11px] text-muted hover:text-foreground"
                 >
-                  <Trash2 className="w-3 h-3" /> Clear
+                  <Trash2 className="w-3 h-3" /> {t("orbit.waypointsClear")}
                 </button>
               )}
             </div>
             {waypoints.length === 0 ? (
               <p className="text-[11px] text-muted text-center py-4">
-                Position the camera, then click Record to set Waypoint 1.
+                {t("orbit.waypointsEmpty")}
               </p>
             ) : (
               <div className="grid grid-cols-4 gap-2 mb-3">
@@ -563,10 +564,10 @@ export default function OrbitPage() {
             >
               {recordingWaypoint ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Circle className="w-3.5 h-3.5" />}
               {recordingWaypoint
-                ? "Capturing waypoint…"
+                ? t("orbit.waypointsCapturing")
                 : waypoints.length === 0
-                ? "Record Waypoint 1"
-                : `+ Add Waypoint ${waypoints.length + 1}`}
+                ? t("orbit.waypointsRecordFirst")
+                : t("orbit.waypointsAddNext", { n: waypoints.length + 1 })}
             </button>
           </section>
         )}
@@ -579,10 +580,10 @@ export default function OrbitPage() {
             className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-foreground text-background text-sm font-semibold hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {loading ? "Generating…" : "Generate image at this angle"}
+            {loading ? t("orbit.generatingImage") : t("orbit.generateImage")}
           </button>
           <p className="text-[10px] text-muted text-center -mt-2">
-            Single still — uses the camera angle above.
+            {t("orbit.generateImageHint")}
           </p>
 
           <button
@@ -593,18 +594,18 @@ export default function OrbitPage() {
             {videoGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Film className="w-4 h-4" />}
             {videoGenerating
               ? videoPhase === "capturing"
-                ? `Capturing ${activeStyle.presetWaypoints.length || readyWaypoints.length} waypoints…`
-                : "Stitching with Kling 3.0…"
+                ? t("orbit.videoCapturingPhase", { n: activeStyle.presetWaypoints.length || readyWaypoints.length })
+                : t("orbit.videoStitchingPhase")
               : customBlocked
-              ? `Record ${2 - readyWaypoints.length} more waypoint(s)`
+              ? t("orbit.waypointsNeedMore", { n: 2 - readyWaypoints.length })
               : activeStyle.id === "custom"
-              ? "Generate custom motion video"
-              : `Generate ${activeStyle.label} motion video`}
+              ? t("orbit.videoCustom")
+              : t("orbit.videoPreset", { style: t(activeStyle.labelKey) })}
           </button>
           <p className="text-[10px] text-muted text-center -mt-2">
             {activeStyle.id === "custom"
-              ? "Stitches your recorded waypoints into a Kling 3.0 video."
-              : `Auto-captures ${activeStyle.presetWaypoints.length} waypoints, then stitches via Kling 3.0.`}
+              ? t("orbit.videoCustomHint")
+              : t("orbit.videoPresetHint", { n: activeStyle.presetWaypoints.length })}
           </p>
 
           {error && (
@@ -618,7 +619,7 @@ export default function OrbitPage() {
 
       {/* RIGHT: Result */}
       <div className="space-y-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">Result</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">{t("orbit.result")}</h3>
         <div className="aspect-square rounded-2xl border border-border bg-card overflow-hidden flex items-center justify-center">
           {videoUrl ? (
             <video src={videoUrl} className="w-full h-full object-contain" controls autoPlay loop />
@@ -630,14 +631,14 @@ export default function OrbitPage() {
               <p className="text-xs">
                 {videoGenerating
                   ? videoPhase === "capturing"
-                    ? "Capturing waypoints…"
-                    : "Stitching motion video…"
-                  : "Rendering from the selected angle…"}
+                    ? t("orbit.capturingWaypoints")
+                    : t("orbit.stitchingMotion")
+                  : t("orbit.renderingAngle")}
               </p>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2 text-muted px-6 text-center">
-              <p className="text-xs">{tm("orbit.placeholder", "Pick an angle and generate")}</p>
+              <p className="text-xs">{t("orbit.placeholder")}</p>
             </div>
           )}
         </div>
@@ -648,7 +649,7 @@ export default function OrbitPage() {
             className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-border bg-card hover:bg-background text-xs font-medium"
           >
             <Download className="w-3.5 h-3.5" />
-            Download MP4
+            {t("orbit.downloadMp4")}
           </a>
         )}
       </div>

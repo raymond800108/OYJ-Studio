@@ -5,17 +5,19 @@ import { usePathname } from "next/navigation";
 import { Image as ImageIcon, Film, Compass, Paintbrush, Sun } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import AppHeader from "@/components/AppHeader";
+import { useI18n, TKey } from "@/lib/i18n";
 
-const SUBNAV = [
-  { href: "/marketing/static",   icon: ImageIcon,  label: "Static Image" },
-  { href: "/marketing/video",    icon: Film,       label: "Video" },
-  { href: "/marketing/orbit",    icon: Compass,    label: "Orbit Content" },
-  { href: "/marketing/edit",     icon: Paintbrush, label: "Edit" },
-  { href: "/marketing/lighting", icon: Sun,        label: "Lighting" },
+const SUBNAV: { href: string; icon: typeof ImageIcon; labelKey: TKey }[] = [
+  { href: "/marketing/static",   icon: ImageIcon,  labelKey: "nav.staticImage" },
+  { href: "/marketing/video",    icon: Film,       labelKey: "nav.video" },
+  { href: "/marketing/orbit",    icon: Compass,    labelKey: "nav.orbitContent" },
+  { href: "/marketing/edit",     icon: Paintbrush, labelKey: "nav.edit" },
+  { href: "/marketing/lighting", icon: Sun,        labelKey: "nav.lighting" },
 ];
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "";
+  const { t } = useI18n();
 
   return (
     <div className="flex-1 flex flex-col">
@@ -24,7 +26,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       <div className="border-b border-border bg-card/50">
         <div className="max-w-7xl mx-auto px-6 py-2 overflow-x-auto">
           <nav className="flex items-center gap-1">
-            {SUBNAV.map(({ href, icon: Icon, label }) => {
+            {SUBNAV.map(({ href, icon: Icon, labelKey }) => {
               const active = pathname === href;
               return (
                 <Link
@@ -37,7 +39,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
-                  {label}
+                  {t(labelKey)}
                 </Link>
               );
             })}

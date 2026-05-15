@@ -457,6 +457,120 @@ const dict = {
     en: "Email provider not configured. Invoice built but not sent — set RESEND_API_KEY to enable.",
     zh: "尚未設定郵件服務，發票已產生但未寄出 — 請設定 RESEND_API_KEY。",
   },
+
+  // ── AuthGuard ──
+  "auth.signInToContinue": { en: "Sign in to continue", zh: "請先登入以繼續" },
+  "auth.pageRequiresAccount": { en: "This page requires an account.", zh: "此頁面需要登入帳號" },
+  "auth.signIn": { en: "Sign In", zh: "登入" },
+
+  // ── New navigation (AppHeader top + Marketing sub-nav) ──
+  "nav.marketing": { en: "Marketing", zh: "行銷" },
+  "nav.social": { en: "Social", zh: "社群" },
+  "nav.3d": { en: "3D", zh: "3D" },
+  "nav.usage": { en: "Usage", zh: "用量" },
+  "nav.staticImage": { en: "Static Image", zh: "靜態圖片" },
+  "nav.video": { en: "Video", zh: "影片" },
+  "nav.orbitContent": { en: "Orbit Content", zh: "環繞內容" },
+  "nav.edit": { en: "Edit", zh: "編輯" },
+  "nav.lighting": { en: "Lighting", zh: "燈光" },
+
+  // ── Orbit page (headings + actions) ──
+  "orbit.productImage": { en: "Product Image", zh: "產品圖片" },
+  "orbit.cameraAngle": { en: "Camera Angle", zh: "相機角度" },
+  "orbit.motionStyle": { en: "Motion Style", zh: "運鏡風格" },
+  "orbit.motionHint": {
+    en: 'Preset styles auto-capture their signature camera path. Pick "Custom" to set your own.',
+    zh: "預設風格會自動拍攝其代表的鏡頭路徑。選擇「自訂」以手動設定。",
+  },
+  "orbit.autoShots": { en: "{n} auto shots", zh: "{n} 段自動取景" },
+  "orbit.manualBadge": { en: "MANUAL", zh: "手動" },
+  "orbit.uploadProductImage": { en: "Upload a product image", zh: "上傳產品圖片" },
+  "orbit.uploading": { en: "Uploading…", zh: "上傳中…" },
+  "orbit.replace": { en: "Replace", zh: "替換" },
+  "orbit.presets": { en: "Presets:", zh: "預設：" },
+  "orbit.waypoints": { en: "Waypoints", zh: "路徑點" },
+  "orbit.waypointsClear": { en: "Clear", zh: "清除" },
+  "orbit.waypointsEmpty": {
+    en: "Position the camera, then click Record to set Waypoint 1.",
+    zh: "調整相機位置，然後點擊「錄製」設定第一個路徑點。",
+  },
+  "orbit.waypointsCapturing": { en: "Capturing waypoint…", zh: "正在拍攝路徑點…" },
+  "orbit.waypointsRecordFirst": { en: "Record Waypoint 1", zh: "錄製路徑點 1" },
+  "orbit.waypointsAddNext": { en: "+ Add Waypoint {n}", zh: "+ 新增路徑點 {n}" },
+  "orbit.waypointsNeedMore": { en: "Record {n} more waypoint(s)", zh: "再錄製 {n} 個路徑點" },
+  "orbit.generatingImage": { en: "Generating…", zh: "生成中…" },
+  "orbit.generateImage": { en: "Generate image at this angle", zh: "用此角度生成圖片" },
+  "orbit.generateImageHint": { en: "Single still — uses the camera angle above.", zh: "單張圖片 — 使用上方相機角度。" },
+  "orbit.videoCapturingPhase": { en: "Capturing {n} waypoints…", zh: "正在拍攝 {n} 個路徑點…" },
+  "orbit.videoStitchingPhase": { en: "Stitching with Kling 3.0…", zh: "Kling 3.0 合成影片中…" },
+  "orbit.videoCustom": { en: "Generate custom motion video", zh: "生成自訂動態影片" },
+  "orbit.videoPreset": { en: "Generate {style} motion video", zh: "生成 {style} 動態影片" },
+  "orbit.videoCustomHint": { en: "Stitches your recorded waypoints into a Kling 3.0 video.", zh: "將錄製的路徑點合成為 Kling 3.0 影片。" },
+  "orbit.videoPresetHint": { en: "Auto-captures {n} waypoints, then stitches via Kling 3.0.", zh: "自動拍攝 {n} 個路徑點，再透過 Kling 3.0 合成。" },
+  "orbit.result": { en: "Result", zh: "結果" },
+  "orbit.placeholder": { en: "Pick an angle and generate", zh: "選擇角度並生成" },
+  "orbit.capturingWaypoints": { en: "Capturing waypoints…", zh: "拍攝路徑點中…" },
+  "orbit.stitchingMotion": { en: "Stitching motion video…", zh: "合成動態影片中…" },
+  "orbit.renderingAngle": { en: "Rendering from the selected angle…", zh: "正在從選定角度生成…" },
+  "orbit.downloadMp4": { en: "Download MP4", zh: "下載 MP4" },
+
+  // Orbit motion style labels + short descriptions
+  "orbit.style.cinematicFloat": { en: "Cinematic Float", zh: "電影級漂浮" },
+  "orbit.style.cinematicFloat.desc": {
+    en: "Slow weightless glide — luxury slider feel, soft bokeh",
+    zh: "緩慢無重力滑行 — 奢華滑軌質感，柔焦背景",
+  },
+  "orbit.style.editorialCut": { en: "Editorial Cut", zh: "雜誌跳剪" },
+  "orbit.style.editorialCut.desc": {
+    en: "Sharp jump cuts between angles — fashion campaign aesthetic",
+    zh: "犀利的角度跳剪 — 時尚雜誌風格",
+  },
+  "orbit.style.kineticOrbit": { en: "Kinetic Orbit", zh: "動感環繞" },
+  "orbit.style.kineticOrbit.desc": {
+    en: "Fast energetic arc with momentum — product launch energy",
+    zh: "充滿動能的快速弧線 — 新品發表會的張力",
+  },
+  "orbit.style.slowReveal": { en: "Slow Reveal", zh: "極緩揭示" },
+  "orbit.style.slowReveal.desc": {
+    en: "Imperceptibly slow drift — fine jewellery prestige, maximum tension",
+    zh: "幾乎難以察覺的緩慢漂移 — 高級珠寶氣度,極致張力",
+  },
+  "orbit.style.custom": { en: "Custom Path", zh: "自訂路徑" },
+  "orbit.style.custom.desc": {
+    en: "Define your own camera path — record each angle manually",
+    zh: "自訂相機路徑 — 手動錄製每個角度",
+  },
+
+  // Orbit camera preset labels (single-still)
+  "orbit.preset.front": { en: "Front", zh: "正面" },
+  "orbit.preset.frontRight": { en: "Front-Right", zh: "右前方" },
+  "orbit.preset.sideR": { en: "Side (R)", zh: "右側" },
+  "orbit.preset.topDown": { en: "Top-Down", zh: "俯視" },
+  "orbit.preset.lowAngle": { en: "Low Angle", zh: "低角度" },
+  "orbit.preset.hero34": { en: "3/4 Hero", zh: "3/4 主視角" },
+
+  // OrbitCameraControl widget legend + axis labels
+  "orbit.legend.horizontal": { en: "Horizontal", zh: "水平" },
+  "orbit.legend.vertical": { en: "Vertical", zh: "垂直" },
+  "orbit.legend.zoom": { en: "Zoom", zh: "縮放" },
+  "orbit.label.front": { en: "Front", zh: "正面" },
+  "orbit.label.frontRight": { en: "Front-Right", zh: "右前方" },
+  "orbit.label.right": { en: "Right", zh: "右側" },
+  "orbit.label.backRight": { en: "Back-Right", zh: "右後方" },
+  "orbit.label.back": { en: "Back", zh: "背面" },
+  "orbit.label.backLeft": { en: "Back-Left", zh: "左後方" },
+  "orbit.label.left": { en: "Left", zh: "左側" },
+  "orbit.label.frontLeft": { en: "Front-Left", zh: "左前方" },
+
+  // ── Empty hints for ResultPanel on new pages ──
+  "result.emptyEditHint": {
+    en: "Upload an image, paint the area to edit, and describe what should appear there.",
+    zh: "上傳圖片,塗抹要編輯的區域,並描述該處應出現的內容。",
+  },
+  "result.emptyLightingHint": {
+    en: "Upload an image and pick a lighting style — the AI will re-light your product photo.",
+    zh: "上傳圖片並選擇燈光風格 — AI 會為您的產品照片重新打光。",
+  },
 } as const;
 
 export type TKey = keyof typeof dict;

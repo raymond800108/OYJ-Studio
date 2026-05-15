@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Megaphone, Share2, Box, BarChart3, LucideIcon } from "lucide-react";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, TKey } from "@/lib/i18n";
 import { isDevAuthBypass } from "@/lib/useAuth";
 import UserMenu from "./UserMenu";
 
@@ -11,19 +11,19 @@ interface NavItem {
   href: string;
   matchPrefix: string;
   icon: LucideIcon;
-  label: string;
+  labelKey: TKey;
 }
 
 const NAV: NavItem[] = [
-  { href: "/marketing/static", matchPrefix: "/marketing", icon: Megaphone, label: "Marketing" },
-  { href: "/social", matchPrefix: "/social", icon: Share2, label: "Social" },
-  { href: "/3d", matchPrefix: "/3d", icon: Box, label: "3D" },
-  { href: "/usage", matchPrefix: "/usage", icon: BarChart3, label: "Usage" },
+  { href: "/marketing/static", matchPrefix: "/marketing", icon: Megaphone, labelKey: "nav.marketing" },
+  { href: "/social", matchPrefix: "/social", icon: Share2, labelKey: "nav.social" },
+  { href: "/3d", matchPrefix: "/3d", icon: Box, labelKey: "nav.3d" },
+  { href: "/usage", matchPrefix: "/usage", icon: BarChart3, labelKey: "nav.usage" },
 ];
 
 export default function AppHeader() {
   const pathname = usePathname() || "/";
-  const { lang, setLang } = useI18n();
+  const { lang, setLang, t } = useI18n();
 
   return (
     <header className="border-b border-border px-6 py-4 bg-card">
@@ -45,7 +45,7 @@ export default function AppHeader() {
 
         <div className="flex items-center gap-3 flex-wrap">
           <nav className="flex items-center bg-background border border-border rounded-full p-0.5 gap-0.5">
-            {NAV.map(({ href, matchPrefix, icon: Icon, label }) => {
+            {NAV.map(({ href, matchPrefix, icon: Icon, labelKey }) => {
               const active = pathname === matchPrefix || pathname.startsWith(matchPrefix + "/");
               return (
                 <Link
@@ -58,7 +58,7 @@ export default function AppHeader() {
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
-                  {label}
+                  {t(labelKey)}
                 </Link>
               );
             })}
