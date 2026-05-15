@@ -71,8 +71,8 @@ export async function POST(req: NextRequest) {
           image: "kling-2.6/image-to-video",
         },
         "kling-3.0": {
-          text: "kling-3.0",
-          image: "kling-3.0",
+          text: "kling-3.0/video",
+          image: "kling-3.0/video",
         },
         "kling-2.5-turbo": {
           text: "kling-2.5-turbo",
@@ -82,10 +82,13 @@ export async function POST(req: NextRequest) {
 
       const mapped = modelMap[video_model] || modelMap["kling-2.6"];
       const model = isImageToVideo ? mapped.image : mapped.text;
+      const isKling3 = video_model === "kling-3.0";
 
       const input: Record<string, unknown> = {
         prompt,
         aspect_ratio: aspect_ratio || "16:9",
+        sound: false,
+        duration: "5",
       };
 
       // Add reference images for image-to-video.
@@ -93,8 +96,14 @@ export async function POST(req: NextRequest) {
       if (refImageList.length > 0) {
         input.image_urls = refImageList;
       }
-      input.sound = false;
-      input.duration = "5";
+
+      // Kling 3.0 requires additional fields: mode, multi_shots flag,
+      // and a multi_prompt array (single entry is fine for one shot).
+      if (isKling3) {
+        input.mode = "std";
+        input.multi_shots = false;
+        input.multi_prompt = [{ prompt, duration: 5 }];
+      }
 
       payload = {
         model,
