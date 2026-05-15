@@ -1279,18 +1279,8 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
                     <Trash2 className="w-4 h-4" />
                   </button>
                   <div className="flex-1" />
-                  {blotatoConnected && editingPost.status !== "scheduled" && editingPost.status !== "published" && (
-                    <button
-                      onClick={() => publishPost(editingPost)}
-                      disabled={publishingId === editingPost.id}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-foreground text-background text-sm font-medium hover:opacity-90 disabled:opacity-40"
-                    >
-                      {publishingId === editingPost.id
-                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        : <Send className="w-3.5 h-3.5" />}
-                      {t("social.post.publish" as TKey)}
-                    </button>
-                  )}
+
+                  {/* Status badge (when already scheduled or published) */}
                   {(editingPost.status === "scheduled" || editingPost.status === "published") && (
                     <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium ${
                       editingPost.status === "published"
@@ -1301,12 +1291,47 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
                       {t(`social.post.${editingPost.status}` as TKey)}
                     </div>
                   )}
+
+                  {/* Save button — always available */}
                   <button
                     onClick={saveEdit}
                     className="px-4 py-2 rounded-xl bg-muted/10 hover:bg-muted/20 text-foreground text-sm font-medium"
                   >
                     Save
                   </button>
+
+                  {/* Publish Now button — shown for draft/failed posts on a publisher
+                      that can actually publish (Blotato connected OR Direct mode). */}
+                  {editingPost.status !== "scheduled" && editingPost.status !== "published" && (
+                    (publisherMode === "direct" || blotatoConnected) ? (
+                      <button
+                        onClick={() => publishPost(editingPost)}
+                        disabled={publishingId === editingPost.id}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-foreground text-background text-sm font-semibold hover:opacity-90 disabled:opacity-40"
+                        title={
+                          publisherMode === "direct"
+                            ? "Publish immediately via Instagram Graph API"
+                            : "Publish immediately via Blotato"
+                        }
+                      >
+                        {publishingId === editingPost.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Send className="w-3.5 h-3.5" />
+                        )}
+                        {t("social.post.publishNow" as TKey)}
+                      </button>
+                    ) : (
+                      <button
+                        disabled
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted/10 text-muted text-sm font-medium cursor-not-allowed"
+                        title="Connect Blotato or switch to Direct publisher mode first"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        {t("social.post.publishNow" as TKey)}
+                      </button>
+                    )
+                  )}
                 </div>
               </div>
             </div>

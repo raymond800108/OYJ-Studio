@@ -327,6 +327,7 @@ const dict = {
   "social.post.time": { en: "Time", zh: "時間" },
   "social.post.platform": { en: "Platform", zh: "平台" },
   "social.post.publish": { en: "Publish Now", zh: "立即發布" },
+  "social.post.publishNow": { en: "Publish to Instagram Now", zh: "立即發布到 Instagram" },
   "social.post.schedule": { en: "Schedule", zh: "排程" },
   "social.post.delete": { en: "Delete", zh: "刪除" },
   "social.post.draft": { en: "Draft", zh: "草稿" },
