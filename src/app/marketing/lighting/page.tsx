@@ -8,6 +8,7 @@ import LightingPanel, { LightingStyle } from "@/components/LightingPanel";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/useAuth";
 import { useUsageTracking } from "@/lib/usage";
+import { appendHistory, useHistorySelection } from "@/lib/marketing-history";
 
 export default function MarketingLightingPage() {
   const { t } = useI18n();
@@ -21,6 +22,14 @@ export default function MarketingLightingPage() {
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useHistorySelection((url) => {
+    setSourceUrl(url);
+    setSourceFile(null);
+    setUploadedUrl(url);
+    setResultUrl(null);
+    setError(null);
+  });
 
   const handleImageUpload = useCallback((url: string, file: File) => {
     setSourceUrl(url);
@@ -80,6 +89,14 @@ export default function MarketingLightingPage() {
       const url = data.images?.[0]?.url || data.image?.url;
       if (!url) throw new Error("No image in response");
       setResultUrl(url);
+      appendHistory({
+        id: crypto.randomUUID(),
+        sourceUrl: sourceUrl ?? "",
+        resultUrl: url,
+        mode: "lighting",
+        settings: { rotate: 0, forward: 0, vertical: 0, wide: false, prompt: `lighting:${lightingStyle}` },
+        timestamp: Date.now(),
+      });
       refreshAuth();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Generation failed";

@@ -8,6 +8,7 @@ import ResultPanel from "@/components/ResultPanel";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/useAuth";
 import { useUsageTracking } from "@/lib/usage";
+import { appendHistory, useHistorySelection } from "@/lib/marketing-history";
 
 const MaskPainter = dynamic(() => import("@/components/MaskPainter"), {
   ssr: false,
@@ -33,6 +34,16 @@ export default function MarketingEditPage() {
   const [error, setError] = useState<string | null>(null);
   const [inpaintStrength, setInpaintStrength] = useState(0.85);
   const [steps, setSteps] = useState(8);
+
+  // Selecting from shared history pre-fills the source image.
+  useHistorySelection((url) => {
+    setSourceUrl(url);
+    setSourceFile(null);
+    setUploadedUrl(url); // already a remote URL — skip re-upload
+    setMaskDataUrl(null);
+    setResultUrl(null);
+    setError(null);
+  });
 
   const handleImageUpload = useCallback((url: string, file: File) => {
     setSourceUrl(url);
@@ -119,6 +130,14 @@ export default function MarketingEditPage() {
       const url = data.images?.[0]?.url || data.image?.url || data.output?.url;
       if (!url) throw new Error("No image in response");
       setResultUrl(url);
+      appendHistory({
+        id: crypto.randomUUID(),
+        sourceUrl: sourceUrl ?? "",
+        resultUrl: url,
+        mode: "inpaint",
+        settings: { rotate: 0, forward: 0, vertical: 0, wide: false, prompt },
+        timestamp: Date.now(),
+      });
       refreshAuth();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Generation failed";

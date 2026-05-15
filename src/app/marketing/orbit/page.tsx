@@ -15,23 +15,9 @@ import OrbitCameraControl, { OrbitParams } from "@/components/OrbitCameraControl
 import { useAuth } from "@/lib/useAuth";
 import { useUsageTracking } from "@/lib/usage";
 import { useI18n, TKey } from "@/lib/i18n";
-import type { HistoryItem } from "@/components/HistoryPanel";
 import { ACTION_CREDITS } from "@/lib/credits";
 import { compressImage } from "@/lib/image-compress";
-
-const HISTORY_KEY = "convra-history";
-
-function appendHistory(item: HistoryItem) {
-  if (typeof window === "undefined") return;
-  try {
-    const raw = localStorage.getItem(HISTORY_KEY);
-    const list: HistoryItem[] = raw ? JSON.parse(raw) : [];
-    const next = [item, ...list].slice(0, 100);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
-  } catch {
-    // ignore localStorage failures
-  }
-}
+import { appendHistory, useHistorySelection } from "@/lib/marketing-history";
 
 /* ─── Motion styles ─────────────────────────────────────────────── */
 
@@ -182,6 +168,15 @@ export default function OrbitPage() {
   // (newer; honors ALL waypoints as anchors, better for 3+ waypoint paths).
   type VideoModelChoice = "kling-3.0" | "seedance-2-fast";
   const [videoModel, setVideoModel] = useState<VideoModelChoice>("kling-3.0");
+
+  // Selecting an item from the shared history strip pre-fills source.
+  useHistorySelection((url) => {
+    setSourceUrl(url);
+    setResultUrl(null);
+    setVideoUrl(null);
+    setWaypoints([]);
+    setError(null);
+  });
 
   const activeStyle = MOTION_STYLES.find((s) => s.id === selectedStyleId) ?? MOTION_STYLES[0];
 

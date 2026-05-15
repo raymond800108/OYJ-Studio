@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Image as ImageIcon, Film, Compass, Paintbrush, Sun } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import AppHeader from "@/components/AppHeader";
+import MarketingHistoryStrip from "@/components/MarketingHistoryStrip";
 import { useI18n, TKey } from "@/lib/i18n";
 
 const SUBNAV: { href: string; icon: typeof ImageIcon; labelKey: TKey }[] = [
@@ -50,6 +51,8 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-5">
         <AuthGuard>{children}</AuthGuard>
       </main>
+
+      <MarketingHistoryStrip />
     </div>
   );
 }

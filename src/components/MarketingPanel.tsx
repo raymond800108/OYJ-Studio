@@ -598,6 +598,14 @@ interface MarketingPanelProps {
   initialContentType?: ContentType;
   /** Hide the image/video toggle (for routes that pin a single mode) */
   lockContentType?: boolean;
+  /**
+   * Imperatively push a remote source-image URL into the source list.
+   * Wired by the shared MarketingHistoryStrip — when a user clicks a
+   * history thumbnail the wrapper bumps this prop and the panel calls
+   * `addSourceFromUrl` so the URL lands in the Source Images section.
+   * Bumping the same URL twice deduplicates (sources are URL-keyed).
+   */
+  externalSourceUrl?: string | null;
 }
 
 export default function MarketingPanel({
@@ -613,6 +621,7 @@ export default function MarketingPanel({
   logUsage,
   initialContentType = "image",
   lockContentType = false,
+  externalSourceUrl,
 }: MarketingPanelProps) {
   const { t } = useI18n();
 
@@ -809,6 +818,13 @@ export default function MarketingPanel({
   const removeSource = useCallback((id: string) => {
     setSourceImages((prev) => prev.filter((s) => s.id !== id));
   }, []);
+
+  // External source-URL injection (used by the shared marketing history
+  // strip). When the wrapper bumps `externalSourceUrl`, push it into the
+  // source list. The list dedups on URL so safe to re-call.
+  useEffect(() => {
+    if (externalSourceUrl) addSourceFromUrl(externalSourceUrl, null);
+  }, [externalSourceUrl, addSourceFromUrl]);
 
   // Handle file input (browse)
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
