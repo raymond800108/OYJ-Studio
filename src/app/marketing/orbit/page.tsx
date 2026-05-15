@@ -17,6 +17,7 @@ import { useUsageTracking } from "@/lib/usage";
 import { useI18n, TKey } from "@/lib/i18n";
 import type { HistoryItem } from "@/components/HistoryPanel";
 import { ACTION_CREDITS } from "@/lib/credits";
+import { compressImage } from "@/lib/image-compress";
 
 const HISTORY_KEY = "convra-history";
 
@@ -198,8 +199,12 @@ export default function OrbitPage() {
     setUploading(true);
     setError(null);
     try {
+      // Compress oversized product photos before upload — fal/Kie reject
+      // very large images with image_too_large; resizing to <= 2048px on
+      // the long edge keeps quality while clearing the limit.
+      const prepared = await compressImage(file);
       const fd = new FormData();
-      fd.append("file", file);
+      fd.append("file", prepared);
       const r = await fetch("/api/upload", { method: "POST", body: fd });
       const data = await r.json();
       if (!r.ok || !data.url) throw new Error(data.error || "Upload failed");
@@ -575,14 +580,16 @@ export default function OrbitPage() {
           </div>
         </section>
 
-        {/* Waypoints (only Custom) */}
-        {activeStyle.id === "custom" && (
+        {/* Waypoints panel — visible whenever we have waypoints to show
+            (preset capture in progress OR Custom Path), and idle-empty
+            only for Custom (presets seed waypoints automatically). */}
+        {(activeStyle.id === "custom" || waypoints.length > 0) && (
           <section className="rounded-2xl border border-dashed border-border bg-card p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
-                {t("orbit.waypoints")} ({readyWaypoints.length}/4)
+                {t("orbit.waypoints")} ({readyWaypoints.length}/{Math.max(4, waypoints.length)})
               </h3>
-              {waypoints.length > 0 && (
+              {waypoints.length > 0 && activeStyle.id === "custom" && (
                 <button
                   onClick={clearWaypoints}
                   className="flex items-center gap-1 text-[11px] text-muted hover:text-foreground"
@@ -613,6 +620,8 @@ export default function OrbitPage() {
                 ))}
               </div>
             )}
+            {/* Manual record button only for Custom Path */}
+            {activeStyle.id === "custom" && (
             <button
               onClick={handleRecordWaypoint}
               disabled={recordingWaypoint || waypoints.length >= 4 || !sourceUrl}
@@ -625,6 +634,7 @@ export default function OrbitPage() {
                 ? t("orbit.waypointsRecordFirst")
                 : t("orbit.waypointsAddNext", { n: waypoints.length + 1 })}
             </button>
+            )}
           </section>
         )}
 
