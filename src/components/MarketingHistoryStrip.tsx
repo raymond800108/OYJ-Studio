@@ -1,7 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { Clock, Trash2, Video as VideoIcon, Box as BoxIcon, Sun, Camera, Paintbrush } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  Clock,
+  Trash2,
+  Video as VideoIcon,
+  Box as BoxIcon,
+  Sun,
+  Camera,
+  Paintbrush,
+  X,
+  Download,
+  Wand2,
+} from "lucide-react";
 import {
   useMarketingHistory,
   selectFromHistory,
@@ -22,6 +33,17 @@ export default function MarketingHistoryStrip() {
   const items = useMarketingHistory();
   const { t } = useI18n();
   const [showConfirmClear, setShowConfirmClear] = useState(false);
+  const [preview, setPreview] = useState<HistoryItem | null>(null);
+
+  // Close on Escape
+  useEffect(() => {
+    if (!preview) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPreview(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [preview]);
 
   if (items.length === 0) {
     return (
@@ -80,7 +102,7 @@ export default function MarketingHistoryStrip() {
             return (
               <button
                 key={item.id}
-                onClick={() => selectFromHistory(item.resultUrl, item.mode)}
+                onClick={() => setPreview(item)}
                 draggable
                 onDragStart={(e) => {
                   e.dataTransfer.setData("text/uri-list", item.resultUrl);
@@ -116,6 +138,99 @@ export default function MarketingHistoryStrip() {
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {preview && (
+        <HistoryPreviewModal
+          item={preview}
+          onClose={() => setPreview(null)}
+          onUseAsInput={() => {
+            selectFromHistory(preview.resultUrl, preview.mode);
+            setPreview(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─── Lightbox modal ─────────────────────────────────────────────── */
+
+function HistoryPreviewModal({
+  item,
+  onClose,
+  onUseAsInput,
+}: {
+  item: HistoryItem;
+  onClose: () => void;
+  onUseAsInput: () => void;
+}) {
+  const { t } = useI18n();
+  const isVideo = item.mode === "video";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="relative max-w-5xl w-full max-h-[90vh] flex flex-col gap-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute -top-2 -right-2 p-1.5 rounded-full bg-white/90 text-foreground hover:bg-white shadow-md"
+          aria-label="Close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        <div className="flex-1 flex items-center justify-center rounded-2xl overflow-hidden bg-card">
+          {isVideo ? (
+            <video
+              src={item.resultUrl}
+              className="max-w-full max-h-[75vh] object-contain"
+              controls
+              autoPlay
+              loop
+              playsInline
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={item.resultUrl}
+              alt={item.settings?.prompt || ""}
+              className="max-w-full max-h-[75vh] object-contain"
+            />
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+          <div className="text-[11px] text-white/80 min-w-0 flex-1 truncate">
+            {item.settings?.prompt}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <a
+              href={item.resultUrl}
+              download
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white text-xs font-medium hover:bg-white/20"
+            >
+              <Download className="w-3.5 h-3.5" />
+              {t("result.download")}
+            </a>
+            <button
+              onClick={onUseAsInput}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-foreground text-background text-xs font-semibold hover:opacity-90"
+            >
+              <Wand2 className="w-3.5 h-3.5" />
+              {t("history.useAsInput")}
+            </button>
+          </div>
         </div>
       </div>
     </div>

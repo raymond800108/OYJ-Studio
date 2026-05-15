@@ -164,6 +164,7 @@ const dict = {
   "history.title": { en: "Generation History", zh: "生成歷史" },
   "history.clear": { en: "Clear", zh: "清除" },
   "history.dragHint": { en: "Drag an image to the source panel to reuse it", zh: "拖曳圖片到原圖區域以複用" },
+  "history.useAsInput": { en: "Use as input", zh: "用作輸入" },
   "history.3dModel": { en: "3D Model", zh: "3D 模型" },
   "history.video": { en: "Video", zh: "影片" },
   "history.generated": { en: "Generated", zh: "已生成" },
