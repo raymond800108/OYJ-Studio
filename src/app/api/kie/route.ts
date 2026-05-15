@@ -40,8 +40,11 @@ export async function POST(req: NextRequest) {
       input_urls = [],
       // Video-specific
       video_model = "kling-2.6",
-      // Optional reference image for image-to-video
+      // Optional reference image for image-to-video (single)
       reference_image,
+      // Optional array of reference images — first + last act as keyframe
+      // anchors for Kling 3.0 stitching (orbit video uses this).
+      reference_images,
     } = body;
 
     if (!prompt) {
@@ -54,7 +57,12 @@ export async function POST(req: NextRequest) {
     if (type === "video") {
       // Kling video generation — uses standard jobs endpoint
       endpoint = `${KIE_BASE}/jobs/createTask`;
-      const isImageToVideo = !!reference_image;
+      const refImageList: string[] = Array.isArray(reference_images)
+        ? reference_images.filter((u: unknown): u is string => typeof u === "string" && u.length > 0)
+        : reference_image
+        ? [reference_image]
+        : [];
+      const isImageToVideo = refImageList.length > 0;
 
       // Map frontend model selection to Kie.ai model IDs
       const modelMap: Record<string, { text: string; image: string }> = {
@@ -80,9 +88,10 @@ export async function POST(req: NextRequest) {
         aspect_ratio: aspect_ratio || "16:9",
       };
 
-      // Add reference image for image-to-video
-      if (reference_image) {
-        input.image_urls = [reference_image];
+      // Add reference images for image-to-video.
+      // Kling 3.0 anchors first + last; middle items steer interpolation via prompt.
+      if (refImageList.length > 0) {
+        input.image_urls = refImageList;
       }
       input.sound = false;
       input.duration = "5";

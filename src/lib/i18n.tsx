@@ -511,3 +511,22 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 export function useI18n() {
   return useContext(I18nContext);
 }
+
+/**
+ * Loose translator for keys that may not exist in the strict `dict`.
+ * Returns the fallback if the key is missing. Use for pages whose keys
+ * are still being authored (orbit, social, marketing subpages).
+ */
+export function useTMaybe() {
+  const { lang } = useContext(I18nContext);
+  return (key: string, fallback: string, vars?: Record<string, string | number>): string => {
+    const entry = (dict as Record<string, { en?: string; zh?: string } | undefined>)[key];
+    let str = entry?.[lang] ?? entry?.en ?? fallback;
+    if (vars) {
+      for (const [k, v] of Object.entries(vars)) {
+        str = str.replace(`{${k}}`, String(v));
+      }
+    }
+    return str;
+  };
+}
