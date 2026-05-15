@@ -14,6 +14,26 @@ export interface AuthUser {
   credits: number;
 }
 
+/**
+ * DEV-ONLY auth bypass. When `NEXT_PUBLIC_DEV_AUTH_BYPASS=1` AND not in
+ * production, returns a fake admin user so the client UI bypasses the
+ * sign-in gate. Server-side API routes are NOT bypassed — they still
+ * enforce `getSession()`. This is for visual review on local preview only.
+ */
+export const isDevAuthBypass =
+  process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === "1" &&
+  process.env.NODE_ENV !== "production";
+
+const DEV_BYPASS_USER: AuthUser = {
+  id: "dev-bypass",
+  name: "Dev Reviewer",
+  email: "raymond800108@gmail.com", // admin allowlist email
+  avatar: null,
+  provider: "google",
+  plan: "business",
+  credits: 999999,
+};
+
 interface AuthState {
   user: AuthUser | null;
   loading: boolean;
@@ -52,14 +72,18 @@ export const useAuth = () => useContext(AuthContext);
 /* ─── Hook (used inside AuthProvider) ───────────────────────────── */
 
 export function useAuthState(): AuthContextValue {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    loading: true,
-    ready: false,
-  });
+  const [state, setState] = useState<AuthState>(
+    isDevAuthBypass
+      ? { user: DEV_BYPASS_USER, loading: false, ready: true }
+      : { user: null, loading: true, ready: false }
+  );
   const [loginOpen, setLoginOpen] = useState(false);
 
   const refresh = useCallback(async () => {
+    if (isDevAuthBypass) {
+      setState({ user: DEV_BYPASS_USER, loading: false, ready: true });
+      return;
+    }
     try {
       setState((s) => ({ ...s, loading: true }));
       const res = await fetch("/api/auth/me");
@@ -87,8 +111,9 @@ export function useAuthState(): AuthContextValue {
   const openLogin = useCallback(() => setLoginOpen(true), []);
   const closeLogin = useCallback(() => setLoginOpen(false), []);
 
-  // Fetch user on mount
+  // Fetch user on mount (skipped under dev bypass — user is already populated)
   useEffect(() => {
+    if (isDevAuthBypass) return;
     refresh();
   }, [refresh]);
 

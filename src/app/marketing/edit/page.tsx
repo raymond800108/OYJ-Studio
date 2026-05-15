@@ -240,6 +240,7 @@ export default function MarketingEditPage() {
           resultUrl={resultUrl}
           loading={loading}
           error={null}
+          emptyHint="Upload an image, paint the area to edit, and describe what should appear there."
         />
       </div>
     </div>

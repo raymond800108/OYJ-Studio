@@ -5,7 +5,7 @@
       "name": "content-engine",
       "autoPort": false,
       "runtimeExecutable": "/bin/bash",
-      "runtimeArgs": ["-c", "export PATH=/usr/local/bin:/opt/homebrew/bin:$PATH && npm run dev -- -p 3010"],
+      "runtimeArgs": ["-c", "export PATH=/usr/local/bin:/opt/homebrew/bin:$PATH && NEXT_PUBLIC_DEV_AUTH_BYPASS=1 npm run dev -- -p 3010"],
       "port": 3010
     }
   ]

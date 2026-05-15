@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Megaphone, Share2, Box, BarChart3, LucideIcon } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { isDevAuthBypass } from "@/lib/useAuth";
 import UserMenu from "./UserMenu";
 
 interface NavItem {
@@ -26,6 +27,12 @@ export default function AppHeader() {
 
   return (
     <header className="border-b border-border px-6 py-4 bg-card">
+      {isDevAuthBypass && (
+        <div className="max-w-7xl mx-auto mb-2 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-100 border border-amber-300 text-[11px] text-amber-900">
+          <span className="font-bold">⚠ DEV AUTH BYPASS ACTIVE</span>
+          <span className="opacity-80">— client gate disabled for review. Server routes still require real session.</span>
+        </div>
+      )}
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 flex-wrap">
         <Link href="/" className="flex items-center gap-3 shrink-0">
           <img
