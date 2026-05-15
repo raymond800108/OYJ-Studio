@@ -42,9 +42,17 @@ export async function POST(req: NextRequest) {
       video_model = "kling-2.6",
       // Optional reference image for image-to-video (single)
       reference_image,
-      // Optional array of reference images — first + last act as keyframe
-      // anchors for Kling 3.0 stitching (orbit video uses this).
+      // Optional array of reference images — anchors for video stitching.
+      // Kling 3.0 uses first + last only; Seedance 2 Fast uses up to 9.
       reference_images,
+      // Seedance-only — explicit keyframes (mutually exclusive with refs)
+      first_frame_url,
+      last_frame_url,
+      // Seedance-only — optional audio refs
+      reference_audio_urls = [],
+      // Seedance-only — duration in seconds (number) and audio toggle
+      duration,
+      generate_audio,
     } = body;
 
     if (!prompt) {
@@ -55,67 +63,101 @@ export async function POST(req: NextRequest) {
     let payload: Record<string, unknown>;
 
     if (type === "video") {
-      // Kling video generation — uses standard jobs endpoint
       endpoint = `${KIE_BASE}/jobs/createTask`;
       const refImageList: string[] = Array.isArray(reference_images)
         ? reference_images.filter((u: unknown): u is string => typeof u === "string" && u.length > 0)
         : reference_image
         ? [reference_image]
         : [];
-      const isImageToVideo = refImageList.length > 0;
 
-      // Map frontend model selection to Kie.ai model IDs
-      const modelMap: Record<string, { text: string; image: string }> = {
-        "kling-2.6": {
-          text: "kling-2.6/text-to-video",
-          image: "kling-2.6/image-to-video",
-        },
-        "kling-3.0": {
-          text: "kling-3.0/video",
-          image: "kling-3.0/video",
-        },
-        "kling-2.5-turbo": {
-          text: "kling-2.5-turbo",
-          image: "kling-2.5-turbo",
-        },
-      };
+      const input: Record<string, unknown> = { prompt };
+      let model: string;
 
-      const mapped = modelMap[video_model] || modelMap["kling-2.6"];
-      const model = isImageToVideo ? mapped.image : mapped.text;
-      const isKling3 = video_model === "kling-3.0";
+      const isSeedance =
+        video_model === "seedance-2-fast" || video_model === "seedance-2";
 
-      const input: Record<string, unknown> = {
-        prompt,
-        aspect_ratio: aspect_ratio || "16:9",
-        sound: false,
-        duration: "5",
-      };
+      if (isSeedance) {
+        /* ─── Seedance 2 Fast — multi-reference anchor model ───────────── */
+        model = video_model === "seedance-2" ? "bytedance/seedance-2" : "bytedance/seedance-2-fast";
 
-      // Add reference images for image-to-video.
-      // Kling 3.0 single-shot mode caps image_urls at 2 (first + last act as
-      // keyframe anchors; middle waypoints steer interpolation via the prompt).
-      // Other Kling models accept the full list.
-      if (refImageList.length > 0) {
-        const isKling3Single = video_model === "kling-3.0";
-        if (isKling3Single && refImageList.length > 2) {
-          input.image_urls = [refImageList[0], refImageList[refImageList.length - 1]];
-        } else {
-          input.image_urls = refImageList;
+        const VALID_AR = ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9", "adaptive"];
+        input.aspect_ratio = VALID_AR.includes(aspect_ratio) ? aspect_ratio : "1:1";
+
+        // Seedance only takes video resolutions, not image (2K/4K) ones.
+        const VALID_RES = ["480p", "720p", "1080p"];
+        const seedanceRes = VALID_RES.includes(resolution) ? resolution : "720p";
+        // 1080p coerced to 720p for cost (per skill)
+        input.resolution = seedanceRes === "1080p" ? "720p" : seedanceRes;
+
+        input.duration = typeof duration === "number" ? duration : 5;
+        // Default false for orbit perf; only true if caller explicitly sends true.
+        input.generate_audio = generate_audio === true;
+
+        // Mutually-exclusive conditioning modes:
+        //   B) keyframes        → first_frame_url + last_frame_url
+        //   C) reference_image_urls (+ optional reference_audio_urls)
+        const hasKeyframes = !!first_frame_url || !!last_frame_url;
+        const audioRefs = Array.isArray(reference_audio_urls)
+          ? (reference_audio_urls as string[]).filter(Boolean)
+          : [];
+        const hasRefs = refImageList.length > 0 || audioRefs.length > 0;
+
+        if (hasKeyframes && hasRefs) {
+          return NextResponse.json(
+            { error: "Seedance: keyframes and reference_image_urls are mutually exclusive" },
+            { status: 400 }
+          );
+        }
+        if (hasKeyframes) {
+          if (first_frame_url) input.first_frame_url = first_frame_url;
+          if (last_frame_url) input.last_frame_url = last_frame_url;
+        } else if (refImageList.length > 0) {
+          // Up to 9 anchors; orbit's 4 waypoints all land here.
+          input.reference_image_urls = refImageList.slice(0, 9);
+        }
+        if (audioRefs.length > 0) input.reference_audio_urls = audioRefs;
+      } else {
+        /* ─── Kling family ─────────────────────────────────────────────── */
+        const modelMap: Record<string, { text: string; image: string }> = {
+          "kling-2.6": {
+            text: "kling-2.6/text-to-video",
+            image: "kling-2.6/image-to-video",
+          },
+          "kling-3.0": {
+            text: "kling-3.0/video",
+            image: "kling-3.0/video",
+          },
+          "kling-2.5-turbo": {
+            text: "kling-2.5-turbo",
+            image: "kling-2.5-turbo",
+          },
+        };
+        const isImageToVideo = refImageList.length > 0;
+        const mapped = modelMap[video_model] || modelMap["kling-2.6"];
+        model = isImageToVideo ? mapped.image : mapped.text;
+        const isKling3 = video_model === "kling-3.0";
+
+        input.aspect_ratio = aspect_ratio || "16:9";
+        input.sound = false;
+        input.duration = "5";
+
+        // Kling 3.0 single-shot mode caps image_urls at 2 (first + last);
+        // older Kling accepts the full list.
+        if (refImageList.length > 0) {
+          if (isKling3 && refImageList.length > 2) {
+            input.image_urls = [refImageList[0], refImageList[refImageList.length - 1]];
+          } else {
+            input.image_urls = refImageList;
+          }
+        }
+        if (isKling3) {
+          input.mode = "std";
+          input.multi_shots = false;
+          input.multi_prompt = [{ prompt, duration: 5 }];
         }
       }
 
-      // Kling 3.0 requires additional fields: mode, multi_shots flag,
-      // and a multi_prompt array (single entry is fine for one shot).
-      if (isKling3) {
-        input.mode = "std";
-        input.multi_shots = false;
-        input.multi_prompt = [{ prompt, duration: 5 }];
-      }
-
-      payload = {
-        model,
-        input,
-      };
+      payload = { model, input };
     } else if (requestedModel === "gpt-image-2-image-to-image") {
       // GPT-Image-2 image-to-image — uses input_urls (up to 16), quality param
       endpoint = `${KIE_BASE}/jobs/createTask`;

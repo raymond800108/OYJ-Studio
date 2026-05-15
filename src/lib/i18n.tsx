@@ -566,6 +566,17 @@ const dict = {
   "orbit.creditsSuffix": { en: "{n} credit", zh: "{n} 點" },
   "orbit.creditsSuffixPlural": { en: "{n} credits", zh: "{n} 點" },
 
+  // Video model picker
+  "orbit.videoModel": { en: "Video Model", zh: "影片模型" },
+  "orbit.videoModelHint": {
+    en: "Kling is more stable; Seedance honors all waypoints (better for 3+ waypoint paths).",
+    zh: "Kling 較穩定；Seedance 會以所有路徑點作為動態錨點（3 個以上路徑點時效果更佳）。",
+  },
+  "orbit.model.kling": { en: "Kling 3.0", zh: "Kling 3.0" },
+  "orbit.model.kling.tag": { en: "Stable", zh: "穩定" },
+  "orbit.model.seedance": { en: "Seedance 2 Fast", zh: "Seedance 2 Fast" },
+  "orbit.model.seedance.tag": { en: "All anchors", zh: "全錨點" },
+
   // ── Empty hints for ResultPanel on new pages ──
   "result.emptyEditHint": {
     en: "Upload an image, paint the area to edit, and describe what should appear there.",

@@ -178,6 +178,11 @@ export default function OrbitPage() {
   const [selectedStyleId, setSelectedStyleId] = useState("cinematic-float");
   const [recordingWaypoint, setRecordingWaypoint] = useState(false);
 
+  // Video model picker — Kling 3.0 (default, stable) vs Seedance 2 Fast
+  // (newer; honors ALL waypoints as anchors, better for 3+ waypoint paths).
+  type VideoModelChoice = "kling-3.0" | "seedance-2-fast";
+  const [videoModel, setVideoModel] = useState<VideoModelChoice>("kling-3.0");
+
   const activeStyle = MOTION_STYLES.find((s) => s.id === selectedStyleId) ?? MOTION_STYLES[0];
 
   // Cost preview — orbit single still costs 1 camera-generate credit;
@@ -416,15 +421,17 @@ export default function OrbitPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: "video",
-          video_model: "kling-3.0",
+          video_model: videoModel,                   // "kling-3.0" or "seedance-2-fast"
           prompt: fullPrompt,
-          reference_images: waypointUrls,
+          reference_images: waypointUrls,            // /api/kie translates per model
           aspect_ratio: "1:1",
+          duration: 5,                               // Seedance honors; Kling ignores
+          generate_audio: false,                     // Seedance perf override
         }),
       });
       const submitData = await videoSubmit.json();
       if (!videoSubmit.ok || !submitData.taskId) {
-        throw new Error(submitData.error || "No taskId from Kling 3.0");
+        throw new Error(submitData.error || `No taskId from ${videoModel}`);
       }
 
       const deadline = Date.now() + 6 * 60 * 1000;
@@ -653,6 +660,41 @@ export default function OrbitPage() {
           <p className="text-[10px] text-muted text-center -mt-2">
             {t("orbit.generateImageHint")}
           </p>
+
+          {/* Video model picker */}
+          <div className="pt-1">
+            <label className="text-[10px] uppercase tracking-wider text-muted block mb-1.5">
+              {t("orbit.videoModel")}
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { id: "kling-3.0" as const, labelKey: "orbit.model.kling" as TKey, tagKey: "orbit.model.kling.tag" as TKey },
+                { id: "seedance-2-fast" as const, labelKey: "orbit.model.seedance" as TKey, tagKey: "orbit.model.seedance.tag" as TKey },
+              ]).map((m) => {
+                const isSel = videoModel === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => setVideoModel(m.id)}
+                    disabled={videoGenerating || loading || recordingWaypoint}
+                    className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-[11px] transition-colors disabled:opacity-50 ${
+                      isSel
+                        ? "border-foreground bg-foreground/5 font-semibold"
+                        : "border-border hover:border-foreground/30"
+                    }`}
+                  >
+                    <span>{t(m.labelKey)}</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent/15 text-accent font-medium">
+                      {t(m.tagKey)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-muted mt-1.5">
+              {t("orbit.videoModelHint")}
+            </p>
+          </div>
 
           <button
             onClick={handleGenerateVideo}
