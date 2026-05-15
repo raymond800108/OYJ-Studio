@@ -725,32 +725,61 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Mode Switcher */}
+            {/* Mode Switcher — Camera stays here on /; everything else navigates by URL */}
             <div className="flex items-center bg-background border border-border rounded-full p-0.5 gap-0.5">
-              {(
-                [
-                  { key: "camera", icon: Camera, labelKey: "mode.camera" as const },
-                  { key: "inpaint", icon: Paintbrush, labelKey: "mode.edit" as const },
-                  { key: "3d", icon: Box, labelKey: "mode.3d" as const },
-                  { key: "marketing", icon: Megaphone, labelKey: "mode.marketing" as const },
-                  { key: "lighting", icon: Sun, labelKey: "mode.lighting" as const },
-                  { key: "social", icon: Share2, labelKey: "mode.social" as const },
-                  { key: "usage", icon: BarChart3, labelKey: "mode.usage" as const },
-                ] as const
-              ).map(({ key, icon: Icon, labelKey }) => (
-                <button
-                  key={key}
-                  onClick={() => setMode(key)}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
-                    mode === key
-                      ? "bg-foreground text-background shadow-sm"
-                      : "text-muted hover:text-foreground"
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {t(labelKey)}
-                </button>
-              ))}
+              <button
+                onClick={() => setMode("camera")}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  mode === "camera"
+                    ? "bg-foreground text-background shadow-sm"
+                    : "text-muted hover:text-foreground"
+                }`}
+              >
+                <Camera className="w-3.5 h-3.5" />
+                {t("mode.camera")}
+              </button>
+              <Link
+                href="/marketing/edit"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium text-muted hover:text-foreground transition-all"
+              >
+                <Paintbrush className="w-3.5 h-3.5" />
+                {t("mode.edit")}
+              </Link>
+              <Link
+                href="/3d"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium text-muted hover:text-foreground transition-all"
+              >
+                <Box className="w-3.5 h-3.5" />
+                {t("mode.3d")}
+              </Link>
+              <Link
+                href="/marketing/static"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium text-muted hover:text-foreground transition-all"
+              >
+                <Megaphone className="w-3.5 h-3.5" />
+                {t("mode.marketing")}
+              </Link>
+              <Link
+                href="/marketing/lighting"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium text-muted hover:text-foreground transition-all"
+              >
+                <Sun className="w-3.5 h-3.5" />
+                {t("mode.lighting")}
+              </Link>
+              <Link
+                href="/social"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium text-muted hover:text-foreground transition-all"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                {t("mode.social")}
+              </Link>
+              <Link
+                href="/usage"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium text-muted hover:text-foreground transition-all"
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                {t("mode.usage")}
+              </Link>
             </div>
 
             {/* Language Toggle */}
@@ -780,16 +809,6 @@ export default function Home() {
             {/* User Menu */}
             <UserMenu />
           </div>
-        </div>
-        {/* New Marketing routes banner */}
-        <div className="max-w-7xl mx-auto mt-2 px-2">
-          <Link
-            href="/marketing/orbit"
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent/10 border border-accent/20 text-[11px] font-medium text-accent hover:bg-accent/15 transition-all"
-          >
-            <Sparkles className="w-3 h-3" />
-            Try the new Marketing experience &rarr;
-          </Link>
         </div>
       </header>
 
