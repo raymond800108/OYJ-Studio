@@ -92,9 +92,16 @@ export async function POST(req: NextRequest) {
       };
 
       // Add reference images for image-to-video.
-      // Kling 3.0 anchors first + last; middle items steer interpolation via prompt.
+      // Kling 3.0 single-shot mode caps image_urls at 2 (first + last act as
+      // keyframe anchors; middle waypoints steer interpolation via the prompt).
+      // Other Kling models accept the full list.
       if (refImageList.length > 0) {
-        input.image_urls = refImageList;
+        const isKling3Single = video_model === "kling-3.0";
+        if (isKling3Single && refImageList.length > 2) {
+          input.image_urls = [refImageList[0], refImageList[refImageList.length - 1]];
+        } else {
+          input.image_urls = refImageList;
+        }
       }
 
       // Kling 3.0 requires additional fields: mode, multi_shots flag,
