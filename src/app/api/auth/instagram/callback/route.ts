@@ -75,7 +75,13 @@ export async function GET(req: NextRequest) {
     const longToken: string = longTokenData.access_token || shortToken;
     const expiresIn: number = longTokenData.expires_in || 5183944; // ~60 days
 
-    let igUserId = tokenData.user_id as string | undefined;
+    // CRITICAL: Instagram user IDs are 17 digits, exceeding JS Number.MAX_SAFE_INTEGER (16).
+    // If Meta returns the id as an unquoted JSON number, JSON.parse silently rounds it,
+    // corrupting the last digit. Always coerce to String the moment we touch the value.
+    let igUserId: string | undefined =
+      tokenData.user_id !== undefined && tokenData.user_id !== null
+        ? String(tokenData.user_id)
+        : undefined;
     let igUsername = "";
 
     // Step 3: Try to get Instagram Business account via Facebook Pages
@@ -95,7 +101,7 @@ export async function GET(req: NextRequest) {
             );
             const igAccountData = await igAccountRes.json();
             if (igAccountData.instagram_business_account) {
-              igUserId = igAccountData.instagram_business_account.id;
+              igUserId = String(igAccountData.instagram_business_account.id);
               igUsername = igAccountData.instagram_business_account.username || "";
               break;
             }
@@ -120,7 +126,7 @@ export async function GET(req: NextRequest) {
           return NextResponse.redirect(new URL("/?mode=social&ig_error=noAccount", origin));
         }
       } else {
-        igUserId = igUserId || meData.id;
+        igUserId = igUserId || (meData.id !== undefined && meData.id !== null ? String(meData.id) : undefined);
         igUsername = meData.username || "";
       }
     }

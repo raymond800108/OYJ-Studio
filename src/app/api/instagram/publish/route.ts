@@ -65,7 +65,41 @@ export async function POST(req: NextRequest) {
   if (!rawConn) return NextResponse.json({ error: "instagram_not_connected" }, { status: 401 });
   const conn: IgConnection =
     typeof rawConn === "string" ? JSON.parse(rawConn) : (rawConn as IgConnection);
-  const { instagram_user_id, access_token } = conn;
+  const { access_token } = conn;
+
+  // SAFETY NET: IG user IDs are 17 digits — JSON-number parsing can silently round
+  // the last digit. Always re-resolve the canonical ID from /me before publishing.
+  // If it differs from what's stored, update Redis so future calls are correct.
+  let instagram_user_id = conn.instagram_user_id ? String(conn.instagram_user_id) : "";
+  try {
+    const meRes = await fetch(
+      `${IG_GRAPH}/me?fields=id,username&access_token=${access_token}`
+    );
+    const meData = (await meRes.json()) as {
+      id?: string | number;
+      username?: string;
+      error?: { message: string };
+    };
+    if (meData.id) {
+      const liveId = String(meData.id);
+      if (liveId !== instagram_user_id) {
+        instagram_user_id = liveId;
+        await redis.set(
+          `ig:${userId}`,
+          JSON.stringify({
+            ...conn,
+            instagram_user_id: liveId,
+            instagram_username: meData.username || conn.instagram_username,
+          })
+        );
+      }
+    }
+  } catch {
+    // Fall back to stored ID — publish step will surface any real auth error.
+  }
+  if (!instagram_user_id) {
+    return NextResponse.json({ error: "instagram_not_connected" }, { status: 401 });
+  }
 
   const body = (await req.json()) as {
     mediaUrl: string;
