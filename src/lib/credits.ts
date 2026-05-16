@@ -15,6 +15,7 @@ export const ACTION_CREDITS: Record<ApiAction, number> = {
   "analyze-packaging": 1,
   "relight": 1,
   "estimate": 1,
+  "ig-diagnose": 1,
 };
 
 /* ─── Plan credit allotments (monthly) ──────────────────────────── */
