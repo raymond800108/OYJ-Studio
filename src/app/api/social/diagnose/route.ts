@@ -78,7 +78,37 @@ export async function POST() {
   }
   const conn: IgConnection = typeof raw === "string" ? JSON.parse(raw) : (raw as IgConnection);
 
-  const { instagram_user_id: igUserId, access_token: token } = conn;
+  const { access_token: token } = conn;
+
+  // SAFETY NET: 17-digit IG IDs exceed JS Number.MAX_SAFE_INTEGER. If the id was
+  // stored as a JSON number before the callback fix, the last digit is rounded.
+  // Re-resolve canonical id via /me and self-heal Redis.
+  let igUserId = conn.instagram_user_id ? String(conn.instagram_user_id) : "";
+  try {
+    const meRes = await fetch(
+      `https://graph.instagram.com/me?fields=id,username&access_token=${token}`
+    );
+    const meData = await meRes.json();
+    if (meData?.id) {
+      const liveId = String(meData.id);
+      if (liveId !== igUserId) {
+        igUserId = liveId;
+        await redis.set(
+          `ig:${session.userId}`,
+          JSON.stringify({
+            ...conn,
+            instagram_user_id: liveId,
+            instagram_username: meData.username || conn.instagram_username,
+          })
+        );
+      }
+    }
+  } catch {
+    // Fall back to stored id; downstream fetch will surface real auth errors.
+  }
+  if (!igUserId) {
+    return NextResponse.json({ error: "Instagram not connected." }, { status: 400 });
+  }
 
   // Fetch posts
   let posts: IgPost[] = [];
