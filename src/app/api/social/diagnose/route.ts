@@ -64,13 +64,6 @@ export async function POST() {
     return NextResponse.json({ error: "Storage not configured." }, { status: 500 });
   }
 
-  // Check cache
-  const cached = await redis.get(`ig:diagnosis:${session.userId}`);
-  if (cached) {
-    const result: DiagnosisResult = typeof cached === "string" ? JSON.parse(cached) : (cached as DiagnosisResult);
-    return NextResponse.json(result);
-  }
-
   // Load IG connection
   const raw = await redis.get(`ig:${session.userId}`);
   if (!raw) {
@@ -84,6 +77,7 @@ export async function POST() {
   // stored as a JSON number before the callback fix, the last digit is rounded.
   // Re-resolve canonical id via /me and self-heal Redis.
   let igUserId = conn.instagram_user_id ? String(conn.instagram_user_id) : "";
+  let healedId = false;
   try {
     const meRes = await fetch(
       `https://graph.instagram.com/me?fields=id,username&access_token=${token}`
@@ -92,7 +86,9 @@ export async function POST() {
     if (meData?.id) {
       const liveId = String(meData.id);
       if (liveId !== igUserId) {
+        console.log("[diagnose] Self-healing IG ID:", igUserId, "→", liveId);
         igUserId = liveId;
+        healedId = true;
         await redis.set(
           `ig:${session.userId}`,
           JSON.stringify({
@@ -103,11 +99,27 @@ export async function POST() {
         );
       }
     }
-  } catch {
-    // Fall back to stored id; downstream fetch will surface real auth errors.
+  } catch (e) {
+    console.error("[diagnose] /me lookup failed:", e);
   }
   if (!igUserId) {
     return NextResponse.json({ error: "Instagram not connected." }, { status: 400 });
+  }
+
+  // Cache check — but only AFTER self-heal, so stale cache from the corrupt-id
+  // era doesn't get served. If we just healed the id, blow the cache away.
+  if (healedId) {
+    await redis.del(`ig:diagnosis:${session.userId}`);
+  } else {
+    const cached = await redis.get(`ig:diagnosis:${session.userId}`);
+    if (cached) {
+      const result = typeof cached === "string" ? JSON.parse(cached) : cached;
+      if (result && typeof result === "object" && !("error" in result)) {
+        return NextResponse.json(result as DiagnosisResult);
+      }
+      // Cached entry was malformed — drop it and continue
+      await redis.del(`ig:diagnosis:${session.userId}`);
+    }
   }
 
   // Fetch posts
