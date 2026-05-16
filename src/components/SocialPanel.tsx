@@ -19,7 +19,6 @@ import {
   Clock,
   Send,
   Trash2,
-  Link2,
   Upload,
   Sparkles,
   Timer,
@@ -71,13 +70,6 @@ interface DiagnosisResult {
   generation_prompt: string;
 }
 
-interface BlotatoAccount {
-  id: string;
-  platform: string;
-  fullname: string;
-  username: string;
-}
-
 interface CalendarPost {
   id: string;
   date: string;           // YYYY-MM-DD
@@ -87,11 +79,11 @@ interface CalendarPost {
   mediaType: "image" | "video";
   caption: string;
   platform: string | null;
-  accountId: string | null;
+  /** Post id returned by /api/instagram/publish or /api/facebook/publish */
+  publishedPostId: string | null;
   presetId: string | null;
   presetLabel: string | null;
   status: "draft" | "scheduled" | "published" | "failed";
-  blotatoPostId: string | null;
 }
 
 /* ─── Step config ────────────────────────────────────────────────── */
@@ -134,12 +126,6 @@ const COMMON_TIMEZONES = [
   { value: "Asia/Hong_Kong",      label: "Hong Kong (HKT)" },
   { value: "Asia/Singapore",      label: "Singapore (SGT)" },
   { value: "Australia/Sydney",    label: "Sydney (AEST)" },
-];
-
-const ACCOUNT_BUNDLES: { id: string; label: string }[] = [
-  { id: "40541", label: "Socialfashionizing" },
-  { id: "41782", label: "innery.lab" },
-  { id: "41768", label: "necksy_de" },
 ];
 
 const IG_PRESETS = [
@@ -185,13 +171,6 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
   // Tab state
   const [tab, setTab] = useState<"schedule" | "diagnosis">("diagnosis");
 
-  /* ── Blotato state ────────────────────────────────────────────── */
-  const [blotatoKey, setBlotatoKey] = useState("");
-  const [blotatoConnected, setBlotatoConnected] = useState(false);
-  const [blotatoAccounts, setBlotatoAccounts] = useState<BlotatoAccount[]>([]);
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
-  const [blotatoLoading, setBlotatoLoading] = useState(false);
-
   /* ── Calendar state ────────────────────────────────────────────── */
   const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
   const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
@@ -220,20 +199,7 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
   const [publishError, setPublishError] = useState<string | null>(null);
   const replaceFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  /* ── Publisher mode (Phase 2C) ─────────────────────────────────── */
-  // Blotato remains default until Meta App Review approves publish scopes.
-  // Direct = call /api/instagram/publish or /api/facebook/publish directly.
-  type PublisherMode = "blotato" | "direct";
-  const [publisherMode, setPublisherMode] = useState<PublisherMode>(() => {
-    if (typeof window === "undefined") return "blotato";
-    const saved = localStorage.getItem("convra-publisher-mode");
-    return saved === "direct" ? "direct" : "blotato";
-  });
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("convra-publisher-mode", publisherMode);
-    }
-  }, [publisherMode]);
+
 
   // Auto-detect local timezone once
   const [defaultTimezone] = useState<string>(() => {
@@ -266,28 +232,8 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
     localStorage.setItem("convra-calendar-posts", JSON.stringify(scheduledPosts));
   }, [scheduledPosts]);
 
-  /* ── Load Blotato key + tray items on mount ─────────────────────── */
+  /* ── Load content tray on mount ─────────────────────────────────── */
   useEffect(() => {
-    const savedKey = localStorage.getItem("convra-blotato-key");
-    if (savedKey) {
-      setBlotatoKey(savedKey);
-      // Silently auto-reconnect
-      fetch("/api/blotato/accounts", {
-        headers: { "x-blotato-key": savedKey },
-      })
-        .then((r) => r.ok ? r.json() : null)
-        .then((data) => {
-          if (data) {
-            const accounts = Array.isArray(data) ? data : (data.data ?? []);
-            setBlotatoAccounts(accounts);
-            setBlotatoConnected(true);
-            if (accounts.length > 0) setSelectedAccountId(accounts[0].id);
-          }
-        })
-        .catch(() => {});
-    }
-
-    // Load content tray — fall back to localStorage if prop not yet populated
     if (!appHistory || appHistory.length === 0) {
       setTrayItems(loadHistoryFromStorage());
     }
@@ -336,36 +282,6 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ── Blotato connect ─────────────────────────────────────────────── */
-  async function connectBlotato() {
-    if (!blotatoKey.trim()) return;
-    setBlotatoLoading(true);
-    try {
-      const res = await fetch("/api/blotato/accounts", {
-        headers: { "x-blotato-key": blotatoKey.trim() },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const accounts: BlotatoAccount[] = Array.isArray(data) ? data : (data.data ?? []);
-        setBlotatoAccounts(accounts);
-        setBlotatoConnected(true);
-        if (accounts.length > 0) setSelectedAccountId(accounts[0].id);
-        localStorage.setItem("convra-blotato-key", blotatoKey.trim());
-      }
-    } catch {
-      // ignore
-    }
-    setBlotatoLoading(false);
-  }
-
-  function disconnectBlotato() {
-    setBlotatoConnected(false);
-    setBlotatoAccounts([]);
-    setSelectedAccountId(null);
-    setBlotatoKey("");
-    localStorage.removeItem("convra-blotato-key");
-  }
-
   /* ── Calendar helpers ──────────────────────────────────────────── */
   function getDaysInMonth(year: number, month: number) {
     return new Date(year, month + 1, 0).getDate();
@@ -409,11 +325,10 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
       mediaType,
       caption: "",
       platform: "instagram",
-      accountId: selectedAccountId,
+      publishedPostId: null,
       presetId: null,
       presetLabel: null,
       status: "draft",
-      blotatoPostId: null,
     };
     setScheduledPosts((prev) => [...prev, newPost]);
 
@@ -542,99 +457,12 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
     setGeneratingCaption(false);
   }
 
-  /* ── Publish post (with temp-URL re-hosting) ───────────────────── */
+  /* ── Publish post (direct to Instagram / Facebook Graph API) ────── */
   async function publishPost(post: CalendarPost) {
-    // Direct mode (Phase 2C) — call /api/instagram/publish or /api/facebook/publish.
-    // Does not need Blotato connection. Existing IG OAuth + Meta Ads connection
-    // (for Page tokens) must be in place. Returns SCOPE_MISSING (403) until
-    // Meta App Review approves instagram_business_content_publish.
-    if (publisherMode === "direct") {
-      setPublishingId(post.id);
-      setPublishError(null);
-      try {
-        // Re-host temp URLs first (same logic as Blotato path)
-        let mediaUrl = post.mediaUrl;
-        if (isTempUrl(mediaUrl)) {
-          const blob = await extractMediaBlob(post.mediaUrl, post.mediaType === "video");
-          if (blob) {
-            const ext = blob.type.includes("video") ? "mp4" : "jpg";
-            const file = new File([blob], `media.${ext}`, { type: blob.type });
-            const fd = new FormData();
-            fd.append("file", file);
-            const uploadRes = await fetch("/api/upload", { method: "POST", body: fd });
-            const uploadData = await uploadRes.json();
-            if (uploadData.url) {
-              mediaUrl = uploadData.url;
-              setScheduledPosts((prev) =>
-                prev.map((p) => (p.id === post.id ? { ...p, mediaUrl: uploadData.url } : p))
-              );
-            }
-          }
-          if (isTempUrl(mediaUrl)) {
-            throw new Error("Media URL expired — please regenerate this content.");
-          }
-        }
-
-        const platform = (post.platform || "instagram").toLowerCase();
-        const endpoint =
-          platform === "facebook" ? "/api/facebook/publish" : "/api/instagram/publish";
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            mediaUrl,
-            mediaType: post.mediaType,
-            caption: post.caption || "",
-            presetId: post.presetId,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          if (data.code === "SCOPE_MISSING") {
-            throw new Error(
-              data.error ??
-                "Direct publish requires Meta App Review approval. Switch to Blotato or reconnect with publishing permissions."
-            );
-          }
-          throw new Error(data.error || `Publish failed (${res.status})`);
-        }
-
-        setScheduledPosts((prev) =>
-          prev.map((p) =>
-            p.id === post.id
-              ? { ...p, status: "published", blotatoPostId: data.postId ?? null }
-              : p
-          )
-        );
-        setEditingPost((prev) =>
-          prev?.id === post.id
-            ? { ...prev, status: "published", blotatoPostId: data.postId ?? null }
-            : prev
-        );
-      } catch (err) {
-        setPublishError(err instanceof Error ? err.message : "Direct publish failed");
-        setScheduledPosts((prev) =>
-          prev.map((p) => (p.id === post.id ? { ...p, status: "draft" } : p))
-        );
-        setEditingPost((prev) =>
-          prev?.id === post.id ? { ...prev, status: "draft" } : prev
-        );
-      } finally {
-        setPublishingId(null);
-      }
-      return;
-    }
-
-    // Blotato (legacy/default) path
-    if (!blotatoConnected) return;
-    const accId = post.accountId || selectedAccountId;
-    if (!accId) return;
-
     setPublishingId(post.id);
     setPublishError(null);
-    setScheduledPosts((prev) => prev.map((p) => p.id === post.id ? { ...p, status: "scheduled" } : p));
-
     try {
+      // Re-host temp URLs first — fal/Kie temp CDN expires and Meta will 404
       let mediaUrl = post.mediaUrl;
       if (isTempUrl(mediaUrl)) {
         const blob = await extractMediaBlob(post.mediaUrl, post.mediaType === "video");
@@ -647,44 +475,67 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
           const uploadData = await uploadRes.json();
           if (uploadData.url) {
             mediaUrl = uploadData.url;
-            setScheduledPosts((prev) => prev.map((p) => p.id === post.id ? { ...p, mediaUrl: uploadData.url } : p));
+            setScheduledPosts((prev) =>
+              prev.map((p) => (p.id === post.id ? { ...p, mediaUrl: uploadData.url } : p))
+            );
           }
         }
         if (isTempUrl(mediaUrl)) {
-          throw new Error(post.mediaType === "video"
-            ? "Video URL expired — please regenerate this video in Marketing tab."
-            : "Media URL expired — please regenerate this content in Marketing tab.");
+          throw new Error(
+            post.mediaType === "video"
+              ? "Video URL expired — please regenerate this video in Marketing tab."
+              : "Media URL expired — please regenerate this content in Marketing tab."
+          );
         }
       }
 
-      const res = await fetch("/api/blotato/publish", {
+      const platform = (post.platform || "instagram").toLowerCase();
+      const endpoint =
+        platform === "facebook" ? "/api/facebook/publish" : "/api/instagram/publish";
+      const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-blotato-key": blotatoKey },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          accountId: accId,
-          text: post.caption || ".",
-          mediaUrls: [mediaUrl],
-          platform: post.platform || "instagram",
-          presetId: post.presetId || null,
+          mediaUrl,
+          mediaType: post.mediaType,
+          caption: post.caption || "",
+          presetId: post.presetId,
         }),
       });
-
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Publish failed");
+      if (!res.ok) {
+        if (data.code === "SCOPE_MISSING") {
+          throw new Error(
+            data.error ??
+              "Publishing permission missing — disconnect Instagram in Diagnosis tab and reconnect to refresh the scope."
+          );
+        }
+        throw new Error(data.error || `Publish failed (${res.status})`);
+      }
 
-      setScheduledPosts((prev) => prev.map((p) =>
-        p.id === post.id ? { ...p, status: "scheduled", blotatoPostId: data.postSubmissionId ?? null } : p
-      ));
-      setEditingPost((prev) => prev?.id === post.id
-        ? { ...prev, status: "scheduled", blotatoPostId: data.postSubmissionId ?? null } : prev
+      setScheduledPosts((prev) =>
+        prev.map((p) =>
+          p.id === post.id
+            ? { ...p, status: "published", publishedPostId: data.postId ?? null }
+            : p
+        )
+      );
+      setEditingPost((prev) =>
+        prev?.id === post.id
+          ? { ...prev, status: "published", publishedPostId: data.postId ?? null }
+          : prev
       );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Error";
-      setPublishError(msg);
-      setScheduledPosts((prev) => prev.map((p) => p.id === post.id ? { ...p, status: "draft" } : p));
-      setEditingPost((prev) => prev?.id === post.id ? { ...prev, status: "draft" } : prev);
+      setPublishError(err instanceof Error ? err.message : "Publish failed");
+      setScheduledPosts((prev) =>
+        prev.map((p) => (p.id === post.id ? { ...p, status: "draft" } : p))
+      );
+      setEditingPost((prev) =>
+        prev?.id === post.id ? { ...prev, status: "draft" } : prev
+      );
+    } finally {
+      setPublishingId(null);
     }
-    setPublishingId(null);
   }
 
   /* ── Delete post ───────────────────────────────────────────────── */
@@ -795,41 +646,26 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
       {tab === "schedule" && (
         <div className="space-y-4">
 
-          {/* Publisher mode toggle (Phase 2C) */}
-          <div className="flex items-center justify-between flex-wrap gap-2 rounded-xl bg-card border border-border px-3 py-2">
-            <div className="flex items-center gap-1.5 text-xs text-muted">
-              <span className="font-medium text-foreground">Publisher:</span>
-              <span>
-                {publisherMode === "direct"
-                  ? "Direct Instagram / Facebook Graph API"
-                  : "Blotato (legacy)"}
-              </span>
-            </div>
-            <div className="flex items-center bg-background border border-border rounded-full p-0.5 gap-0.5">
+          {/* Connect-Instagram CTA when no IG connection yet */}
+          {!connected && (
+            <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 p-4 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                  {t("social.connectFirst.title" as TKey)}
+                </p>
+                <p className="text-xs text-amber-800/80 dark:text-amber-300/70 mt-0.5">
+                  {t("social.connectFirst.sub" as TKey)}
+                </p>
+              </div>
               <button
-                onClick={() => setPublisherMode("blotato")}
-                className={`px-3 py-1 rounded-full text-[11px] font-medium transition-all ${
-                  publisherMode === "blotato"
-                    ? "bg-foreground text-background"
-                    : "text-muted hover:text-foreground"
-                }`}
-                title="Multi-platform fanout via Blotato — works today, no Meta App Review needed."
+                onClick={() => setTab("diagnosis")}
+                className="px-4 py-2 rounded-full bg-foreground text-background text-xs font-semibold hover:opacity-90 shrink-0"
               >
-                Blotato
-              </button>
-              <button
-                onClick={() => setPublisherMode("direct")}
-                className={`px-3 py-1 rounded-full text-[11px] font-medium transition-all ${
-                  publisherMode === "direct"
-                    ? "bg-foreground text-background"
-                    : "text-muted hover:text-foreground"
-                }`}
-                title="Direct Instagram & Facebook Graph API. Requires Meta App Review approval for instagram_business_content_publish + pages_manage_posts scopes."
-              >
-                Direct <span className="text-[9px] opacity-60 ml-0.5">BETA</span>
+                {t("social.connectFirst.cta" as TKey)}
               </button>
             </div>
-          </div>
+          )}
 
           {/* Live clock + pending count */}
           {now && (
@@ -849,79 +685,23 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
             </div>
           )}
 
-          {/* Blotato Connection Panel */}
-          <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
-            {!blotatoConnected ? (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Link2 className="w-4 h-4 text-muted/60" />
-                  <span className="text-sm font-medium text-foreground">
-                    {t("social.blotato.connect" as TKey)}
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    value={blotatoKey}
-                    onChange={(e) => setBlotatoKey(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && connectBlotato()}
-                    placeholder={t("social.blotato.keyPlaceholder" as TKey)}
-                    className="flex-1 px-3 py-2 rounded-xl bg-background border border-border text-sm placeholder:text-muted/40 focus:outline-none focus:border-foreground/30 transition-all"
-                  />
-                  <button
-                    onClick={connectBlotato}
-                    disabled={blotatoLoading || !blotatoKey.trim()}
-                    className="px-4 py-2 rounded-xl bg-foreground text-background text-sm font-medium hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2 shrink-0"
-                  >
-                    {blotatoLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : null}
-                    {t("social.blotato.connect" as TKey)}
-                  </button>
-                </div>
+          {/* Instagram connected status badge */}
+          {connected && (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-xs font-medium text-green-700 dark:text-green-400">
+                  {t("social.connected" as TKey)}{username ? ` · @${username}` : ""}
+                </span>
               </div>
-            ) : (
-              <div className="flex items-center justify-between flex-wrap gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900">
-                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-xs font-medium text-green-700 dark:text-green-400">
-                      {t("social.blotato.connected" as TKey)}
-                    </span>
-                  </div>
-                  <span className="text-xs text-muted">
-                    {blotatoAccounts.length} {t("social.blotato.accounts" as TKey)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {blotatoAccounts.length > 1 && (
-                    <select
-                      value={selectedAccountId || ""}
-                      onChange={(e) => setSelectedAccountId(e.target.value)}
-                      className="text-xs rounded-lg bg-background border border-border px-2 py-1.5 focus:outline-none"
-                    >
-                      {blotatoAccounts.map((acc) => (
-                        <option key={acc.id} value={acc.id}>
-                          {acc.platform} — @{acc.username || acc.fullname}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  {blotatoAccounts.length === 1 && (
-                    <span className="text-xs text-muted">
-                      {blotatoAccounts[0].platform} — @{blotatoAccounts[0].username || blotatoAccounts[0].fullname}
-                    </span>
-                  )}
-                  <button
-                    onClick={disconnectBlotato}
-                    className="text-xs text-muted hover:text-foreground underline transition-colors"
-                  >
-                    {t("social.blotato.disconnect" as TKey)}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+              <button
+                onClick={() => setTab("diagnosis")}
+                className="text-xs text-muted hover:text-foreground underline"
+              >
+                {t("social.manageConnection" as TKey)}
+              </button>
+            </div>
+          )}
 
           {/* Full-width calendar — content tray is now the shared
               MarketingHistoryStrip at the bottom of the page (rendered
@@ -1208,58 +988,9 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
                       ))}
                     </select>
                     <p className="text-[10px] text-muted/60">
-                      Story and Reel use different placements in Blotato
+                      Stories and Reels post to Instagram via the Graph API.
                     </p>
                   </div>
-
-                  {/* ⑤ Account selector with ACCOUNT_BUNDLES */}
-                  {blotatoConnected && (
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted">Publish To</label>
-                      {ACCOUNT_BUNDLES.length > 0 ? (
-                        <select
-                          value={editingPost.accountId || selectedAccountId || ""}
-                          onChange={(e) => {
-                            const newId = e.target.value || null;
-                            const live = blotatoAccounts.find((a) => a.id === newId);
-                            const nextPlatform = live?.platform || editingPost.platform;
-                            const updated = { ...editingPost, accountId: newId, platform: nextPlatform };
-                            setEditingPost(updated);
-                            setScheduledPosts((prev) => prev.map((p) => p.id === updated.id ? updated : p));
-                          }}
-                          className="w-full px-3 py-2 rounded-xl bg-background border border-border text-sm focus:outline-none focus:border-foreground/30"
-                        >
-                          <option value="">Select account…</option>
-                          {ACCOUNT_BUNDLES.map((bundle) => {
-                            const live = blotatoAccounts.find((a) => a.id === bundle.id);
-                            return (
-                              <option key={bundle.id} value={bundle.id}>
-                                {bundle.label}{live ? ` — @${live.username}` : ""}
-                              </option>
-                            );
-                          })}
-                        </select>
-                      ) : (
-                        <select
-                          value={editingPost.accountId || selectedAccountId || ""}
-                          onChange={(e) => {
-                            const newId = e.target.value;
-                            const live = blotatoAccounts.find((a) => a.id === newId);
-                            const updated = { ...editingPost, accountId: newId, platform: live?.platform || editingPost.platform };
-                            setEditingPost(updated);
-                            setScheduledPosts((prev) => prev.map((p) => p.id === updated.id ? updated : p));
-                          }}
-                          className="w-full px-3 py-2 rounded-xl bg-background border border-border text-sm focus:outline-none focus:border-foreground/30"
-                        >
-                          {blotatoAccounts.map((acc) => (
-                            <option key={acc.id} value={acc.id}>
-                              {acc.platform} — @{acc.username || acc.fullname}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                    </div>
-                  )}
 
                   {/* Error */}
                   {publishError && (
@@ -1300,19 +1031,15 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
                     Save
                   </button>
 
-                  {/* Publish Now button — shown for draft/failed posts on a publisher
-                      that can actually publish (Blotato connected OR Direct mode). */}
+                  {/* Publish Now — shown for draft/failed posts. Requires
+                      Instagram to be connected (Diagnosis tab → Connect IG). */}
                   {editingPost.status !== "scheduled" && editingPost.status !== "published" && (
-                    (publisherMode === "direct" || blotatoConnected) ? (
+                    connected ? (
                       <button
                         onClick={() => publishPost(editingPost)}
                         disabled={publishingId === editingPost.id}
                         className="flex items-center gap-2 px-4 py-2 rounded-xl bg-foreground text-background text-sm font-semibold hover:opacity-90 disabled:opacity-40"
-                        title={
-                          publisherMode === "direct"
-                            ? "Publish immediately via Instagram Graph API"
-                            : "Publish immediately via Blotato"
-                        }
+                        title="Publish immediately via Instagram Graph API"
                       >
                         {publishingId === editingPost.id ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1323,9 +1050,9 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
                       </button>
                     ) : (
                       <button
-                        disabled
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted/10 text-muted text-sm font-medium cursor-not-allowed"
-                        title="Connect Blotato or switch to Direct publisher mode first"
+                        onClick={() => setTab("diagnosis")}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted/10 text-muted text-sm font-medium hover:bg-muted/20"
+                        title="Connect Instagram in the Diagnosis tab first"
                       >
                         <Send className="w-3.5 h-3.5" />
                         {t("social.post.publishNow" as TKey)}

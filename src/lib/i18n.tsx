@@ -303,20 +303,7 @@ const dict = {
   // ── Social Panel ──
   "social.schedule": { en: "Schedule", zh: "排程" },
   "social.diagnosis": { en: "Diagnosis", zh: "診斷" },
-  "social.comingSoon": { en: "Scheduling Coming Soon", zh: "排程功能即將推出" },
-  "social.comingSoonSub": {
-    en: "Connect Blotato to schedule and auto-publish content across platforms",
-    zh: "連接 Blotato 以跨平台排程並自動發布內容",
-  },
-  "social.blotatoKey": { en: "Blotato API Key", zh: "Blotato API 金鑰" },
-  "social.blotatoPlaceholder": { en: "Paste your Blotato API key", zh: "貼上您的 Blotato API 金鑰" },
-
   // ── Social Scheduling ──
-  "social.blotato.connect": { en: "Connect Blotato", zh: "連接 Blotato" },
-  "social.blotato.connected": { en: "Blotato Connected", zh: "Blotato 已連接" },
-  "social.blotato.disconnect": { en: "Disconnect", zh: "中斷連接" },
-  "social.blotato.accounts": { en: "accounts connected", zh: "個帳號已連接" },
-  "social.blotato.keyPlaceholder": { en: "Paste Blotato API key...", zh: "貼上 Blotato API 金鑰..." },
   "social.calendar.title": { en: "Content Calendar", zh: "內容行事曆" },
   "social.calendar.prev": { en: "Previous", zh: "上個月" },
   "social.calendar.next": { en: "Next", zh: "下個月" },
@@ -328,6 +315,17 @@ const dict = {
   "social.post.platform": { en: "Platform", zh: "平台" },
   "social.post.publish": { en: "Publish Now", zh: "立即發布" },
   "social.post.publishNow": { en: "Publish to Instagram Now", zh: "立即發布到 Instagram" },
+  "social.connectFirst.title": {
+    en: "Connect Instagram to publish",
+    zh: "請先連結 Instagram 才能發布",
+  },
+  "social.connectFirst.sub": {
+    en: "Convra publishes directly via the Instagram Graph API. Connect your Business account first.",
+    zh: "Convra 透過 Instagram Graph API 直接發布。請先在診斷頁連結你的商業帳號。",
+  },
+  "social.connectFirst.cta": { en: "Connect Instagram →", zh: "連結 Instagram →" },
+  "social.connected": { en: "Instagram connected", zh: "Instagram 已連結" },
+  "social.manageConnection": { en: "Manage", zh: "管理" },
   "social.post.schedule": { en: "Schedule", zh: "排程" },
   "social.post.delete": { en: "Delete", zh: "刪除" },
   "social.post.draft": { en: "Draft", zh: "草稿" },
