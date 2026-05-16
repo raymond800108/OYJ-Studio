@@ -790,32 +790,47 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
                           >
                             {dayNum}
                           </div>
-                          {/* Post thumbnails */}
+                          {/* Post chips — thumbnail + status dot + time + caption preview */}
                           <div className="space-y-0.5">
-                            {dayPosts.slice(0, 3).map((post) => (
-                              <button
-                                key={post.id}
-                                onClick={() => openEdit(post)}
-                                className="w-full flex items-center gap-1 rounded overflow-hidden group"
-                                title={post.caption || "Draft"}
-                              >
-                                {post.mediaType === "image" ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={post.mediaUrl}
-                                    alt=""
-                                    className="w-5 h-5 object-cover rounded shrink-0"
+                            {dayPosts.slice(0, 3).map((post) => {
+                              const captionPreview = (post.caption || "").trim().slice(0, 40);
+                              return (
+                                <button
+                                  key={post.id}
+                                  onClick={() => openEdit(post)}
+                                  className="w-full flex items-center gap-1 rounded overflow-hidden group text-left hover:bg-muted/10 transition-colors"
+                                  title={post.caption || "Draft"}
+                                >
+                                  {post.mediaType === "image" ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={post.mediaUrl}
+                                      alt=""
+                                      className="w-5 h-5 object-cover rounded shrink-0"
+                                    />
+                                  ) : (
+                                    <div className="w-5 h-5 rounded shrink-0 bg-muted/20 flex items-center justify-center">
+                                      <span className="text-[8px]">&#9654;</span>
+                                    </div>
+                                  )}
+                                  <span
+                                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_COLORS[post.status]}`}
                                   />
-                                ) : (
-                                  <div className="w-5 h-5 rounded shrink-0 bg-muted/20 flex items-center justify-center">
-                                    <span className="text-[8px]">&#9654;</span>
+                                  <div className="flex-1 min-w-0 leading-tight">
+                                    {post.time && (
+                                      <div className="text-[9px] font-mono tabular-nums text-foreground">
+                                        {post.time}
+                                      </div>
+                                    )}
+                                    {captionPreview && (
+                                      <div className="text-[9px] text-muted truncate">
+                                        {captionPreview}
+                                      </div>
+                                    )}
                                   </div>
-                                )}
-                                <span
-                                  className={`w-2 h-2 rounded-full shrink-0 ${STATUS_COLORS[post.status]}`}
-                                />
-                              </button>
-                            ))}
+                                </button>
+                              );
+                            })}
                             {dayPosts.length > 3 && (
                               <div className="text-[9px] text-muted pl-0.5">
                                 +{dayPosts.length - 3}
