@@ -17,7 +17,8 @@ export type ApiAction =
   | "analyze-outfit"
   | "analyze-packaging"
   | "relight"
-  | "estimate";
+  | "estimate"
+  | "ig-diagnose";
 
 export interface UsageEntry {
   id: string;
@@ -61,6 +62,7 @@ export const PRICE_TABLE: Record<ApiAction, { service: ApiService; model: string
   "analyze-packaging": { service: "openai", model: "gpt-4o", costUsd: 0.05 },
   "relight": { service: "fal", model: "image-apps-v2/relighting", costUsd: 0.08 },
   "estimate": { service: "openai", model: "gpt-4o", costUsd: 0.075 },
+  "ig-diagnose": { service: "openai", model: "gpt-4o", costUsd: 0.05 },
 };
 
 /* ─── localStorage fallback ─────────────────────────────────────── */
@@ -158,7 +160,15 @@ export function useUsageTracking(
         detail?: string;
       }
     ) => {
+      // Defensive: if an unregistered action slips through (cast through any
+      // in callers' typing), don't crash the page — log and skip silently.
       const price = PRICE_TABLE[action];
+      if (!price) {
+        if (typeof console !== "undefined") {
+          console.warn(`[usage] unknown action "${action}" — not logged`);
+        }
+        return;
+      }
       const entry: UsageEntry = {
         id: crypto.randomUUID(),
         timestamp: Date.now(),
