@@ -26,7 +26,12 @@ export async function GET(req: NextRequest) {
   const params = new URLSearchParams({
     client_id: appId,
     redirect_uri: redirectUri,
-    scope: "instagram_business_basic,instagram_business_manage_insights",
+    // Scopes required:
+    //   instagram_business_basic              — /me (id, username)
+    //   instagram_business_manage_insights    — posts + reach/saves (diagnose page)
+    //   instagram_business_content_publish    — /media + /media_publish (Publish Now)
+    scope:
+      "instagram_business_basic,instagram_business_manage_insights,instagram_business_content_publish",
     state,
     response_type: "code",
   });
