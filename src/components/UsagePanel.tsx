@@ -62,6 +62,7 @@ const ACTION_LABELS: Record<ApiAction, { en: string; zh: string }> = {
   "analyze-packaging": { en: "Packaging Analysis", zh: "包裝分析" },
   "relight": { en: "Relighting", zh: "燈光調整" },
   "estimate": { en: "Price Estimate", zh: "價格估算" },
+  "ig-diagnose": { en: "Instagram Diagnosis", zh: "Instagram 診斷" },
 };
 
 /* ─── Helpers ──────────────────────────────────────────────────── */
