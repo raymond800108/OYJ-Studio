@@ -23,6 +23,73 @@ function igMediaType(presetId?: string | null): "REELS" | "STORIES" | null {
   return null;
 }
 
+interface ContainerInfo {
+  id?: string;
+  status_code?: string;
+  status?: string;
+  error?: { message?: string; error_user_msg?: string; error_subcode?: number };
+}
+
+/**
+ * Inspect the failed parent container (and its children if it's a CAROUSEL)
+ * to extract the most specific human-readable reason Meta will give us.
+ *
+ * The CAROUSEL parent's `status_code=ERROR` often has an empty `status`
+ * field even though one of its child containers has the real reason. We
+ * walk the children to surface that.
+ */
+async function describeContainerError(
+  containerId: string,
+  token: string
+): Promise<string> {
+  try {
+    const parentRes = await fetch(
+      `${IG_GRAPH}/${containerId}?fields=id,status_code,status,error,media_type`,
+      { headers: { Authorization: `OAuth ${token}` } }
+    );
+    const parent = (await parentRes.json()) as ContainerInfo & {
+      media_type?: string;
+    };
+    console.error("[ig-publish] parent container detail:", parent);
+
+    const parentMsg =
+      parent.error?.error_user_msg ||
+      parent.error?.message ||
+      parent.status?.trim();
+
+    // If it's a carousel, walk children too
+    if (parent.media_type === "CAROUSEL") {
+      const childrenRes = await fetch(
+        `${IG_GRAPH}/${containerId}/children?fields=id,status_code,status,error`,
+        { headers: { Authorization: `OAuth ${token}` } }
+      );
+      const childrenData = (await childrenRes.json()) as {
+        data?: ContainerInfo[];
+      };
+      console.error(
+        "[ig-publish] carousel children detail:",
+        childrenData.data
+      );
+      for (const child of childrenData.data ?? []) {
+        if (child.status_code === "ERROR" || child.error) {
+          const childMsg =
+            child.error?.error_user_msg ||
+            child.error?.message ||
+            child.status?.trim();
+          if (childMsg) {
+            return `Slide error: ${childMsg}`;
+          }
+        }
+      }
+    }
+
+    return parentMsg || "Meta returned ERROR with no detail";
+  } catch (e) {
+    console.error("[ig-publish] describeContainerError failed:", e);
+    return "ERROR (introspection failed)";
+  }
+}
+
 async function waitForContainer(
   containerId: string,
   token: string,
@@ -32,31 +99,16 @@ async function waitForContainer(
   const pollInterval = 5000;
   while (Date.now() - start < maxWaitMs) {
     await new Promise((r) => setTimeout(r, pollInterval));
-    // IG container "status" gives the human-readable reason when status_code
-    // is ERROR ("Media couldn't be loaded", "Aspect ratio not supported", etc.)
     const res = await fetch(
       `${IG_GRAPH}/${containerId}?fields=status_code,status`,
       { headers: { Authorization: `OAuth ${token}` } }
     );
-    const data = (await res.json()) as {
-      status_code?: string;
-      status?: string;
-      error?: { message: string };
-    };
+    const data = (await res.json()) as ContainerInfo;
     if (data.error) return { ready: false, error: data.error.message };
     if (data.status_code === "FINISHED") return { ready: true };
     if (data.status_code === "ERROR" || data.status_code === "EXPIRED") {
-      const human = data.status?.trim();
-      const code = data.status_code.toLowerCase();
-      console.error(
-        `[ig-publish] Container ${containerId} ${code} — ${human || "(no detail)"}`
-      );
-      return {
-        ready: false,
-        error: human
-          ? `IG: ${human}`
-          : `Container ${code} (no detail from Meta)`,
-      };
+      const detail = await describeContainerError(containerId, token);
+      return { ready: false, error: `IG ${data.status_code}: ${detail}` };
     }
   }
   return { ready: false, error: "Media processing timed out after 5 minutes" };
