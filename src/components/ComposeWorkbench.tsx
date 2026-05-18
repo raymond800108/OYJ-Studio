@@ -333,7 +333,12 @@ export default function ComposeWorkbench() {
     if (row.dropboxUrl) void loadFolderFiles(row.dropboxUrl);
     else setFilesError(t("compose.noDropbox" as TKey));
 
-    if (row.caption.trim()) void polishCaption(row);
+    if (row.caption.trim()) {
+      // Have raw text → text-polish path
+      void polishCaption(row);
+    }
+    // If caption is empty, we'll trigger vision-based generation once
+    // the Dropbox folder loads and we know which image to feed GPT-4o.
   }
 
   async function loadFolderFiles(sharedUrl: string) {
@@ -375,6 +380,11 @@ export default function ComposeWorkbench() {
       if (firstImage) {
         setSelectedFileIds(new Set([firstImage.id]));
       }
+      // If this row has no 相關資訊 seed, fall back to vision-based caption
+      // generation using the first image. Polishing happens once per open.
+      if (selectedRow && !selectedRow.caption.trim() && firstImage) {
+        void polishFromImage(selectedRow, firstImage);
+      }
     } catch {
       setFilesError(t("compose.dropboxError" as TKey));
     } finally {
@@ -383,7 +393,16 @@ export default function ComposeWorkbench() {
   }
 
   async function polishCaption(row: MappedRow) {
-    if (!row.caption.trim()) return;
+    // If there's no seed text, fall back to vision-based caption from the
+    // first image in the Dropbox folder (Re-polish in the drawer triggers
+    // this path too).
+    if (!row.caption.trim()) {
+      const firstImage = (files ?? []).find((f) => f.kind === "image");
+      if (firstImage) {
+        await polishFromImage(row, firstImage);
+      }
+      return;
+    }
     setPolishLoading(true);
     setPolishError(null);
     try {
@@ -407,6 +426,41 @@ export default function ComposeWorkbench() {
     } catch {
       setPolishError(t("compose.captionError" as TKey));
       setCaption(row.caption);
+    } finally {
+      setPolishLoading(false);
+    }
+  }
+
+  /**
+   * No 相關資訊 → ask GPT-4o vision to look at the first selected image
+   * and write an IG caption that matches the same brand voice as the
+   * text-polished path. Backend fetches Dropbox bytes via our token.
+   */
+  async function polishFromImage(row: MappedRow, file: DropboxFileEntry) {
+    setPolishLoading(true);
+    setPolishError(null);
+    try {
+      const r = await fetch("/api/social/caption-polish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageDropbox: {
+            sharedUrl: file.sharedUrl,
+            path: file.pathDisplay,
+          },
+          name: row.title,
+          category: row.subtitle,
+          language: "zh",
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        setPolishError(data.error || t("compose.captionError" as TKey));
+        return;
+      }
+      setCaption(data.caption || "");
+    } catch {
+      setPolishError(t("compose.captionError" as TKey));
     } finally {
       setPolishLoading(false);
     }
@@ -993,7 +1047,9 @@ function ComposerDrawer(props: ComposerDrawerProps) {
               </p>
               <button
                 onClick={onRepolish}
-                disabled={polishLoading || !row.caption.trim()}
+                // Allow repolish whenever there's either a text seed OR at
+                // least one image in the Dropbox folder (vision fallback).
+                disabled={polishLoading || (!row.caption.trim() && (files?.length ?? 0) === 0)}
                 className="text-[11px] text-foreground hover:underline disabled:opacity-50 flex items-center gap-1"
               >
                 {polishLoading ? (
