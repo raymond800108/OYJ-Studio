@@ -3,9 +3,10 @@ import { getSession } from "@/lib/auth";
 import { getRedis } from "@/lib/redis";
 
 // Video container polling can take up to 5 min — Vercel's 60s default kills it.
-// 800s — long enough to poll multiple video carousel children (each up
-// to 5 min on Meta's side) plus the parent CAROUSEL container.
-export const maxDuration = 800;
+// 300s — Vercel Hobby max. Single video carousel child gets the full
+// budget; multi-video carousels will time out and surface a clear
+// retry hint rather than silently fail.
+export const maxDuration = 300;
 
 const IG_GRAPH = "https://graph.instagram.com";
 
