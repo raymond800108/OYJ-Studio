@@ -414,21 +414,50 @@ export default function ComposeWorkbench() {
     });
   }
 
+  /**
+   * Transcode a Dropbox file (any format) into a public JPEG/MP4 URL
+   * that Meta's IG media-create endpoint will accept. Returns null on
+   * failure (caller surfaces the error to the user).
+   */
+  async function transcodeFile(file: DropboxFileEntry): Promise<string | null> {
+    const r = await fetch("/api/dropbox/transcode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sharedUrl: file.sharedUrl,
+        path: file.pathDisplay,
+        kind: file.kind,
+        filename: file.name,
+      }),
+    });
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      console.error("[transcode]", data);
+      return null;
+    }
+    const data = (await r.json()) as { url?: string };
+    return data.url ?? null;
+  }
+
   async function addToSchedule() {
     if (!selectedRow) return;
     if (selectedFileIds.size === 0) {
       setPublishStatus({ phase: "error", message: t("compose.selectImage" as TKey) });
       return;
     }
+    setPublishStatus({ phase: "publishing" }); // re-uses spinner state
     const tz = userTimezone();
     const chosen = (files ?? []).filter((f) => selectedFileIds.has(f.id));
+    let ok = 0;
     for (const file of chosen) {
+      const url = await transcodeFile(file);
+      if (!url) continue;
       appendToCalendar({
         id: crypto.randomUUID(),
         date: scheduleDate,
         time: scheduleTime,
         timezone: tz,
-        mediaUrl: file.directUrl,
+        mediaUrl: url,
         mediaType: file.kind === "video" ? "video" : "image",
         caption,
         platform: "instagram",
@@ -437,6 +466,14 @@ export default function ComposeWorkbench() {
         presetLabel: null,
         status: "draft",
       });
+      ok++;
+    }
+    if (ok === 0) {
+      setPublishStatus({
+        phase: "error",
+        message: t("compose.transcodeError" as TKey),
+      });
+      return;
     }
     setPublishStatus({ phase: "scheduled" });
   }
@@ -451,12 +488,20 @@ export default function ComposeWorkbench() {
     if (chosen.length === 0) return;
     setPublishStatus({ phase: "publishing" });
     const file = chosen[0];
+    const publicUrl = await transcodeFile(file);
+    if (!publicUrl) {
+      setPublishStatus({
+        phase: "error",
+        message: t("compose.transcodeError" as TKey),
+      });
+      return;
+    }
     try {
       const r = await fetch("/api/instagram/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mediaUrl: file.directUrl,
+          mediaUrl: publicUrl,
           mediaType: file.kind === "video" ? "video" : "image",
           caption,
         }),

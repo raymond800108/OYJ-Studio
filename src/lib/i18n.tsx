@@ -451,6 +451,10 @@ const dict = {
     zh: "已發布到 Instagram。",
   },
   "compose.publishError": { en: "Publish failed.", zh: "發布失敗。" },
+  "compose.transcodeError": {
+    en: "Media conversion failed. Try a different image.",
+    zh: "媒體轉檔失敗，請改選其他圖片。",
+  },
   "social.post.schedule": { en: "Schedule", zh: "排程" },
   "social.post.delete": { en: "Delete", zh: "刪除" },
   "social.post.draft": { en: "Draft", zh: "草稿" },
