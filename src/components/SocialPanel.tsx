@@ -25,6 +25,7 @@ import {
   Radio,
 } from "lucide-react";
 import { useI18n, type TKey } from "@/lib/i18n";
+import SheetsImportPanel from "@/components/SheetsImportPanel";
 
 /* ─── Types ──────────────────────────────────────────────────────── */
 
@@ -702,6 +703,29 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
               </button>
             </div>
           )}
+
+          {/* Google Sheets import panel — read the user's
+              "珠寶訂製作品素材表" and surface approved-but-unposted rows
+              that can be turned into IG drafts in Phase 4. */}
+          <SheetsImportPanel
+            strings={{
+              title: t("sheets.title" as TKey),
+              sub: t("sheets.sub" as TKey),
+              connectCta: t("sheets.connectCta" as TKey),
+              disconnect: t("sheets.disconnect" as TKey),
+              urlPlaceholder: t("sheets.urlPlaceholder" as TKey),
+              preview: t("sheets.preview" as TKey),
+              loading: t("sheets.loading" as TKey),
+              noRows: t("sheets.noRows" as TKey),
+              invalidUrl: t("sheets.invalidUrl" as TKey),
+              permissionDenied: t("sheets.permissionDenied" as TKey),
+              notFound: t("sheets.notFound" as TKey),
+              reconnect: t("sheets.reconnect" as TKey),
+              genericError: t("sheets.genericError" as TKey),
+              rowsHeader: (n: number) =>
+                t("sheets.rowsHeader" as TKey).replace("{n}", String(n)),
+            }}
+          />
 
           {/* Full-width calendar — content tray is now the shared
               MarketingHistoryStrip at the bottom of the page (rendered

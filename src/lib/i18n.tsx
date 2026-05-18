@@ -326,6 +326,43 @@ const dict = {
   "social.connectFirst.cta": { en: "Connect Instagram →", zh: "連結 Instagram →" },
   "social.connected": { en: "Instagram connected", zh: "Instagram 已連結" },
   "social.manageConnection": { en: "Manage", zh: "管理" },
+
+  // ── Google Sheets import (Schedule tab) ─────────────────────────────
+  "sheets.title": { en: "Import from Google Sheets", zh: "從 Google Sheet 導入" },
+  "sheets.sub": {
+    en: "Reads rows where 客人同意露出 = v and IG column is empty.",
+    zh: "讀取「客人同意露出 = v」且 IG 欄位為空的列。",
+  },
+  "sheets.connectCta": { en: "Connect Google Sheets", zh: "連結 Google Sheets" },
+  "sheets.disconnect": { en: "Disconnect", zh: "解除連結" },
+  "sheets.urlPlaceholder": {
+    en: "Paste Google Sheet URL",
+    zh: "貼上 Google Sheet 連結",
+  },
+  "sheets.preview": { en: "Preview rows", zh: "預覽列" },
+  "sheets.loading": { en: "Loading…", zh: "讀取中…" },
+  "sheets.noRows": {
+    en: "No rows match the filter (approved + not yet posted to IG).",
+    zh: "沒有符合條件的列（已授權且尚未發 IG）。",
+  },
+  "sheets.invalidUrl": {
+    en: "Sheet URL is not in the expected format.",
+    zh: "Sheet 連結格式不正確。",
+  },
+  "sheets.permissionDenied": {
+    en: "No view access to this Sheet — check that your Google account can view it.",
+    zh: "無權讀取此 Sheet — 請確認該 Sheet 你有檢視權限。",
+  },
+  "sheets.notFound": { en: "Sheet not found.", zh: "找不到 Sheet。" },
+  "sheets.reconnect": {
+    en: "Authorization expired — please reconnect Google Sheets.",
+    zh: "授權已過期，請重新連結 Google Sheets。",
+  },
+  "sheets.genericError": { en: "Read failed — please retry.", zh: "讀取失敗，請重試。" },
+  "sheets.rowsHeader": {
+    en: "{n} rows ready to import",
+    zh: "{n} 列可導入",
+  },
   "social.post.schedule": { en: "Schedule", zh: "排程" },
   "social.post.delete": { en: "Delete", zh: "刪除" },
   "social.post.draft": { en: "Draft", zh: "草稿" },
