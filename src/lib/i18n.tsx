@@ -375,6 +375,18 @@ const dict = {
   "compose.connectDropbox": { en: "Connect Dropbox", zh: "連結 Dropbox" },
   "compose.dropboxConnected": { en: "Dropbox connected", zh: "Dropbox 已連結" },
   "compose.loadRows": { en: "Load rows", zh: "讀取列" },
+  "compose.filterApproved": {
+    en: "Only 客人同意露出",
+    zh: "只顯示「客人同意露出」",
+  },
+  "compose.filterUnposted": {
+    en: "Only unposted to IG",
+    zh: "只顯示尚未發過 IG",
+  },
+  "compose.filterHint": {
+    en: "Uncheck to see all rows",
+    zh: "取消勾選看全部",
+  },
   "compose.pickMedia": { en: "Pick media (max 10)", zh: "選擇媒體（最多 10）" },
   "compose.filesInFolder": { en: "files in folder", zh: "個檔案" },
   "compose.loadingDropbox": { en: "Reading Dropbox folder…", zh: "讀取 Dropbox 資料夾…" },

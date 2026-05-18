@@ -107,6 +107,8 @@ export default function ComposeWorkbench() {
   const [sheetLoading, setSheetLoading] = useState(false);
   const [rows, setRows] = useState<SheetRowPreview[] | null>(null);
   const [sheetError, setSheetError] = useState<string | null>(null);
+  const [onlyApproved, setOnlyApproved] = useState(true);
+  const [onlyUnposted, setOnlyUnposted] = useState(true);
 
   // Selected row + composer state
   const [selectedRow, setSelectedRow] = useState<SheetRowPreview | null>(null);
@@ -192,7 +194,12 @@ export default function ComposeWorkbench() {
       const r = await fetch("/api/google-sheets/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sheetUrl: sheetUrl.trim(), limit: 100 }),
+        body: JSON.stringify({
+          sheetUrl: sheetUrl.trim(),
+          limit: 200,
+          onlyApproved,
+          onlyUnposted,
+        }),
       });
       const data = await r.json();
       if (!r.ok) {
@@ -423,38 +430,65 @@ export default function ComposeWorkbench() {
         </div>
 
         {both && (
-          <div className="flex gap-2">
-            <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl bg-background border border-border">
-              <Link2 className="w-3.5 h-3.5 text-muted shrink-0" />
-              <input
-                type="url"
-                value={sheetUrl}
-                onChange={(e) => setSheetUrl(e.target.value)}
-                placeholder={t("sheets.urlPlaceholder" as TKey)}
-                className="flex-1 bg-transparent outline-none text-xs"
-              />
-              {sheetUrl && (
-                <button
-                  onClick={() => setSheetUrl("")}
-                  className="text-muted hover:text-foreground"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+          <>
+            <div className="flex gap-2">
+              <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl bg-background border border-border">
+                <Link2 className="w-3.5 h-3.5 text-muted shrink-0" />
+                <input
+                  type="url"
+                  value={sheetUrl}
+                  onChange={(e) => setSheetUrl(e.target.value)}
+                  placeholder={t("sheets.urlPlaceholder" as TKey)}
+                  className="flex-1 bg-transparent outline-none text-xs"
+                />
+                {sheetUrl && (
+                  <button
+                    onClick={() => setSheetUrl("")}
+                    className="text-muted hover:text-foreground"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={loadSheet}
+                disabled={sheetLoading || !sheetUrl.trim()}
+                className="px-4 py-2 rounded-xl bg-foreground text-background text-xs font-semibold disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {sheetLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-3.5 h-3.5" />
+                )}
+                {sheetLoading ? t("sheets.loading" as TKey) : t("compose.loadRows" as TKey)}
+              </button>
             </div>
-            <button
-              onClick={loadSheet}
-              disabled={sheetLoading || !sheetUrl.trim()}
-              className="px-4 py-2 rounded-xl bg-foreground text-background text-xs font-semibold disabled:opacity-50 flex items-center gap-1.5"
-            >
-              {sheetLoading ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="w-3.5 h-3.5" />
-              )}
-              {sheetLoading ? t("sheets.loading" as TKey) : t("compose.loadRows" as TKey)}
-            </button>
-          </div>
+
+            {/* Filter toggles */}
+            <div className="flex flex-wrap items-center gap-4 text-xs text-foreground/80">
+              <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={onlyApproved}
+                  onChange={(e) => setOnlyApproved(e.target.checked)}
+                  className="accent-foreground"
+                />
+                <span>{t("compose.filterApproved" as TKey)}</span>
+              </label>
+              <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={onlyUnposted}
+                  onChange={(e) => setOnlyUnposted(e.target.checked)}
+                  className="accent-foreground"
+                />
+                <span>{t("compose.filterUnposted" as TKey)}</span>
+              </label>
+              <span className="text-[11px] text-muted ml-auto">
+                {t("compose.filterHint" as TKey)}
+              </span>
+            </div>
+          </>
         )}
 
         {sheetError && (
@@ -580,7 +614,7 @@ function RowCard({
           : "bg-card border-border hover:border-foreground/40"
       }`}
     >
-      <div className="flex items-center gap-1.5 mb-2">
+      <div className="flex items-center gap-1.5 mb-2 flex-wrap">
         <span
           className={`text-[10px] px-1.5 py-0.5 rounded ${
             active ? "bg-background/10" : "bg-muted/10"
@@ -591,6 +625,30 @@ function RowCard({
         <span className={`text-[10px] font-mono ${active ? "opacity-60" : "text-muted"}`}>
           #{row.rowIndex}
         </span>
+        {!row.approved && (
+          <span
+            className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
+              active
+                ? "bg-amber-300/30 text-amber-100"
+                : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+            }`}
+            title="Customer not yet approved for display"
+          >
+            未授權
+          </span>
+        )}
+        {row.postedInstagram && (
+          <span
+            className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
+              active
+                ? "bg-green-300/30 text-green-100"
+                : "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400"
+            }`}
+            title={`Already posted to IG (${row.postedInstagram})`}
+          >
+            ✓ IG
+          </span>
+        )}
       </div>
       <p className="text-sm font-semibold leading-tight truncate">{row.name || "—"}</p>
       {row.mainStone && (

@@ -64,9 +64,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const body = (await req.json()) as { sheetUrl?: string; limit?: number };
+  const body = (await req.json()) as {
+    sheetUrl?: string;
+    limit?: number;
+    /** When false, return rows regardless of K (客人同意露出). Defaults true. */
+    onlyApproved?: boolean;
+    /** When false, also return rows already posted to IG. Defaults true. */
+    onlyUnposted?: boolean;
+  };
   const sheetUrl = (body.sheetUrl || "").trim();
   const limit = Math.max(1, Math.min(body.limit ?? 50, 500));
+  const onlyApproved = body.onlyApproved !== false; // default true
+  const onlyUnposted = body.onlyUnposted !== false; // default true
 
   const spreadsheetId = parseSpreadsheetId(sheetUrl);
   if (!spreadsheetId) {
@@ -115,8 +124,10 @@ export async function POST(req: NextRequest) {
     const approvedRaw = (r[COL.approved] || "").trim();
     const postedInstagram = (r[COL.postedInstagram] || "").trim();
     const approved = APPROVE_VALUES.has(approvedRaw);
-    if (!approved) continue;
-    if (postedInstagram) continue; // already posted to IG
+    if (onlyApproved && !approved) continue;
+    if (onlyUnposted && postedInstagram) continue;
+    // Skip totally empty rows even when filters are off
+    if (!r[COL.name] && !r[COL.category] && !r[COL.relatedInfo]) continue;
 
     rows.push({
       rowIndex: i + 2, // header is row 1, so data starts at row 2
@@ -127,7 +138,7 @@ export async function POST(req: NextRequest) {
       relatedInfo: (r[COL.relatedInfo] || "").trim(),
       dropboxUrl: (r[COL.dropboxUrl] || "").trim(),
       notes: (r[COL.notes] || "").trim(),
-      approved: true,
+      approved,
       approvedRaw,
       postedInstagram,
       postedFacebook: (r[COL.postedFacebook] || "").trim(),
