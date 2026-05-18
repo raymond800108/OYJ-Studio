@@ -32,17 +32,34 @@ async function waitForContainer(
   const pollInterval = 5000;
   while (Date.now() - start < maxWaitMs) {
     await new Promise((r) => setTimeout(r, pollInterval));
-    const res = await fetch(`${IG_GRAPH}/${containerId}?fields=status_code`, {
-      headers: { Authorization: `OAuth ${token}` },
-    });
-    const data = (await res.json()) as { status_code?: string; error?: { message: string } };
+    // IG container "status" gives the human-readable reason when status_code
+    // is ERROR ("Media couldn't be loaded", "Aspect ratio not supported", etc.)
+    const res = await fetch(
+      `${IG_GRAPH}/${containerId}?fields=status_code,status`,
+      { headers: { Authorization: `OAuth ${token}` } }
+    );
+    const data = (await res.json()) as {
+      status_code?: string;
+      status?: string;
+      error?: { message: string };
+    };
     if (data.error) return { ready: false, error: data.error.message };
     if (data.status_code === "FINISHED") return { ready: true };
     if (data.status_code === "ERROR" || data.status_code === "EXPIRED") {
-      return { ready: false, error: `Container ${data.status_code.toLowerCase()}` };
+      const human = data.status?.trim();
+      const code = data.status_code.toLowerCase();
+      console.error(
+        `[ig-publish] Container ${containerId} ${code} — ${human || "(no detail)"}`
+      );
+      return {
+        ready: false,
+        error: human
+          ? `IG: ${human}`
+          : `Container ${code} (no detail from Meta)`,
+      };
     }
   }
-  return { ready: false, error: "Video processing timed out after 5 minutes" };
+  return { ready: false, error: "Media processing timed out after 5 minutes" };
 }
 
 /**
