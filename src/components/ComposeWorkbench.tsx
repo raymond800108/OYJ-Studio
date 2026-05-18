@@ -360,7 +360,14 @@ export default function ComposeWorkbench() {
         }
         return;
       }
-      setFiles(data.files as DropboxFileEntry[]);
+      const list = data.files as DropboxFileEntry[];
+      setFiles(list);
+      // Auto-select the first image so the buttons aren't immediately disabled.
+      // User can deselect or pick others freely.
+      const firstImage = list.find((f) => f.kind === "image");
+      if (firstImage) {
+        setSelectedFileIds(new Set([firstImage.id]));
+      }
     } catch {
       setFilesError(t("compose.dropboxError" as TKey));
     } finally {
@@ -986,6 +993,12 @@ function ComposerDrawer(props: ComposerDrawerProps) {
             {phase === "error" && (
               <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 px-3 py-2 rounded-lg">
                 {publishStatus.message}
+              </p>
+            )}
+            {selectedFileIds.size === 0 && phase !== "scheduled" && phase !== "published" && (
+              <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-lg flex items-start gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                {t("compose.selectImage" as TKey)}
               </p>
             )}
             <div className="flex gap-2">
