@@ -341,29 +341,54 @@ export async function POST(req: NextRequest) {
         childIds.push(childData.id);
       }
 
-      // Now all children are FINISHED — safe to create the parent.
+      // Now all children are FINISHED. Build parent. Code 2 (API_SERVICE)
+      // here is transient on Meta's side — retry up to 3 times with 10s
+      // backoff before giving up.
+      console.log(
+        `[ig-publish] all ${childIds.length} carousel children finished — creating CAROUSEL parent (hasVideo=${carouselHasVideo})`
+      );
+
       const parentParams = new URLSearchParams({
         access_token,
         media_type: "CAROUSEL",
         children: childIds.join(","),
       });
-      // Silence "carouselHasVideo unused" — kept for future log/messaging
-      void carouselHasVideo;
       if (caption) parentParams.set("caption", caption);
-      const parentRes = await fetch(`${IG_GRAPH}/${instagram_user_id}/media`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Authorization: `OAuth ${access_token}`,
-        },
-        body: parentParams.toString(),
-      });
-      const parentData = (await parentRes.json()) as {
-        id?: string;
-        error?: { code: number; message: string };
-      };
-      if (parentData.error) return mapContainerError(parentData.error, "carousel-parent");
-      if (!parentData.id) {
+
+      let parentData: { id?: string; error?: { code: number; message: string } } | null = null;
+      let parentLastError: { code: number; message: string } | null = null;
+      const MAX_PARENT_ATTEMPTS = 3;
+      for (let attempt = 1; attempt <= MAX_PARENT_ATTEMPTS; attempt++) {
+        const parentRes = await fetch(`${IG_GRAPH}/${instagram_user_id}/media`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Authorization: `OAuth ${access_token}`,
+          },
+          body: parentParams.toString(),
+        });
+        const data = (await parentRes.json()) as {
+          id?: string;
+          error?: { code: number; message: string; error_subcode?: number; fbtrace_id?: string };
+        };
+        console.log(
+          `[ig-publish] CAROUSEL parent attempt ${attempt}/${MAX_PARENT_ATTEMPTS}:`,
+          JSON.stringify(data)
+        );
+        if (data.id) {
+          parentData = data;
+          break;
+        }
+        parentLastError = data.error ?? { code: 0, message: "Unknown error" };
+        // Only retry on transient API_SERVICE (code 2). Other errors → fail fast.
+        if (parentLastError.code !== 2 || attempt === MAX_PARENT_ATTEMPTS) break;
+        await new Promise((r) => setTimeout(r, 10_000));
+      }
+
+      if (!parentData?.id) {
+        if (parentLastError) {
+          return mapContainerError(parentLastError, "carousel-parent");
+        }
         return NextResponse.json(
           { error: "Failed to create carousel container" },
           { status: 502 }
