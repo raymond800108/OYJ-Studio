@@ -37,9 +37,11 @@ interface DropboxFileEntry {
   id: string;
   name: string;
   pathDisplay: string;
+  sharedUrl: string;
   size: number;
   kind: "image" | "video";
   directUrl: string;
+  displayUrl: string;
   webUrl: string;
 }
 
@@ -746,7 +748,7 @@ function ComposerDrawer(props: ComposerDrawerProps) {
                       {file.kind === "image" ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={file.directUrl}
+                          src={file.displayUrl}
                           alt={file.name}
                           className="w-full h-full object-cover bg-card"
                           loading="lazy"

@@ -62,10 +62,23 @@ export interface DropboxFileEntry {
   name: string;
   /** Relative path inside the shared folder, e.g. "/cover.jpg" */
   pathDisplay: string;
+  /** Original shared-folder URL — needed to re-resolve the file later */
+  sharedUrl: string;
   size: number;
   kind: "image" | "video" | "other";
-  /** Direct-download URL (dropboxusercontent) constructed from the shared link */
+  /**
+   * Direct-download URL via the dl=1 transform. Public, no auth required —
+   * suitable for handing to Meta's media-create endpoint when publishing
+   * to Instagram (Meta follows the redirect to the actual file bytes).
+   */
   directUrl: string;
+  /**
+   * Same-origin proxy URL backed by /api/dropbox/file. Use this for
+   * <img src> / <video src> in our UI — Dropbox's dl=1 returns an HTML
+   * download page when fetched cross-origin so it can't be used as a
+   * media source directly.
+   */
+  displayUrl: string;
   /** Public preview URL (web view) for the file inside the shared link */
   webUrl: string;
 }
@@ -180,13 +193,16 @@ export async function listSharedFolderFiles(
         : VIDEO_EXT.test(e.name)
           ? "video"
           : "other";
+      const params = new URLSearchParams({ url: trimmed, path: relPath });
       return {
         id: e.id,
         name: e.name,
         pathDisplay: relPath,
+        sharedUrl: trimmed,
         size: e.size ?? 0,
         kind,
         directUrl: shareLinkPathDirectUrl(trimmed, relPath),
+        displayUrl: `/api/dropbox/file?${params.toString()}`,
         webUrl: shareLinkPathWebUrl(trimmed, relPath),
       };
     })
