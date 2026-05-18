@@ -374,19 +374,34 @@ const dict = {
   "compose.sheetsConnected": { en: "Sheets connected", zh: "Sheets 已連結" },
   "compose.connectDropbox": { en: "Connect Dropbox", zh: "連結 Dropbox" },
   "compose.dropboxConnected": { en: "Dropbox connected", zh: "Dropbox 已連結" },
-  "compose.loadRows": { en: "Load rows", zh: "讀取列" },
-  "compose.filterApproved": {
-    en: "Only 客人同意露出",
-    zh: "只顯示「客人同意露出」",
+  "compose.loadHeaders": { en: "Load sheet", zh: "讀取試算表" },
+  "compose.loadRows": { en: "Load rows", zh: "依對應載入列" },
+  "compose.tab": { en: "Tab", zh: "分頁" },
+  "compose.emptyRows": { en: "No matching rows.", zh: "沒有符合條件的列。" },
+  "compose.mappingIncomplete": {
+    en: "Pick at least a Title, Caption or Dropbox column before loading rows.",
+    zh: "請至少指定「標題」、「文案內容」或「Dropbox 連結」其中一欄。",
   },
-  "compose.filterUnposted": {
-    en: "Only unposted to IG",
-    zh: "只顯示尚未發過 IG",
+
+  // ── Column mapper ───────────────────────────────────────────────────
+  "mapper.title": { en: "Column mapping", zh: "欄位對應" },
+  "mapper.sub": {
+    en: "Tell us which column means what — we'll remember it for this sheet.",
+    zh: "告訴我們哪欄是哪種資料 — 之後讀同一個 Sheet 會自動記住。",
   },
-  "compose.filterHint": {
-    en: "Uncheck to see all rows",
-    zh: "取消勾選看全部",
+  "mapper.autoDetect": { en: "Auto-detect", zh: "自動偵測" },
+  "mapper.titleCol": { en: "Title column", zh: "標題欄" },
+  "mapper.subtitleCols": {
+    en: "Subtitle columns (optional)",
+    zh: "副標欄（選填，可多個）",
   },
+  "mapper.captionCols": {
+    en: "Caption source columns (ordered)",
+    zh: "文案來源欄（順序合併為文案種子）",
+  },
+  "mapper.dropboxCol": { en: "Dropbox folder URL column", zh: "Dropbox 連結欄" },
+  "mapper.none": { en: "— (none) —", zh: "— 不指定 —" },
+  "mapper.addCol": { en: "Add column", zh: "加欄位" },
   "compose.pickMedia": { en: "Pick media (max 10)", zh: "選擇媒體（最多 10）" },
   "compose.filesInFolder": { en: "files in folder", zh: "個檔案" },
   "compose.loadingDropbox": { en: "Reading Dropbox folder…", zh: "讀取 Dropbox 資料夾…" },
