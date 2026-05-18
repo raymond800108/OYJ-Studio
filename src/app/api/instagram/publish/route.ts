@@ -104,65 +104,154 @@ export async function POST(req: NextRequest) {
   const body = (await req.json()) as {
     mediaUrl: string;
     mediaType: "image" | "video";
+    /**
+     * Optional: additional image URLs to publish as an IG CAROUSEL.
+     * mediaUrl is the first slide; carouselUrls is slide 2..N (max 9
+     * extra → 10 total). Carousels are images only — videos in
+     * carousels need a separate flow we haven't built yet.
+     */
+    carouselUrls?: string[];
     caption?: string;
     presetId?: string | null;
   };
   const { mediaUrl, mediaType, caption = "", presetId } = body;
+  const carouselUrls = (body.carouselUrls ?? []).filter(Boolean).slice(0, 9);
   if (!mediaUrl) return NextResponse.json({ error: "mediaUrl required" }, { status: 400 });
 
   const override = igMediaType(presetId);
   const isVideo = mediaType === "video" || override === "REELS";
   const isStory = override === "STORIES";
+  const isCarousel = carouselUrls.length > 0 && !isVideo && !isStory;
+
+  /**
+   * Map Meta's container-error response to a Convra HTTP response.
+   * Used by both the single-media path and each carousel child create.
+   */
+  function mapContainerError(
+    err: { code: number; message: string }
+  ): NextResponse {
+    if (err.code === 190) {
+      // redis is guaranteed non-null by the early-return above, but the
+      // narrowing doesn't flow into this nested function — re-check.
+      if (redis) void redis.del(`ig:${userId}`);
+      return NextResponse.json({ error: "TOKEN_EXPIRED" }, { status: 401 });
+    }
+    if (err.code === 10) {
+      return NextResponse.json(
+        {
+          error:
+            "Instagram account needs to re-authorize with publishing permission. Please disconnect and reconnect your Instagram.",
+          code: "SCOPE_MISSING",
+        },
+        { status: 403 }
+      );
+    }
+    return NextResponse.json({ error: err.message }, { status: 502 });
+  }
 
   try {
-    /* ─── Step 1: create container ─────────────────────────────── */
-    const params = new URLSearchParams({ access_token });
-    if (caption) params.set("caption", caption);
+    let containerId: string;
 
-    if (isVideo && !isStory) {
-      params.set("media_type", "REELS");
-      params.set("video_url", mediaUrl);
-    } else if (isStory && isVideo) {
-      params.set("media_type", "STORIES");
-      params.set("video_url", mediaUrl);
-    } else if (isStory) {
-      params.set("media_type", "STORIES");
-      params.set("image_url", mediaUrl);
-    } else {
-      params.set("image_url", mediaUrl);
-    }
+    if (isCarousel) {
+      /* ─── Carousel: create child container per image, then a CAROUSEL parent ── */
+      const allUrls = [mediaUrl, ...carouselUrls];
 
-    const containerRes = await fetch(`${IG_GRAPH}/${instagram_user_id}/media`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: `OAuth ${access_token}`,
-      },
-      body: params.toString(),
-    });
-    const containerData = (await containerRes.json()) as {
-      id?: string;
-      error?: { code: number; message: string };
-    };
-    if (containerData.error) {
-      if (containerData.error.code === 190) {
-        await redis.del(`ig:${userId}`);
-        return NextResponse.json({ error: "TOKEN_EXPIRED" }, { status: 401 });
-      }
-      if (containerData.error.code === 10) {
-        return NextResponse.json(
-          {
-            error:
-              "Instagram account needs to re-authorize with publishing permission. Please disconnect and reconnect your Instagram.",
-            code: "SCOPE_MISSING",
+      // Create children sequentially (avoid rate limits) and capture the first error.
+      const childIds: string[] = [];
+      for (const url of allUrls) {
+        const childParams = new URLSearchParams({
+          access_token,
+          image_url: url,
+          is_carousel_item: "true",
+        });
+        const childRes = await fetch(`${IG_GRAPH}/${instagram_user_id}/media`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Authorization: `OAuth ${access_token}`,
           },
-          { status: 403 }
+          body: childParams.toString(),
+        });
+        const childData = (await childRes.json()) as {
+          id?: string;
+          error?: { code: number; message: string };
+        };
+        if (childData.error) return mapContainerError(childData.error);
+        if (!childData.id) {
+          return NextResponse.json(
+            { error: "Failed to create carousel child container" },
+            { status: 502 }
+          );
+        }
+        childIds.push(childData.id);
+      }
+
+      // Create the carousel parent container with caption + children list
+      const parentParams = new URLSearchParams({
+        access_token,
+        media_type: "CAROUSEL",
+        children: childIds.join(","),
+      });
+      if (caption) parentParams.set("caption", caption);
+      const parentRes = await fetch(`${IG_GRAPH}/${instagram_user_id}/media`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: `OAuth ${access_token}`,
+        },
+        body: parentParams.toString(),
+      });
+      const parentData = (await parentRes.json()) as {
+        id?: string;
+        error?: { code: number; message: string };
+      };
+      if (parentData.error) return mapContainerError(parentData.error);
+      if (!parentData.id) {
+        return NextResponse.json(
+          { error: "Failed to create carousel container" },
+          { status: 502 }
         );
       }
-      return NextResponse.json({ error: containerData.error.message }, { status: 502 });
-    }
+      containerId = parentData.id;
+    } else {
+      /* ─── Single-media: image / video / story ──────────────────────── */
+      const params = new URLSearchParams({ access_token });
+      if (caption) params.set("caption", caption);
 
-    const containerId = containerData.id!;
+      if (isVideo && !isStory) {
+        params.set("media_type", "REELS");
+        params.set("video_url", mediaUrl);
+      } else if (isStory && isVideo) {
+        params.set("media_type", "STORIES");
+        params.set("video_url", mediaUrl);
+      } else if (isStory) {
+        params.set("media_type", "STORIES");
+        params.set("image_url", mediaUrl);
+      } else {
+        params.set("image_url", mediaUrl);
+      }
+
+      const containerRes = await fetch(`${IG_GRAPH}/${instagram_user_id}/media`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: `OAuth ${access_token}`,
+        },
+        body: params.toString(),
+      });
+      const containerData = (await containerRes.json()) as {
+        id?: string;
+        error?: { code: number; message: string };
+      };
+      if (containerData.error) return mapContainerError(containerData.error);
+      if (!containerData.id) {
+        return NextResponse.json(
+          { error: "Failed to create media container" },
+          { status: 502 }
+        );
+      }
+      containerId = containerData.id;
+    }
 
     /* ─── Step 2: poll container until FINISHED ────────────────── */
     const maxWait = isVideo ? 300_000 : 30_000;

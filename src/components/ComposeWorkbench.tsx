@@ -59,6 +59,8 @@ interface CalendarPost {
   timezone: string;
   mediaUrl: string;
   mediaType: "image" | "video";
+  /** Additional image URLs for IG carousel (slides 2..N). */
+  carouselUrls?: string[];
   caption: string;
   platform: string | null;
   publishedPostId: string | null;
@@ -441,42 +443,60 @@ export default function ComposeWorkbench() {
     return data.url ?? null;
   }
 
+  /**
+   * Transcode all selected files in parallel, return the list of public
+   * fal URLs in the same order. Logs and skips any that fail. Returns
+   * an empty array if everything failed.
+   */
+  async function transcodeAllSelected(): Promise<{
+    urls: string[];
+    hasVideo: boolean;
+  }> {
+    const chosen = (files ?? []).filter((f) => selectedFileIds.has(f.id));
+    const results = await Promise.all(chosen.map((f) => transcodeFile(f)));
+    const urls: string[] = [];
+    let hasVideo = false;
+    chosen.forEach((file, i) => {
+      const u = results[i];
+      if (!u) return;
+      urls.push(u);
+      if (file.kind === "video") hasVideo = true;
+    });
+    return { urls, hasVideo };
+  }
+
   async function addToSchedule() {
     if (!selectedRow) return;
     if (selectedFileIds.size === 0) {
       setPublishStatus({ phase: "error", message: t("compose.selectImage" as TKey) });
       return;
     }
-    setPublishStatus({ phase: "publishing" }); // re-uses spinner state
-    const tz = userTimezone();
-    const chosen = (files ?? []).filter((f) => selectedFileIds.has(f.id));
-    let ok = 0;
-    for (const file of chosen) {
-      const url = await transcodeFile(file);
-      if (!url) continue;
-      appendToCalendar({
-        id: crypto.randomUUID(),
-        date: scheduleDate,
-        time: scheduleTime,
-        timezone: tz,
-        mediaUrl: url,
-        mediaType: file.kind === "video" ? "video" : "image",
-        caption,
-        platform: "instagram",
-        publishedPostId: null,
-        presetId: null,
-        presetLabel: null,
-        status: "draft",
-      });
-      ok++;
-    }
-    if (ok === 0) {
-      setPublishStatus({
-        phase: "error",
-        message: t("compose.transcodeError" as TKey),
-      });
+    setPublishStatus({ phase: "publishing" });
+    const { urls, hasVideo } = await transcodeAllSelected();
+    if (urls.length === 0) {
+      setPublishStatus({ phase: "error", message: t("compose.transcodeError" as TKey) });
       return;
     }
+    // IG carousels are images-only. If any selected file was a video,
+    // schedule a single video post for the first video instead of mixing.
+    // For images-only selection, build one carousel post.
+    const tz = userTimezone();
+    const draft: CalendarPost = {
+      id: crypto.randomUUID(),
+      date: scheduleDate,
+      time: scheduleTime,
+      timezone: tz,
+      mediaUrl: urls[0],
+      mediaType: hasVideo ? "video" : "image",
+      carouselUrls: !hasVideo && urls.length > 1 ? urls.slice(1) : undefined,
+      caption,
+      platform: "instagram",
+      publishedPostId: null,
+      presetId: null,
+      presetLabel: null,
+      status: "draft",
+    };
+    appendToCalendar(draft);
     setPublishStatus({ phase: "scheduled" });
   }
 
@@ -486,16 +506,10 @@ export default function ComposeWorkbench() {
       setPublishStatus({ phase: "error", message: t("compose.selectImage" as TKey) });
       return;
     }
-    const chosen = (files ?? []).filter((f) => selectedFileIds.has(f.id));
-    if (chosen.length === 0) return;
     setPublishStatus({ phase: "publishing" });
-    const file = chosen[0];
-    const publicUrl = await transcodeFile(file);
-    if (!publicUrl) {
-      setPublishStatus({
-        phase: "error",
-        message: t("compose.transcodeError" as TKey),
-      });
+    const { urls, hasVideo } = await transcodeAllSelected();
+    if (urls.length === 0) {
+      setPublishStatus({ phase: "error", message: t("compose.transcodeError" as TKey) });
       return;
     }
     try {
@@ -503,9 +517,13 @@ export default function ComposeWorkbench() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mediaUrl: publicUrl,
-          mediaType: file.kind === "video" ? "video" : "image",
+          mediaUrl: urls[0],
+          mediaType: hasVideo ? "video" : "image",
           caption,
+          // Carousels are image-only. If user mixed image + video,
+          // we publish just the first item; UI surfaces this below.
+          carouselUrls:
+            !hasVideo && urls.length > 1 ? urls.slice(1) : undefined,
         }),
       });
       const data = await r.json();

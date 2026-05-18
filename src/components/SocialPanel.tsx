@@ -77,6 +77,12 @@ interface CalendarPost {
   timezone: string;       // IANA tz string
   mediaUrl: string;
   mediaType: "image" | "video";
+  /**
+   * Additional image URLs for an IG carousel. When non-empty, the
+   * post is published as a single multi-image carousel (mediaUrl is
+   * slide 1, these are slides 2..N).
+   */
+  carouselUrls?: string[];
   caption: string;
   platform: string | null;
   /** Post id returned by /api/instagram/publish or /api/facebook/publish */
@@ -500,6 +506,11 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
           mediaType: post.mediaType,
           caption: post.caption || "",
           presetId: post.presetId,
+          // Multi-image carousel (IG): slides 2..N. /api/instagram/publish
+          // detects this and runs the 2-step CAROUSEL container flow.
+          carouselUrls: post.carouselUrls && post.carouselUrls.length > 0
+            ? post.carouselUrls
+            : undefined,
         }),
       });
       const data = await res.json();
