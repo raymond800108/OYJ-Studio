@@ -1,13 +1,91 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fal } from "@fal-ai/client";
 import sharp from "sharp";
+import { spawn } from "node:child_process";
+import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import ffmpegPath from "ffmpeg-static";
 import { getSession } from "@/lib/auth";
 import { getValidDropboxToken } from "@/lib/dropbox";
 
-// Re-encoding large images can take time. Vercel default 60s is fine.
-export const maxDuration = 60;
+// Re-encoding video can take a minute or two; image re-encode is fast.
+export const maxDuration = 300;
 
 const CONTENT_API = "https://content.dropboxapi.com/2";
+
+/**
+ * Re-encode an arbitrary video buffer into IG-compatible specs:
+ *   - codec: libx264 (H.264) + AAC audio
+ *   - resolution: scaled to fit 1080x1350 (4:5 portrait), padded with
+ *     white when source aspect doesn't match
+ *   - duration: capped at 60s (carousel-video cap)
+ *   - faststart so Meta can start streaming before full download
+ *
+ * Uses the ffmpeg binary bundled by `ffmpeg-static`. Runs via spawn so we
+ * stream stdout/stderr without buffering the entire ffmpeg log in memory.
+ */
+async function transcodeVideoForIg(input: Buffer): Promise<Buffer> {
+  if (!ffmpegPath) {
+    throw new Error("ffmpeg-static binary not bundled");
+  }
+
+  const workDir = await mkdtemp(path.join(tmpdir(), "ig-transcode-"));
+  const inPath = path.join(workDir, "in.mp4");
+  const outPath = path.join(workDir, "out.mp4");
+
+  try {
+    await writeFile(inPath, input);
+
+    // 4:5 portrait, 1080x1350 — the safest aspect that works for single-
+    // Reels (which allows 4:5) AND carousel videos (which require 1.91:1
+    // to 4:5). scale=…:force_original_aspect_ratio=decrease then pad
+    // letterboxes the source onto a white 1080x1350 canvas.
+    const filter =
+      "scale=1080:1350:force_original_aspect_ratio=decrease," +
+      "pad=1080:1350:(ow-iw)/2:(oh-ih)/2:white";
+
+    const args = [
+      "-y",
+      "-i", inPath,
+      "-t", "60",
+      "-vf", filter,
+      "-r", "30",
+      "-c:v", "libx264",
+      "-preset", "veryfast",
+      "-pix_fmt", "yuv420p",
+      "-profile:v", "high",
+      "-c:a", "aac",
+      "-b:a", "128k",
+      "-movflags", "+faststart",
+      outPath,
+    ];
+
+    await new Promise<void>((resolve, reject) => {
+      const proc = spawn(ffmpegPath as string, args);
+      let stderr = "";
+      proc.stderr.on("data", (d) => {
+        // ffmpeg writes progress + errors here. Keep only the tail for log.
+        stderr += d.toString();
+        if (stderr.length > 4000) stderr = stderr.slice(-4000);
+      });
+      proc.on("error", reject);
+      proc.on("close", (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          console.error("[ffmpeg] failed:", stderr);
+          reject(new Error(`ffmpeg exited ${code}: ${stderr.slice(-500)}`));
+        }
+      });
+    });
+
+    return await readFile(outPath);
+  } finally {
+    // Always clean up /tmp so we don't accumulate across invocations
+    await rm(workDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
 
 /**
  * POST /api/dropbox/transcode
@@ -93,10 +171,16 @@ export async function POST(req: NextRequest) {
       outName = filename.replace(/\.[^.]+$/, "") + ".jpg";
       outType = "image/jpeg";
     } else {
-      // Pass video through unchanged. IG accepts mp4/mov for Reels.
-      outBuffer = original;
-      outName = filename;
-      outType = filename.toLowerCase().endsWith(".mov") ? "video/quicktime" : "video/mp4";
+      // Re-encode video to IG-compatible spec.
+      //
+      // IG carousel videos need H.264/AAC, aspect ratio between 1.91:1 and 4:5
+      // (NO 9:16 portrait), max 60s. We pad/scale to 1080x1350 (4:5 portrait)
+      // which is the largest IG feed dimension and works for BOTH single-
+      // Reel and carousel-video paths. Phone-camera HEVC/H.265 MOV files are
+      // re-encoded to H.264 here so Meta accepts them.
+      outBuffer = await transcodeVideoForIg(original);
+      outName = filename.replace(/\.[^.]+$/, "") + ".mp4";
+      outType = "video/mp4";
     }
   } catch (e) {
     console.error("[transcode] re-encode failed:", e);
