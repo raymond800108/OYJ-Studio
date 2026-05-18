@@ -166,23 +166,39 @@ export async function POST(req: NextRequest) {
     mediaUrl: string;
     mediaType: "image" | "video";
     /**
-     * Optional: additional image URLs to publish as an IG CAROUSEL.
-     * mediaUrl is the first slide; carouselUrls is slide 2..N (max 9
-     * extra → 10 total). Carousels are images only — videos in
-     * carousels need a separate flow we haven't built yet.
+     * Optional: slides 2..N for an IG CAROUSEL. IG supports mixed
+     * image+video carousels — each slide gets its own child container
+     * and we pick image_url vs video_url + media_type=VIDEO accordingly.
      */
     carouselUrls?: string[];
+    /** Per-slide kind matching carouselUrls. Defaults to "image". */
+    carouselTypes?: ("image" | "video")[];
     caption?: string;
     presetId?: string | null;
   };
   const { mediaUrl, mediaType, caption = "", presetId } = body;
   const carouselUrls = (body.carouselUrls ?? []).filter(Boolean).slice(0, 9);
+  const carouselTypes = (body.carouselTypes ?? []).slice(0, carouselUrls.length);
   if (!mediaUrl) return NextResponse.json({ error: "mediaUrl required" }, { status: 400 });
 
   const override = igMediaType(presetId);
-  const isVideo = mediaType === "video" || override === "REELS";
   const isStory = override === "STORIES";
-  const isCarousel = carouselUrls.length > 0 && !isVideo && !isStory;
+  const isCarousel = carouselUrls.length > 0 && !isStory;
+  // Single video (no extra slides) → REELS path. Single video that's a
+  // story → STORIES + video_url. Mixed-media carousels are handled in
+  // the carousel branch below.
+  const isVideo = !isCarousel && (mediaType === "video" || override === "REELS");
+
+  // Build the full slide list once so the carousel branch can iterate.
+  const slides: { url: string; kind: "image" | "video" }[] = isCarousel
+    ? [
+        { url: mediaUrl, kind: mediaType },
+        ...carouselUrls.map((url, i) => ({
+          url,
+          kind: (carouselTypes[i] ?? "image") as "image" | "video",
+        })),
+      ]
+    : [];
 
   /**
    * Map Meta's container-error response to a Convra HTTP response.
@@ -214,17 +230,21 @@ export async function POST(req: NextRequest) {
     let containerId: string;
 
     if (isCarousel) {
-      /* ─── Carousel: create child container per image, then a CAROUSEL parent ── */
-      const allUrls = [mediaUrl, ...carouselUrls];
-
+      /* ─── Carousel: per-slide child container, then a CAROUSEL parent ── */
       // Create children sequentially (avoid rate limits) and capture the first error.
       const childIds: string[] = [];
-      for (const url of allUrls) {
+      for (const slide of slides) {
         const childParams = new URLSearchParams({
           access_token,
-          image_url: url,
           is_carousel_item: "true",
         });
+        if (slide.kind === "video") {
+          // IG carousel video children need media_type=VIDEO + video_url.
+          childParams.set("media_type", "VIDEO");
+          childParams.set("video_url", slide.url);
+        } else {
+          childParams.set("image_url", slide.url);
+        }
         const childRes = await fetch(`${IG_GRAPH}/${instagram_user_id}/media`, {
           method: "POST",
           headers: {
@@ -315,7 +335,10 @@ export async function POST(req: NextRequest) {
     }
 
     /* ─── Step 2: poll container until FINISHED ────────────────── */
-    const maxWait = isVideo ? 300_000 : 30_000;
+    // Carousels with any video child need the same patience as a single video.
+    const hasAnyVideo =
+      isVideo || slides.some((s) => s.kind === "video");
+    const maxWait = hasAnyVideo ? 300_000 : 30_000;
     const { ready, error } = await waitForContainer(containerId, isCarousel, access_token, maxWait);
     if (!ready) {
       return NextResponse.json({ error: error ?? "Media processing failed" }, { status: 502 });

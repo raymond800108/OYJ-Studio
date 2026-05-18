@@ -7,12 +7,18 @@ interface MinimalPost {
   mediaUrl: string;
   mediaType: "image" | "video";
   carouselUrls?: string[];
+  carouselTypes?: ("image" | "video")[];
+}
+
+interface OrderedSlide {
+  url: string;
+  kind: "image" | "video";
 }
 
 interface SlideTrayProps {
   post: MinimalPost;
-  /** Receives the reordered, full slide URL list (slide 1..N). */
-  onReorder: (nextSlides: string[]) => void;
+  /** Receives the reordered, full slide list (slide 1..N) with kinds. */
+  onReorder: (nextSlides: OrderedSlide[]) => void;
   onReplaceClick: () => void;
   uploadingMedia: boolean;
   replaceInputRef: RefObject<HTMLInputElement | null>;
@@ -21,11 +27,8 @@ interface SlideTrayProps {
 
 const VIDEO_EXT = /\.(mp4|mov|m4v|webm)(\?|$)/i;
 
-function looksLikeVideo(url: string, isFirstAndVideo: boolean): boolean {
-  // Slide 1 of a "video" post is the video. For carousel siblings we can
-  // only sniff by extension (carousels are images-only in our flow today,
-  // but be defensive — Dropbox folders can contain mixed media).
-  return isFirstAndVideo || VIDEO_EXT.test(url);
+function sniffKind(url: string): "image" | "video" {
+  return VIDEO_EXT.test(url) ? "video" : "image";
 }
 
 /**
@@ -49,7 +52,15 @@ export default function SlideTray({
   replaceInputRef,
   onReplaceFile,
 }: SlideTrayProps) {
-  const slides = [post.mediaUrl, ...(post.carouselUrls ?? [])];
+  // Build the full slide list with per-slide kinds (so reorder + rendering
+  // both know which tiles are videos even after the user swaps things).
+  const slides: OrderedSlide[] = [
+    { url: post.mediaUrl, kind: post.mediaType },
+    ...(post.carouselUrls ?? []).map((url, i) => ({
+      url,
+      kind: (post.carouselTypes?.[i] ?? sniffKind(url)) as "image" | "video",
+    })),
+  ];
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
 
@@ -70,9 +81,10 @@ export default function SlideTray({
   return (
     <div className="flex-1 min-w-0 space-y-2">
       <div className="flex flex-wrap gap-2">
-        {slides.map((url, idx) => {
+        {slides.map((slide, idx) => {
+          const { url, kind } = slide;
           const isPrimary = idx === 0;
-          const isVideo = looksLikeVideo(url, isPrimary && post.mediaType === "video");
+          const isVideo = kind === "video";
           const isDragging = dragFrom === idx;
           const isHoverTarget = dragOver === idx && dragFrom !== null && dragFrom !== idx;
           return (

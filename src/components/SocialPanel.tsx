@@ -79,11 +79,17 @@ interface CalendarPost {
   mediaUrl: string;
   mediaType: "image" | "video";
   /**
-   * Additional image URLs for an IG carousel. When non-empty, the
-   * post is published as a single multi-image carousel (mediaUrl is
-   * slide 1, these are slides 2..N).
+   * Additional media URLs for an IG carousel — slides 2..N. When
+   * non-empty, the post is published as a single multi-media carousel.
+   * IG supports mixed image + video carousels.
    */
   carouselUrls?: string[];
+  /**
+   * Per-slide kind for carouselUrls (same length, same order). Lets us
+   * remember whether each slide is an image or video without re-sniffing
+   * the URL. Falls back to "image" when missing for back-compat.
+   */
+  carouselTypes?: ("image" | "video")[];
   caption: string;
   platform: string | null;
   /** Post id returned by /api/instagram/publish or /api/facebook/publish */
@@ -512,6 +518,9 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
           carouselUrls: post.carouselUrls && post.carouselUrls.length > 0
             ? post.carouselUrls
             : undefined,
+          carouselTypes: post.carouselTypes && post.carouselTypes.length > 0
+            ? post.carouselTypes
+            : undefined,
         }),
       });
       const data = await res.json();
@@ -903,8 +912,16 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
                       onReorder={(next) => {
                         const updated: CalendarPost = {
                           ...editingPost,
-                          mediaUrl: next[0],
-                          carouselUrls: next.length > 1 ? next.slice(1) : undefined,
+                          mediaUrl: next[0].url,
+                          mediaType: next[0].kind,
+                          carouselUrls:
+                            next.length > 1
+                              ? next.slice(1).map((s) => s.url)
+                              : undefined,
+                          carouselTypes:
+                            next.length > 1
+                              ? next.slice(1).map((s) => s.kind)
+                              : undefined,
                         };
                         setEditingPost(updated);
                         setScheduledPosts((prev) =>

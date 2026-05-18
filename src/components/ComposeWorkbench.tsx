@@ -59,8 +59,10 @@ interface CalendarPost {
   timezone: string;
   mediaUrl: string;
   mediaType: "image" | "video";
-  /** Additional image URLs for IG carousel (slides 2..N). */
+  /** Additional media URLs for IG carousel (slides 2..N). */
   carouselUrls?: string[];
+  /** Per-slide kind for carouselUrls — same length / order. */
+  carouselTypes?: ("image" | "video")[];
   caption: string;
   platform: string | null;
   publishedPostId: string | null;
@@ -444,26 +446,26 @@ export default function ComposeWorkbench() {
     return data.url ?? null;
   }
 
+  interface TranscodedSlide {
+    url: string;
+    kind: "image" | "video";
+  }
+
   /**
-   * Transcode all selected files in parallel, return the list of public
-   * fal URLs in the same order. Logs and skips any that fail. Returns
-   * an empty array if everything failed.
+   * Transcode every selected file in parallel and return the resulting
+   * public-URL + kind pairs IN THE ORDER THE USER PICKED THEM. Skips any
+   * that fail rather than aborting the whole flow.
    */
-  async function transcodeAllSelected(): Promise<{
-    urls: string[];
-    hasVideo: boolean;
-  }> {
+  async function transcodeAllSelected(): Promise<TranscodedSlide[]> {
     const chosen = (files ?? []).filter((f) => selectedFileIds.has(f.id));
     const results = await Promise.all(chosen.map((f) => transcodeFile(f)));
-    const urls: string[] = [];
-    let hasVideo = false;
+    const slides: TranscodedSlide[] = [];
     chosen.forEach((file, i) => {
       const u = results[i];
       if (!u) return;
-      urls.push(u);
-      if (file.kind === "video") hasVideo = true;
+      slides.push({ url: u, kind: file.kind === "video" ? "video" : "image" });
     });
-    return { urls, hasVideo };
+    return slides;
   }
 
   async function addToSchedule() {
@@ -473,23 +475,24 @@ export default function ComposeWorkbench() {
       return;
     }
     setPublishStatus({ phase: "scheduling" });
-    const { urls, hasVideo } = await transcodeAllSelected();
-    if (urls.length === 0) {
+    const slides = await transcodeAllSelected();
+    if (slides.length === 0) {
       setPublishStatus({ phase: "error", message: t("compose.transcodeError" as TKey) });
       return;
     }
-    // IG carousels are images-only. If any selected file was a video,
-    // schedule a single video post for the first video instead of mixing.
-    // For images-only selection, build one carousel post.
+    // IG supports mixed image+video carousels — preserve the user's
+    // exact pick order and let each slide keep its real kind.
     const tz = userTimezone();
+    const rest = slides.slice(1);
     const draft: CalendarPost = {
       id: crypto.randomUUID(),
       date: scheduleDate,
       time: scheduleTime,
       timezone: tz,
-      mediaUrl: urls[0],
-      mediaType: hasVideo ? "video" : "image",
-      carouselUrls: !hasVideo && urls.length > 1 ? urls.slice(1) : undefined,
+      mediaUrl: slides[0].url,
+      mediaType: slides[0].kind,
+      carouselUrls: rest.length > 0 ? rest.map((s) => s.url) : undefined,
+      carouselTypes: rest.length > 0 ? rest.map((s) => s.kind) : undefined,
       caption,
       platform: "instagram",
       publishedPostId: null,
@@ -508,23 +511,22 @@ export default function ComposeWorkbench() {
       return;
     }
     setPublishStatus({ phase: "publishing" });
-    const { urls, hasVideo } = await transcodeAllSelected();
-    if (urls.length === 0) {
+    const slides = await transcodeAllSelected();
+    if (slides.length === 0) {
       setPublishStatus({ phase: "error", message: t("compose.transcodeError" as TKey) });
       return;
     }
+    const rest = slides.slice(1);
     try {
       const r = await fetch("/api/instagram/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mediaUrl: urls[0],
-          mediaType: hasVideo ? "video" : "image",
+          mediaUrl: slides[0].url,
+          mediaType: slides[0].kind,
           caption,
-          // Carousels are image-only. If user mixed image + video,
-          // we publish just the first item; UI surfaces this below.
-          carouselUrls:
-            !hasVideo && urls.length > 1 ? urls.slice(1) : undefined,
+          carouselUrls: rest.length > 0 ? rest.map((s) => s.url) : undefined,
+          carouselTypes: rest.length > 0 ? rest.map((s) => s.kind) : undefined,
         }),
       });
       const data = await r.json();
