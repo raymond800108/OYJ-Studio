@@ -168,7 +168,8 @@ export default function ComposeWorkbench() {
   const [scheduleTime, setScheduleTime] = useState<string>("12:00");
   const [publishStatus, setPublishStatus] = useState<
     | { phase: "idle" }
-    | { phase: "publishing" }
+    | { phase: "scheduling" }   // 加入排程 spinner
+    | { phase: "publishing" }   // 立即發布 spinner
     | { phase: "scheduled" | "published"; id?: string }
     | { phase: "error"; message: string }
   >({ phase: "idle" });
@@ -471,7 +472,7 @@ export default function ComposeWorkbench() {
       setPublishStatus({ phase: "error", message: t("compose.selectImage" as TKey) });
       return;
     }
-    setPublishStatus({ phase: "publishing" });
+    setPublishStatus({ phase: "scheduling" });
     const { urls, hasVideo } = await transcodeAllSelected();
     if (urls.length === 0) {
       setPublishStatus({ phase: "error", message: t("compose.transcodeError" as TKey) });
@@ -857,6 +858,7 @@ interface ComposerDrawerProps {
   onScheduleTimeChange: (s: string) => void;
   publishStatus:
     | { phase: "idle" }
+    | { phase: "scheduling" }
     | { phase: "publishing" }
     | { phase: "scheduled" | "published"; id?: string }
     | { phase: "error"; message: string };
@@ -1079,16 +1081,29 @@ function ComposerDrawer(props: ComposerDrawerProps) {
               <button
                 onClick={onAddToSchedule}
                 disabled={
-                  selectedFileIds.size === 0 || phase === "publishing" || phase === "scheduled"
+                  selectedFileIds.size === 0 ||
+                  phase === "scheduling" ||
+                  phase === "publishing" ||
+                  phase === "scheduled"
                 }
                 className="flex-1 px-4 py-2.5 rounded-xl bg-card border border-border text-xs font-semibold disabled:opacity-50 flex items-center justify-center gap-1.5 hover:bg-muted/10"
               >
-                <CalendarPlus className="w-3.5 h-3.5" />
-                {t("compose.addToSchedule" as TKey)}
+                {phase === "scheduling" ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <CalendarPlus className="w-3.5 h-3.5" />
+                )}
+                {phase === "scheduling"
+                  ? t("compose.scheduling" as TKey)
+                  : t("compose.addToSchedule" as TKey)}
               </button>
               <button
                 onClick={onPublishNow}
-                disabled={selectedFileIds.size === 0 || phase === "publishing"}
+                disabled={
+                  selectedFileIds.size === 0 ||
+                  phase === "scheduling" ||
+                  phase === "publishing"
+                }
                 className="flex-1 px-4 py-2.5 rounded-xl bg-foreground text-background text-xs font-semibold disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
                 {phase === "publishing" ? (

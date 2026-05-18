@@ -442,6 +442,7 @@ const dict = {
   "compose.addToSchedule": { en: "Add to schedule", zh: "加入排程" },
   "compose.publishNow": { en: "Publish to IG now", zh: "立即發布到 IG" },
   "compose.publishing": { en: "Publishing…", zh: "發布中…" },
+  "compose.scheduling": { en: "Scheduling…", zh: "排程中…" },
   "compose.scheduledOk": {
     en: "Added to schedule.",
     zh: "已加入排程。",
