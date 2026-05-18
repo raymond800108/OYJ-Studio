@@ -40,9 +40,22 @@ interface ContainerInfo {
  * field' and we lose the real error. We therefore track is-carousel-ness
  * at the call site rather than asking Meta.
  */
+/**
+ * When IG returns a bare "ERROR" or "EXPIRED" with no descriptive
+ * `status` text (common for video processing failures), surface the
+ * usual root causes so the user has something to fix.
+ */
+const VIDEO_REQUIREMENTS_HINT =
+  "Reels needs H.264 video + AAC audio, aspect ratio 9:16 to 4:5, 3s-15min, ≥540×960. " +
+  "Phone-camera MOV with HEVC/H.265 codec is the most common cause — re-encode to H.264 MP4.";
+
+const IMAGE_REQUIREMENTS_HINT =
+  "Feed images need JPEG, aspect ratio 4:5 to 1.91:1, 320-1440px wide, max 8MB.";
+
 async function describeContainerError(
   containerId: string,
   isCarousel: boolean,
+  hasAnyVideo: boolean,
   token: string
 ): Promise<string> {
   try {
@@ -69,12 +82,18 @@ async function describeContainerError(
       const offending = (childrenData.data ?? []).find(
         (c) => c.status_code === "ERROR" || c.status_code === "EXPIRED"
       );
-      if (offending?.status?.trim()) {
-        return `Slide error: ${offending.status.trim()}`;
+      const offMsg = offending?.status?.trim();
+      if (offMsg && offMsg !== "ERROR") {
+        return `Slide error: ${offMsg}`;
       }
     }
 
-    return parentMsg || "Meta returned ERROR with no detail";
+    // Bare ERROR/EXPIRED with no useful text → append a concrete hint
+    if (!parentMsg || parentMsg.toUpperCase() === "ERROR") {
+      return hasAnyVideo ? VIDEO_REQUIREMENTS_HINT : IMAGE_REQUIREMENTS_HINT;
+    }
+
+    return parentMsg;
   } catch (e) {
     console.error("[ig-publish] describeContainerError failed:", e);
     return "ERROR (introspection failed)";
@@ -84,6 +103,7 @@ async function describeContainerError(
 async function waitForContainer(
   containerId: string,
   isCarousel: boolean,
+  hasAnyVideo: boolean,
   token: string,
   maxWaitMs = 300_000
 ): Promise<{ ready: boolean; error?: string }> {
@@ -99,7 +119,12 @@ async function waitForContainer(
     if (data.error) return { ready: false, error: data.error.message };
     if (data.status_code === "FINISHED") return { ready: true };
     if (data.status_code === "ERROR" || data.status_code === "EXPIRED") {
-      const detail = await describeContainerError(containerId, isCarousel, token);
+      const detail = await describeContainerError(
+        containerId,
+        isCarousel,
+        hasAnyVideo,
+        token
+      );
       return { ready: false, error: `IG ${data.status_code}: ${detail}` };
     }
   }
@@ -339,7 +364,16 @@ export async function POST(req: NextRequest) {
     const hasAnyVideo =
       isVideo || slides.some((s) => s.kind === "video");
     const maxWait = hasAnyVideo ? 300_000 : 30_000;
-    const { ready, error } = await waitForContainer(containerId, isCarousel, access_token, maxWait);
+    console.log(
+      `[ig-publish] polling container ${containerId} (isCarousel=${isCarousel} hasAnyVideo=${hasAnyVideo} mediaUrl=${mediaUrl})`
+    );
+    const { ready, error } = await waitForContainer(
+      containerId,
+      isCarousel,
+      hasAnyVideo,
+      access_token,
+      maxWait
+    );
     if (!ready) {
       return NextResponse.json({ error: error ?? "Media processing failed" }, { status: 502 });
     }
