@@ -897,31 +897,70 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
 
                   {/* ① Media preview with replace overlay */}
                   <div className="flex gap-4 items-start">
-                    <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-border shrink-0 group">
-                      {editingPost.mediaType === "video" ? (
-                        <video src={editingPost.mediaUrl} className="w-full h-full object-cover" muted />
-                      ) : (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={editingPost.mediaUrl} alt="" className="w-full h-full object-cover" />
+                    <div className="flex flex-col gap-2 shrink-0">
+                      {/* Primary tile (first slide for carousels, the video, or the lone image) */}
+                      <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-border group">
+                        {editingPost.mediaType === "video" ? (
+                          <video
+                            src={editingPost.mediaUrl}
+                            className="w-full h-full object-cover bg-black"
+                            muted
+                            playsInline
+                            preload="metadata"
+                            controls
+                          />
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={editingPost.mediaUrl}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => replaceFileInputRef.current?.click()}
+                          disabled={uploadingMedia}
+                          title="Replace media"
+                          className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-100"
+                        >
+                          {uploadingMedia
+                            ? <Loader2 className="w-5 h-5 text-white animate-spin" />
+                            : <Upload className="w-5 h-5 text-white" />}
+                        </button>
+                        <input
+                          ref={replaceFileInputRef}
+                          type="file"
+                          accept="image/*,video/*"
+                          className="hidden"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleReplaceMedia(f); }}
+                        />
+                      </div>
+
+                      {/* Carousel slide strip — slides 2..N. Read-only previews. */}
+                      {editingPost.carouselUrls && editingPost.carouselUrls.length > 0 && (
+                        <div className="flex gap-1 flex-wrap max-w-[6rem]">
+                          {editingPost.carouselUrls.map((url, i) => (
+                            <div
+                              key={`${i}-${url}`}
+                              className="relative w-[1.7rem] h-[1.7rem] rounded-md overflow-hidden border border-border"
+                              title={`Slide ${i + 2}`}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={url} alt="" className="w-full h-full object-cover" />
+                              <span className="absolute bottom-0 right-0 text-[8px] font-mono bg-black/60 text-white px-0.5 leading-tight">
+                                {i + 2}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => replaceFileInputRef.current?.click()}
-                        disabled={uploadingMedia}
-                        title="Replace media"
-                        className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-100"
-                      >
-                        {uploadingMedia
-                          ? <Loader2 className="w-5 h-5 text-white animate-spin" />
-                          : <Upload className="w-5 h-5 text-white" />}
-                      </button>
-                      <input
-                        ref={replaceFileInputRef}
-                        type="file"
-                        accept="image/*,video/*"
-                        className="hidden"
-                        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleReplaceMedia(f); }}
-                      />
+
+                      {editingPost.carouselUrls && editingPost.carouselUrls.length > 0 && (
+                        <span className="text-[10px] text-muted text-center">
+                          {editingPost.carouselUrls.length + 1} slides
+                        </span>
+                      )}
                     </div>
                     <div className="flex-1 space-y-1.5">
                       <button

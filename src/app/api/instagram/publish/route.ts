@@ -44,7 +44,7 @@ async function describeContainerError(
 ): Promise<string> {
   try {
     const parentRes = await fetch(
-      `${IG_GRAPH}/${containerId}?fields=id,status_code,status,error,media_type`,
+      `${IG_GRAPH}/${containerId}?fields=id,status_code,status,media_type`,
       { headers: { Authorization: `OAuth ${token}` } }
     );
     const parent = (await parentRes.json()) as ContainerInfo & {
@@ -60,7 +60,7 @@ async function describeContainerError(
     // If it's a carousel, walk children too
     if (parent.media_type === "CAROUSEL") {
       const childrenRes = await fetch(
-        `${IG_GRAPH}/${containerId}/children?fields=id,status_code,status,error`,
+        `${IG_GRAPH}/${containerId}/children?fields=id,status_code,status`,
         { headers: { Authorization: `OAuth ${token}` } }
       );
       const childrenData = (await childrenRes.json()) as {
