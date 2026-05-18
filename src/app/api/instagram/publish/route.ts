@@ -3,7 +3,9 @@ import { getSession } from "@/lib/auth";
 import { getRedis } from "@/lib/redis";
 
 // Video container polling can take up to 5 min — Vercel's 60s default kills it.
-export const maxDuration = 300;
+// 800s — long enough to poll multiple video carousel children (each up
+// to 5 min on Meta's side) plus the parent CAROUSEL container.
+export const maxDuration = 800;
 
 const IG_GRAPH = "https://graph.instagram.com";
 
@@ -275,16 +277,21 @@ export async function POST(req: NextRequest) {
     let containerId: string;
 
     if (isCarousel) {
-      /* ─── Carousel: per-slide child container, then a CAROUSEL parent ── */
-      // Create children sequentially (avoid rate limits) and capture the first error.
+      /* ─── Carousel: per-slide child container, then a CAROUSEL parent ──
+       * IMPORTANT: each child container must finish processing on Meta's
+       * side BEFORE we create the parent. Otherwise Meta returns
+       * code 2 (API_SERVICE) "An unexpected error has occurred" because
+       * the parent references children that aren't ready yet.
+       */
       const childIds: string[] = [];
+      const carouselHasVideo = slides.some((s) => s.kind === "video");
+
       for (const slide of slides) {
         const childParams = new URLSearchParams({
           access_token,
           is_carousel_item: "true",
         });
         if (slide.kind === "video") {
-          // IG carousel video children need media_type=VIDEO + video_url.
           childParams.set("media_type", "VIDEO");
           childParams.set("video_url", slide.url);
         } else {
@@ -309,15 +316,38 @@ export async function POST(req: NextRequest) {
             { status: 502 }
           );
         }
+
+        // Wait for THIS child to reach FINISHED before creating the next /
+        // the parent. Use the long timeout for video children since IG
+        // transcoding can take a minute or two.
+        const childMax = slide.kind === "video" ? 300_000 : 60_000;
+        console.log(
+          `[ig-publish] waiting on carousel child ${childData.id} (${slide.kind})`
+        );
+        const childWait = await waitForContainer(
+          childData.id,
+          false,
+          slide.kind === "video",
+          access_token,
+          childMax
+        );
+        if (!childWait.ready) {
+          return NextResponse.json(
+            { error: `Carousel ${slide.kind} child not ready: ${childWait.error}` },
+            { status: 502 }
+          );
+        }
         childIds.push(childData.id);
       }
 
-      // Create the carousel parent container with caption + children list
+      // Now all children are FINISHED — safe to create the parent.
       const parentParams = new URLSearchParams({
         access_token,
         media_type: "CAROUSEL",
         children: childIds.join(","),
       });
+      // Silence "carouselHasVideo unused" — kept for future log/messaging
+      void carouselHasVideo;
       if (caption) parentParams.set("caption", caption);
       const parentRes = await fetch(`${IG_GRAPH}/${instagram_user_id}/media`, {
         method: "POST",
