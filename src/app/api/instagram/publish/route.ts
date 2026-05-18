@@ -46,8 +46,9 @@ interface ContainerInfo {
  * usual root causes so the user has something to fix.
  */
 const VIDEO_REQUIREMENTS_HINT =
-  "Reels needs H.264 video + AAC audio, aspect ratio 9:16 to 4:5, 3s-15min, ≥540×960. " +
-  "Phone-camera MOV with HEVC/H.265 codec is the most common cause — re-encode to H.264 MP4.";
+  "Single Reels: H.264 + AAC, aspect 9:16-4:5, 3s-15min. " +
+  "Carousel video child: H.264 + AAC, aspect 1.91:1-4:5, max 60s (no 9:16 portrait!). " +
+  "Phone-camera HEVC/H.265 MOV is the most common cause.";
 
 const IMAGE_REQUIREMENTS_HINT =
   "Feed images need JPEG, aspect ratio 4:5 to 1.91:1, 320-1440px wide, max 8MB.";
@@ -230,11 +231,23 @@ export async function POST(req: NextRequest) {
    * Used by both the single-media path and each carousel child create.
    */
   function mapContainerError(
-    err: { code: number; message: string }
+    err: {
+      code?: number;
+      message?: string;
+      error_subcode?: number;
+      error_user_msg?: string;
+      error_user_title?: string;
+      type?: string;
+      fbtrace_id?: string;
+    },
+    where: string
   ): NextResponse {
+    // Dump everything Meta said for ops debugging — Meta sometimes only
+    // puts useful info in error_user_msg / error_subcode while the visible
+    // `message` is just "An unexpected error has occurred".
+    console.error(`[ig-publish] Meta error at ${where}:`, JSON.stringify(err));
+
     if (err.code === 190) {
-      // redis is guaranteed non-null by the early-return above, but the
-      // narrowing doesn't flow into this nested function — re-check.
       if (redis) void redis.del(`ig:${userId}`);
       return NextResponse.json({ error: "TOKEN_EXPIRED" }, { status: 401 });
     }
@@ -248,7 +261,14 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
-    return NextResponse.json({ error: err.message }, { status: 502 });
+
+    const userMsg = err.error_user_msg || err.message || "Unknown error";
+    const code = err.code ?? "?";
+    const subcode = err.error_subcode ? ` / sub ${err.error_subcode}` : "";
+    return NextResponse.json(
+      { error: `IG ${where} (code ${code}${subcode}): ${userMsg}` },
+      { status: 502 }
+    );
   }
 
   try {
@@ -282,7 +302,7 @@ export async function POST(req: NextRequest) {
           id?: string;
           error?: { code: number; message: string };
         };
-        if (childData.error) return mapContainerError(childData.error);
+        if (childData.error) return mapContainerError(childData.error, `carousel-child[${slide.kind}]`);
         if (!childData.id) {
           return NextResponse.json(
             { error: "Failed to create carousel child container" },
@@ -311,7 +331,7 @@ export async function POST(req: NextRequest) {
         id?: string;
         error?: { code: number; message: string };
       };
-      if (parentData.error) return mapContainerError(parentData.error);
+      if (parentData.error) return mapContainerError(parentData.error, "carousel-parent");
       if (!parentData.id) {
         return NextResponse.json(
           { error: "Failed to create carousel container" },
@@ -349,7 +369,7 @@ export async function POST(req: NextRequest) {
         id?: string;
         error?: { code: number; message: string };
       };
-      if (containerData.error) return mapContainerError(containerData.error);
+      if (containerData.error) return mapContainerError(containerData.error, "single-container");
       if (!containerData.id) {
         return NextResponse.json(
           { error: "Failed to create media container" },
