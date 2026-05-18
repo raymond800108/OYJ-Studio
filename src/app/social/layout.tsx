@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calendar, BarChart3 } from "lucide-react";
+import { Calendar, BarChart3, Sparkles } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import AuthGuard from "@/components/AuthGuard";
 import MarketingHistoryStrip from "@/components/MarketingHistoryStrip";
 import { useI18n, TKey } from "@/lib/i18n";
 
 const SUBNAV: { href: string; icon: typeof Calendar; labelKey: TKey }[] = [
-  { href: "/social",     icon: Calendar,   labelKey: "social.nav.schedule" },
-  { href: "/social/ads", icon: BarChart3,  labelKey: "social.nav.ads" },
+  { href: "/social",         icon: Calendar,   labelKey: "social.nav.schedule" },
+  { href: "/social/compose", icon: Sparkles,   labelKey: "social.nav.compose" },
+  { href: "/social/ads",     icon: BarChart3,  labelKey: "social.nav.ads" },
 ];
 
 export default function SocialLayout({ children }: { children: React.ReactNode }) {

@@ -363,6 +363,67 @@ const dict = {
     en: "{n} rows ready to import",
     zh: "{n} 列可導入",
   },
+
+  // ── /social/compose page ────────────────────────────────────────────
+  "compose.title": { en: "Compose from Sheet × Dropbox", zh: "從素材表組合貼文" },
+  "compose.sub": {
+    en: "Pick a row → pick images → polish caption → schedule or publish.",
+    zh: "選一列作品 → 挑圖 → 潤飾文案 → 加入排程或立即發布。",
+  },
+  "compose.connectSheets": { en: "Connect Sheets", zh: "連結 Sheets" },
+  "compose.sheetsConnected": { en: "Sheets connected", zh: "Sheets 已連結" },
+  "compose.connectDropbox": { en: "Connect Dropbox", zh: "連結 Dropbox" },
+  "compose.dropboxConnected": { en: "Dropbox connected", zh: "Dropbox 已連結" },
+  "compose.loadRows": { en: "Load rows", zh: "讀取列" },
+  "compose.pickMedia": { en: "Pick media (max 10)", zh: "選擇媒體（最多 10）" },
+  "compose.filesInFolder": { en: "files in folder", zh: "個檔案" },
+  "compose.loadingDropbox": { en: "Reading Dropbox folder…", zh: "讀取 Dropbox 資料夾…" },
+  "compose.noDropbox": {
+    en: "This row has no Dropbox link in the 完成素材 column.",
+    zh: "這列在「完成素材」欄沒有 Dropbox 連結。",
+  },
+  "compose.dropboxNeeded": {
+    en: "Connect Dropbox above to read folder contents.",
+    zh: "請先連結 Dropbox 才能讀取資料夾。",
+  },
+  "compose.folderNotFound": {
+    en: "Dropbox folder not found or not shared with your account.",
+    zh: "找不到 Dropbox 資料夾，或你的帳號沒有檢視權限。",
+  },
+  "compose.invalidDropbox": {
+    en: "The link is not a Dropbox shared URL.",
+    zh: "這不是 Dropbox 共享連結。",
+  },
+  "compose.dropboxError": { en: "Dropbox read failed.", zh: "Dropbox 讀取失敗。" },
+  "compose.emptyFolder": {
+    en: "No images or videos found in this folder.",
+    zh: "資料夾內沒有圖片或影片。",
+  },
+  "compose.caption": { en: "Caption", zh: "文案" },
+  "compose.repolish": { en: "Re-polish", zh: "重新潤飾" },
+  "compose.captionError": { en: "Caption polish failed — showing raw text.", zh: "文案潤飾失敗 — 顯示原文供編輯。" },
+  "compose.captionPlaceholder": {
+    en: "AI will polish your column E here…",
+    zh: "AI 會從「相關資訊」生成 IG 文案…",
+  },
+  "compose.viewSeed": { en: "View original 相關資訊", zh: "查看原始相關資訊" },
+  "compose.schedule": { en: "Schedule", zh: "排程時間" },
+  "compose.selectImage": {
+    en: "Pick at least one image first.",
+    zh: "請先選擇至少一張圖片。",
+  },
+  "compose.addToSchedule": { en: "Add to schedule", zh: "加入排程" },
+  "compose.publishNow": { en: "Publish to IG now", zh: "立即發布到 IG" },
+  "compose.publishing": { en: "Publishing…", zh: "發布中…" },
+  "compose.scheduledOk": {
+    en: "Added to schedule — review on the Schedule tab.",
+    zh: "已加入排程 — 到排程分頁檢視。",
+  },
+  "compose.publishedOk": {
+    en: "Posted to Instagram.",
+    zh: "已發布到 Instagram。",
+  },
+  "compose.publishError": { en: "Publish failed.", zh: "發布失敗。" },
   "social.post.schedule": { en: "Schedule", zh: "排程" },
   "social.post.delete": { en: "Delete", zh: "刪除" },
   "social.post.draft": { en: "Draft", zh: "草稿" },
@@ -616,6 +677,7 @@ const dict = {
 
   // ── Social sub-nav ──
   "social.nav.schedule": { en: "Schedule & Diagnosis", zh: "排程與診斷" },
+  "social.nav.compose": { en: "Compose", zh: "組合貼文" },
   "social.nav.ads": { en: "Meta Ads", zh: "Meta 廣告" },
 
   // ── Meta Ads diagnosis page ──
