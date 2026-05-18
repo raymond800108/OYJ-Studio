@@ -34,31 +34,27 @@ interface ContainerInfo {
  * Inspect the failed parent container (and its children if it's a CAROUSEL)
  * to extract the most specific human-readable reason Meta will give us.
  *
- * The CAROUSEL parent's `status_code=ERROR` often has an empty `status`
- * field even though one of its child containers has the real reason. We
- * walk the children to surface that.
+ * IMPORTANT: the IG Container Graph object only exposes a small set of
+ * queryable fields — `id`, `status_code`, `status`. Asking for anything
+ * else (error, media_type, ...) returns 'Tried accessing nonexisting
+ * field' and we lose the real error. We therefore track is-carousel-ness
+ * at the call site rather than asking Meta.
  */
 async function describeContainerError(
   containerId: string,
+  isCarousel: boolean,
   token: string
 ): Promise<string> {
   try {
     const parentRes = await fetch(
-      `${IG_GRAPH}/${containerId}?fields=id,status_code,status,media_type`,
+      `${IG_GRAPH}/${containerId}?fields=id,status_code,status`,
       { headers: { Authorization: `OAuth ${token}` } }
     );
-    const parent = (await parentRes.json()) as ContainerInfo & {
-      media_type?: string;
-    };
+    const parent = (await parentRes.json()) as ContainerInfo;
     console.error("[ig-publish] parent container detail:", parent);
+    const parentMsg = parent.status?.trim();
 
-    const parentMsg =
-      parent.error?.error_user_msg ||
-      parent.error?.message ||
-      parent.status?.trim();
-
-    // If it's a carousel, walk children too
-    if (parent.media_type === "CAROUSEL") {
+    if (isCarousel) {
       const childrenRes = await fetch(
         `${IG_GRAPH}/${containerId}/children?fields=id,status_code,status`,
         { headers: { Authorization: `OAuth ${token}` } }
@@ -70,16 +66,11 @@ async function describeContainerError(
         "[ig-publish] carousel children detail:",
         childrenData.data
       );
-      for (const child of childrenData.data ?? []) {
-        if (child.status_code === "ERROR" || child.error) {
-          const childMsg =
-            child.error?.error_user_msg ||
-            child.error?.message ||
-            child.status?.trim();
-          if (childMsg) {
-            return `Slide error: ${childMsg}`;
-          }
-        }
+      const offending = (childrenData.data ?? []).find(
+        (c) => c.status_code === "ERROR" || c.status_code === "EXPIRED"
+      );
+      if (offending?.status?.trim()) {
+        return `Slide error: ${offending.status.trim()}`;
       }
     }
 
@@ -92,6 +83,7 @@ async function describeContainerError(
 
 async function waitForContainer(
   containerId: string,
+  isCarousel: boolean,
   token: string,
   maxWaitMs = 300_000
 ): Promise<{ ready: boolean; error?: string }> {
@@ -107,7 +99,7 @@ async function waitForContainer(
     if (data.error) return { ready: false, error: data.error.message };
     if (data.status_code === "FINISHED") return { ready: true };
     if (data.status_code === "ERROR" || data.status_code === "EXPIRED") {
-      const detail = await describeContainerError(containerId, token);
+      const detail = await describeContainerError(containerId, isCarousel, token);
       return { ready: false, error: `IG ${data.status_code}: ${detail}` };
     }
   }
@@ -324,7 +316,7 @@ export async function POST(req: NextRequest) {
 
     /* ─── Step 2: poll container until FINISHED ────────────────── */
     const maxWait = isVideo ? 300_000 : 30_000;
-    const { ready, error } = await waitForContainer(containerId, access_token, maxWait);
+    const { ready, error } = await waitForContainer(containerId, isCarousel, access_token, maxWait);
     if (!ready) {
       return NextResponse.json({ error: error ?? "Media processing failed" }, { status: 502 });
     }
