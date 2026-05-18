@@ -443,8 +443,12 @@ const dict = {
   "compose.publishNow": { en: "Publish to IG now", zh: "立即發布到 IG" },
   "compose.publishing": { en: "Publishing…", zh: "發布中…" },
   "compose.scheduledOk": {
-    en: "Added to schedule — review on the Schedule tab.",
-    zh: "已加入排程 — 到排程分頁檢視。",
+    en: "Added to schedule.",
+    zh: "已加入排程。",
+  },
+  "compose.viewSchedule": {
+    en: "Open Schedule",
+    zh: "前往排程頁查看",
   },
   "compose.publishedOk": {
     en: "Posted to Instagram.",
