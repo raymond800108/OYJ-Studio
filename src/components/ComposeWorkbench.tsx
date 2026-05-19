@@ -22,6 +22,7 @@ import SheetColumnMapper, {
   type ColumnMapping,
   type HeaderEntry,
 } from "@/components/SheetColumnMapper";
+import { localToUtcMs } from "@/lib/timezone";
 
 /* ─── Types ──────────────────────────────────────────────────────── */
 
@@ -534,12 +535,29 @@ export default function ComposeWorkbench() {
       setPublishStatus({ phase: "error", message: t("compose.transcodeError" as TKey) });
       return;
     }
-    // IG supports mixed image+video carousels — preserve the user's
-    // exact pick order and let each slide keep its real kind.
     const tz = userTimezone();
     const rest = slides.slice(1);
+
+    // Compute the true UTC instant for the user's wall-clock pick.
+    let utcMs: number;
+    try {
+      utcMs = localToUtcMs(scheduleDate, scheduleTime, tz);
+    } catch {
+      setPublishStatus({ phase: "error", message: "Invalid date/time" });
+      return;
+    }
+    if (utcMs <= Date.now() + 30_000) {
+      // Must be at least 30s in the future so QStash has room to fire.
+      setPublishStatus({
+        phase: "error",
+        message: t("compose.scheduleInPast" as TKey),
+      });
+      return;
+    }
+
+    const postId = crypto.randomUUID();
     const draft: CalendarPost = {
-      id: crypto.randomUUID(),
+      id: postId,
       date: scheduleDate,
       time: scheduleTime,
       timezone: tz,
@@ -552,8 +570,45 @@ export default function ComposeWorkbench() {
       publishedPostId: null,
       presetId: null,
       presetLabel: null,
-      status: "draft",
+      status: "scheduled",
     };
+
+    // Talk to the real scheduler first. localStorage is just for the UI
+    // surface — the source of truth that QStash + cron run against is Redis.
+    try {
+      const res = await fetch("/api/instagram/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          postId,
+          mediaUrl: draft.mediaUrl,
+          mediaType: draft.mediaType,
+          carouselUrls: draft.carouselUrls,
+          carouselTypes: draft.carouselTypes,
+          caption: draft.caption,
+          platform: "instagram",
+          scheduledDate: scheduleDate,
+          scheduledTime: scheduleTime,
+          scheduledTimezone: tz,
+          scheduledUtcMs: utcMs,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setPublishStatus({
+          phase: "error",
+          message: data.error || t("compose.scheduleError" as TKey),
+        });
+        return;
+      }
+    } catch {
+      setPublishStatus({
+        phase: "error",
+        message: t("compose.scheduleError" as TKey),
+      });
+      return;
+    }
+
     appendToCalendar(draft);
     setPublishStatus({ phase: "scheduled" });
   }

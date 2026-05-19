@@ -7,10 +7,19 @@ export interface ScheduledPost {
   postId: string;
   userId: string;
   mediaUrl: string;
+  mediaType: "image" | "video";
+  /** Slides 2..N for IG carousel. */
+  carouselUrls?: string[];
+  /** Per-slide kind, same length as carouselUrls. */
+  carouselTypes?: ("image" | "video")[];
   caption: string;
   presetId: string | null;
   platform: "instagram" | "facebook";
-  scheduledUtcMs: number;
+  /** Original user-picked wall-clock — kept for UI display only. */
+  scheduledDate?: string;     // "YYYY-MM-DD"
+  scheduledTime?: string;     // "HH:MM"
+  scheduledTimezone?: string; // IANA
+  scheduledUtcMs: number;     // computed authoritative trigger time
   status: "pending" | "published" | "failed";
   publishedAt?: number;
   metaPostId?: string;
@@ -36,11 +45,24 @@ export async function POST(req: NextRequest) {
   if (!redis) return NextResponse.json({ error: "Redis not configured" }, { status: 500 });
 
   const body = (await req.json()) as Partial<ScheduledPost>;
-  const { postId, mediaUrl, caption, presetId, platform, scheduledUtcMs } = body;
+  const {
+    postId,
+    mediaUrl,
+    mediaType,
+    carouselUrls,
+    carouselTypes,
+    caption,
+    presetId,
+    platform,
+    scheduledDate,
+    scheduledTime,
+    scheduledTimezone,
+    scheduledUtcMs,
+  } = body;
 
-  if (!postId || !mediaUrl || !scheduledUtcMs) {
+  if (!postId || !mediaUrl || !scheduledUtcMs || !mediaType) {
     return NextResponse.json(
-      { error: "postId, mediaUrl, scheduledUtcMs required" },
+      { error: "postId, mediaUrl, mediaType, scheduledUtcMs required" },
       { status: 400 }
     );
   }
@@ -52,21 +74,24 @@ export async function POST(req: NextRequest) {
     postId,
     userId: session.userId,
     mediaUrl,
+    mediaType,
+    carouselUrls: carouselUrls && carouselUrls.length > 0 ? carouselUrls : undefined,
+    carouselTypes: carouselTypes && carouselTypes.length > 0 ? carouselTypes : undefined,
     caption: caption ?? "",
     presetId: presetId ?? null,
     platform: platform === "facebook" ? "facebook" : "instagram",
+    scheduledDate,
+    scheduledTime,
+    scheduledTimezone,
     scheduledUtcMs,
     status: "pending",
     createdAt: Date.now(),
   };
 
-  // TTL: keep for 7 days after scheduled time to allow status polling
   const ttlSec = Math.ceil((scheduledUtcMs - Date.now()) / 1000) + 7 * 86400;
   await redis.set(queueKey(session.userId, postId), JSON.stringify(entry), { ex: ttlSec });
 
-  // Schedule a QStash callback at the exact publish time. If QSTASH_TOKEN
-  // is unset (dev or pre-launch), the entry sits in Redis and the daily
-  // Vercel cron sweep will pick it up.
+  // Schedule a QStash callback at the exact publish time.
   const qstashToken = process.env.QSTASH_TOKEN;
   if (qstashToken) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.convra.net";
@@ -82,27 +107,61 @@ export async function POST(req: NextRequest) {
       });
     } catch (err) {
       console.error("[schedule] QStash publish failed:", err);
-      // Don't fail the user request — Redis entry will be swept by cron.
+      // Redis entry remains — daily cron sweep is the safety net.
     }
   } else {
-    console.warn("[schedule] QSTASH_TOKEN not set — relying on daily cron fallback only");
+    console.warn("[schedule] QSTASH_TOKEN not set — relying on daily cron fallback");
   }
 
-  return NextResponse.json({ queued: true, postId });
+  return NextResponse.json({ queued: true, postId, scheduledUtcMs });
 }
 
+/**
+ * GET /api/instagram/schedule
+ *   ?postId=...  → single queue entry
+ *   (no params)  → list all of this user's queue entries
+ */
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const redis = getRedis();
   if (!redis) return NextResponse.json({ error: "Redis not configured" }, { status: 500 });
+
   const postId = req.nextUrl.searchParams.get("postId");
-  if (!postId) return NextResponse.json({ error: "postId required" }, { status: 400 });
-  const raw = await redis.get(queueKey(session.userId, postId));
-  if (!raw) return NextResponse.json({ found: false });
-  const entry: ScheduledPost =
-    typeof raw === "string" ? JSON.parse(raw) : (raw as ScheduledPost);
-  return NextResponse.json({ found: true, ...entry });
+  if (postId) {
+    const raw = await redis.get(queueKey(session.userId, postId));
+    if (!raw) return NextResponse.json({ found: false });
+    const entry: ScheduledPost =
+      typeof raw === "string" ? JSON.parse(raw) : (raw as ScheduledPost);
+    return NextResponse.json({ found: true, ...entry });
+  }
+
+  // List all — Upstash Redis SCAN with pattern
+  const pattern = `ig:queue:${session.userId}:*`;
+  const keys: string[] = [];
+  let cursor: string | number = 0;
+  do {
+    const result = (await redis.scan(cursor, { match: pattern, count: 100 })) as
+      | [string, string[]]
+      | { cursor: string; keys: string[] };
+    // Upstash returns object form; fallback for tuple
+    if (Array.isArray(result)) {
+      cursor = result[0];
+      keys.push(...result[1]);
+    } else {
+      cursor = result.cursor;
+      keys.push(...result.keys);
+    }
+  } while (String(cursor) !== "0");
+
+  if (keys.length === 0) return NextResponse.json({ posts: [] });
+
+  const values = await Promise.all(keys.map((k) => redis.get(k)));
+  const posts = values
+    .map((v) => (v ? (typeof v === "string" ? JSON.parse(v) : (v as ScheduledPost)) : null))
+    .filter(Boolean) as ScheduledPost[];
+
+  return NextResponse.json({ posts });
 }
 
 export async function DELETE(req: NextRequest) {

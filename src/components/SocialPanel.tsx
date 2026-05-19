@@ -26,6 +26,69 @@ import {
 } from "lucide-react";
 import { useI18n, type TKey } from "@/lib/i18n";
 import SlideTray from "@/components/SlideTray";
+import { localToUtcMs } from "@/lib/timezone";
+
+/**
+ * Send a CalendarPost to /api/instagram/schedule. Returns the upstream
+ * response — caller decides what to do with errors.
+ */
+async function syncToSchedule(post: {
+  id: string;
+  date: string;
+  time: string;
+  timezone: string;
+  mediaUrl: string;
+  mediaType: "image" | "video";
+  carouselUrls?: string[];
+  carouselTypes?: ("image" | "video")[];
+  caption: string;
+  platform: string | null;
+  presetId: string | null;
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const utcMs = localToUtcMs(post.date, post.time, post.timezone);
+    if (utcMs <= Date.now() + 30_000) {
+      // No-op if the scheduled time is already in the past — UI keeps
+      // the draft visible, user can adjust the time and re-save.
+      return { ok: false, error: "scheduled time is in the past" };
+    }
+    const res = await fetch("/api/instagram/schedule", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        postId: post.id,
+        mediaUrl: post.mediaUrl,
+        mediaType: post.mediaType,
+        carouselUrls: post.carouselUrls,
+        carouselTypes: post.carouselTypes,
+        caption: post.caption,
+        platform: post.platform === "facebook" ? "facebook" : "instagram",
+        presetId: post.presetId,
+        scheduledDate: post.date,
+        scheduledTime: post.time,
+        scheduledTimezone: post.timezone,
+        scheduledUtcMs: utcMs,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { ok: false, error: data.error || `HTTP ${res.status}` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Unknown" };
+  }
+}
+
+async function cancelSchedule(postId: string): Promise<void> {
+  try {
+    await fetch(`/api/instagram/schedule?postId=${encodeURIComponent(postId)}`, {
+      method: "DELETE",
+    });
+  } catch {
+    /* swallow — UI removes from localStorage either way */
+  }
+}
 
 /* ─── Types ──────────────────────────────────────────────────────── */
 
@@ -418,11 +481,47 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
     setEditModalOpen(true);
   }
 
-  function saveEdit() {
+  async function saveEdit() {
     if (!editingPost) return;
-    const updated = { ...editingPost, caption: editCaption, time: editTime, timezone: editTimezone };
+    // Push to /api/instagram/schedule so the QStash callback fires at the
+    // chosen wall-clock time. The schedule endpoint computes
+    // scheduledUtcMs from date+time+tz on the client (we send all three).
+    // If the time is in the past, we still keep the draft locally as
+    // "draft" so the user can adjust — only flip to "scheduled" on success.
+    const updatedDraft: CalendarPost = {
+      ...editingPost,
+      caption: editCaption,
+      time: editTime,
+      timezone: editTimezone,
+    };
+
+    const result = await syncToSchedule({
+      id: updatedDraft.id,
+      date: updatedDraft.date,
+      time: updatedDraft.time,
+      timezone: updatedDraft.timezone,
+      mediaUrl: updatedDraft.mediaUrl,
+      mediaType: updatedDraft.mediaType,
+      carouselUrls: updatedDraft.carouselUrls,
+      carouselTypes: updatedDraft.carouselTypes,
+      caption: updatedDraft.caption,
+      platform: updatedDraft.platform,
+      presetId: updatedDraft.presetId,
+    });
+
+    const updated: CalendarPost = {
+      ...updatedDraft,
+      status: result.ok ? "scheduled" : updatedDraft.status,
+    };
     setEditingPost(updated);
     setScheduledPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    if (result.ok) {
+      setPublishError(null);
+    } else {
+      setPublishError(
+        `Saved locally but scheduling failed: ${result.error}. Adjust the time or click Save again.`
+      );
+    }
     setEditModalOpen(false);
     setEditingPost(null);
   }
@@ -562,6 +661,9 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
   /* ── Delete post ───────────────────────────────────────────────── */
   function deletePost(id: string) {
     setScheduledPosts((prev) => prev.filter((p) => p.id !== id));
+    // Fire-and-forget cancel on the server so QStash doesn't trigger a
+    // ghost publish for a post the user has thrown away.
+    void cancelSchedule(id);
     if (editingPost?.id === id) {
       setEditModalOpen(false);
       setEditingPost(null);

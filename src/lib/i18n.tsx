@@ -460,6 +460,14 @@ const dict = {
     en: "Media conversion failed. Try a different image.",
     zh: "媒體轉檔失敗，請改選其他圖片。",
   },
+  "compose.scheduleInPast": {
+    en: "Scheduled time must be at least 30 seconds in the future.",
+    zh: "排程時間至少要設在 30 秒之後。",
+  },
+  "compose.scheduleError": {
+    en: "Could not queue this post for scheduled publish.",
+    zh: "排程伺服器寫入失敗，請稍後再試。",
+  },
   "social.post.schedule": { en: "Schedule", zh: "排程" },
   "social.post.delete": { en: "Delete", zh: "刪除" },
   "social.post.draft": { en: "Draft", zh: "草稿" },

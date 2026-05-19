@@ -2,123 +2,37 @@ import { NextRequest, NextResponse } from "next/server";
 import { Receiver } from "@upstash/qstash";
 import { getRedis } from "@/lib/redis";
 import type { ScheduledPost } from "@/app/api/instagram/schedule/route";
+import { publishToInstagram as publishIgViaLib } from "@/lib/ig-publish";
 
 // Video container polling can take up to 5 min.
 export const maxDuration = 300;
 
-const IG_GRAPH = "https://graph.instagram.com";
 const FB_GRAPH = "https://graph.facebook.com/v19.0";
 
-interface IgConnection {
-  instagram_user_id: string;
-  access_token: string;
-  token_expires_at: number;
-}
 interface MetaAdsConnection {
   access_token: string;
 }
 
-function igMediaType(presetId: string | null): "REELS" | "STORIES" | null {
-  if (!presetId) return null;
-  const id = presetId.toLowerCase();
-  if (id.includes("reel")) return "REELS";
-  if (id.includes("story")) return "STORIES";
-  return null;
-}
-
-async function waitForContainer(
-  containerId: string,
-  token: string,
-  maxWaitMs = 60_000
-): Promise<{ ready: boolean; error?: string }> {
-  const start = Date.now();
-  while (Date.now() - start < maxWaitMs) {
-    await new Promise((r) => setTimeout(r, 4000));
-    const res = await fetch(
-      `${IG_GRAPH}/${containerId}?fields=status_code&access_token=${token}`
-    );
-    const data = (await res.json()) as { status_code?: string; error?: { message: string } };
-    if (data.error) return { ready: false, error: data.error.message };
-    if (data.status_code === "FINISHED") return { ready: true };
-    if (data.status_code === "ERROR" || data.status_code === "EXPIRED") {
-      return { ready: false, error: `Container ${data.status_code}` };
-    }
-  }
-  return { ready: false, error: "Timed out waiting for media processing" };
-}
-
 type PublishResult = { postId: string } | { error: string; tokenExpired?: boolean };
 
+/**
+ * Thin adapter — the cron stores ScheduledPost in Redis, and the shared
+ * lib in src/lib/ig-publish.ts takes an IgPublishRequest. Translate.
+ */
 async function publishToInstagram(
-  entry: ScheduledPost,
-  redis: NonNullable<ReturnType<typeof getRedis>>
+  entry: ScheduledPost
 ): Promise<PublishResult> {
-  const rawConn = await redis.get(`ig:${entry.userId}`);
-  if (!rawConn) return { error: "Instagram not connected" };
-  const conn: IgConnection =
-    typeof rawConn === "string" ? JSON.parse(rawConn) : (rawConn as IgConnection);
-  if (conn.token_expires_at < Date.now()) {
-    await redis.del(`ig:${entry.userId}`);
-    return { error: "Token expired", tokenExpired: true };
-  }
-
-  const { instagram_user_id, access_token } = conn;
-  const override = igMediaType(entry.presetId);
-  const isVideo =
-    /\.(mp4|mov|avi|webm)$/i.test(entry.mediaUrl) || override === "REELS";
-  const isStory = override === "STORIES";
-
-  const params = new URLSearchParams({ access_token });
-  if (entry.caption) params.set("caption", entry.caption);
-  if (isVideo && !isStory) {
-    params.set("media_type", "REELS");
-    params.set("video_url", entry.mediaUrl);
-  } else if (isStory && isVideo) {
-    params.set("media_type", "STORIES");
-    params.set("video_url", entry.mediaUrl);
-  } else if (isStory) {
-    params.set("media_type", "STORIES");
-    params.set("image_url", entry.mediaUrl);
-  } else {
-    params.set("image_url", entry.mediaUrl);
-  }
-
-  const containerRes = await fetch(`${IG_GRAPH}/${instagram_user_id}/media`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: params.toString(),
+  const result = await publishIgViaLib({
+    userId: entry.userId,
+    mediaUrl: entry.mediaUrl,
+    mediaType: entry.mediaType,
+    carouselUrls: entry.carouselUrls,
+    carouselTypes: entry.carouselTypes,
+    caption: entry.caption,
+    presetId: entry.presetId,
   });
-  const containerData = (await containerRes.json()) as {
-    id?: string;
-    error?: { code: number; message: string };
-  };
-  if (containerData.error) {
-    if (containerData.error.code === 190) {
-      await redis.del(`ig:${entry.userId}`);
-      return { error: "Token expired", tokenExpired: true };
-    }
-    return { error: containerData.error.message };
-  }
-
-  const containerId = containerData.id!;
-  const { ready, error } = await waitForContainer(
-    containerId,
-    access_token,
-    isVideo ? 300_000 : 30_000
-  );
-  if (!ready) return { error: error ?? "Media processing failed" };
-
-  const publishRes = await fetch(`${IG_GRAPH}/${instagram_user_id}/media_publish`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ creation_id: containerId, access_token }).toString(),
-  });
-  const publishData = (await publishRes.json()) as {
-    id?: string;
-    error?: { code: number; message: string };
-  };
-  if (publishData.error) return { error: publishData.error.message };
-  return { postId: publishData.id! };
+  if (result.ok && result.postId) return { postId: result.postId };
+  return { error: result.error ?? "Unknown error", tokenExpired: result.tokenExpired };
 }
 
 async function publishToFacebook(
@@ -253,7 +167,7 @@ export async function POST(req: NextRequest) {
     const result =
       entry.platform === "facebook"
         ? await publishToFacebook(entry, redis)
-        : await publishToInstagram(entry, redis);
+        : await publishToInstagram(entry);
 
     if ("error" in result) {
       await redis.set(
@@ -346,7 +260,7 @@ export async function GET(req: NextRequest) {
           const result =
             entry.platform === "facebook"
               ? await publishToFacebook(entry, redis)
-              : await publishToInstagram(entry, redis);
+              : await publishToInstagram(entry);
           if ("error" in result) {
             await redis.set(
               key,
