@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import ffmpegPath from "ffmpeg-static";
 import { getSession } from "@/lib/auth";
-import { getValidDropboxToken } from "@/lib/dropbox";
+import { getValidDropboxToken, dropboxApiArg } from "@/lib/dropbox";
 
 // Re-encoding video can take a minute or two; image re-encode is fast.
 export const maxDuration = 300;
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
-      "Dropbox-API-Arg": JSON.stringify({ url: sharedUrl, path }),
+      "Dropbox-API-Arg": dropboxApiArg({ url: sharedUrl, path }),
     },
   });
   if (!dbRes.ok) {

@@ -4,6 +4,18 @@ import type { DropboxConnection } from "@/app/api/auth/dropbox/callback/route";
 const TOKEN_URL = "https://api.dropboxapi.com/oauth2/token";
 const RPC_BASE = "https://api.dropboxapi.com/2";
 
+/**
+ * Dropbox-API-Arg header MUST be ASCII-only. Any non-ASCII character
+ * (Chinese filenames, accented Latin, emoji, …) has to be escaped as
+ * \uXXXX or the upstream call fails with 400 — and Vercel's fetch layer
+ * usually rejects it outright before it even hits Dropbox.
+ */
+export function dropboxApiArg(obj: unknown): string {
+  return JSON.stringify(obj).replace(/[-￿]/g, (c) =>
+    "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0")
+  );
+}
+
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic|tiff|bmp)$/i;
 const VIDEO_EXT = /\.(mp4|mov|m4v|webm)$/i;
 

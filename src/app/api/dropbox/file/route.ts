@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getValidDropboxToken } from "@/lib/dropbox";
+import { getValidDropboxToken, dropboxApiArg } from "@/lib/dropbox";
 
 export const maxDuration = 60;
 
@@ -54,7 +54,9 @@ export async function GET(req: NextRequest) {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
-      "Dropbox-API-Arg": JSON.stringify({ url: sharedUrl, path }),
+      // Dropbox-API-Arg requires ASCII; non-ASCII filenames (e.g. Chinese)
+      // need \uXXXX escapes or the request fails before reaching Dropbox.
+      "Dropbox-API-Arg": dropboxApiArg({ url: sharedUrl, path }),
     },
   });
 

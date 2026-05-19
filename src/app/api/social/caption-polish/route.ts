@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getValidDropboxToken } from "@/lib/dropbox";
+import { getValidDropboxToken, dropboxApiArg } from "@/lib/dropbox";
 import OpenAI from "openai";
 
 export const maxDuration = 60;
@@ -89,7 +89,7 @@ ${seed}`;
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
-          "Dropbox-API-Arg": JSON.stringify({
+          "Dropbox-API-Arg": dropboxApiArg({
             url: body.imageDropbox.sharedUrl,
             path: body.imageDropbox.path,
           }),
