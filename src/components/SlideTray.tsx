@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, type RefObject } from "react";
-import { Loader2, Upload, Play, GripVertical } from "lucide-react";
+import { Loader2, Upload, Play, GripVertical, Plus } from "lucide-react";
 import { useI18n, type TKey } from "@/lib/i18n";
+import MediaPicker, { type PickedMedia } from "@/components/MediaPicker";
 
 interface MinimalPost {
   mediaUrl: string;
@@ -65,6 +66,20 @@ export default function SlideTray({
   ];
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  function handlePickerConfirm(picks: PickedMedia[]) {
+    setPickerOpen(false);
+    if (picks.length === 0) return;
+    // Carousel cap = 10 slides total
+    const remaining = Math.max(0, 10 - slides.length);
+    if (remaining === 0) return;
+    const next: OrderedSlide[] = [
+      ...slides,
+      ...picks.slice(0, remaining).map((p) => ({ url: p.url, kind: p.kind })),
+    ];
+    onReorder(next);
+  }
 
   function handleDrop(toIdx: number) {
     if (dragFrom === null || dragFrom === toIdx) {
@@ -185,6 +200,19 @@ export default function SlideTray({
             </div>
           );
         })}
+
+        {/* + Add slide tile (only render when carousel cap isn't hit) */}
+        {slides.length < 10 && (
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="w-24 h-24 rounded-xl border-2 border-dashed border-border hover:border-foreground/40 flex flex-col items-center justify-center text-muted hover:text-foreground transition-colors"
+            title={t("slideTray.addMore" as TKey)}
+          >
+            <Plus className="w-5 h-5" />
+            <span className="text-[10px] mt-1">{t("slideTray.addMore" as TKey)}</span>
+          </button>
+        )}
       </div>
 
       {slides.length > 1 && (
@@ -192,6 +220,13 @@ export default function SlideTray({
           {t("slideTray.hint" as TKey).replace("{n}", String(slides.length))}
         </p>
       )}
+
+      <MediaPicker
+        open={pickerOpen}
+        multi
+        onClose={() => setPickerOpen(false)}
+        onConfirm={handlePickerConfirm}
+      />
     </div>
   );
 }

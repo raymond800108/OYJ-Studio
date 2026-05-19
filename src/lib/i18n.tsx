@@ -426,6 +426,24 @@ const dict = {
     en: "No images or videos found in this folder.",
     zh: "資料夾內沒有圖片或影片。",
   },
+  "compose.extras": {
+    en: "Other media",
+    zh: "其他媒體",
+  },
+  "compose.extrasAdd": {
+    en: "+ Add from history / upload",
+    zh: "+ 加入歷史記錄 / 本機檔",
+  },
+  "compose.extrasEdit": {
+    en: "Edit picks",
+    zh: "編輯選取",
+  },
+  "compose.extrasHint": {
+    en: "Mix in Studio-generated content or local files alongside Dropbox picks.",
+    zh: "可從生成歷史或電腦選圖、影片，與 Dropbox 內容混合進同一篇貼文。",
+  },
+  "compose.extraTagHistory": { en: "history", zh: "歷史" },
+  "compose.extraTagUpload": { en: "upload", zh: "上傳" },
   "compose.caption": { en: "Caption", zh: "文案" },
   "compose.repolish": { en: "Re-polish", zh: "重新潤飾" },
   "compose.captionError": { en: "Caption polish failed — showing raw text.", zh: "文案潤飾失敗 — 顯示原文供編輯。" },
@@ -489,6 +507,26 @@ const dict = {
     en: "{n} slides · drag tiles to reorder · slide 1 is the IG cover",
     zh: "{n} 張 · 拖曳重新排序 · 第 1 張是 IG 封面",
   },
+  "slideTray.addMore": { en: "Add slide", zh: "加入媒體" },
+
+  // ── MediaPicker ──────────────────────────────────────────────
+  "mediaPicker.title": { en: "Add media", zh: "加入媒體" },
+  "mediaPicker.tabHistory": { en: "History", zh: "歷史記錄" },
+  "mediaPicker.tabUpload": { en: "Upload", zh: "本機上傳" },
+  "mediaPicker.historyEmpty": {
+    en: "No items in your generation history yet.",
+    zh: "歷史記錄是空的，先到 Studio 生成幾張作品再回來。",
+  },
+  "mediaPicker.uploadHint": {
+    en: "Click to choose an image or video from your computer",
+    zh: "點此從電腦上傳圖片或影片",
+  },
+  "mediaPicker.uploading": { en: "Uploading…", zh: "上傳中…" },
+  "mediaPicker.uploadFailed": { en: "Upload failed.", zh: "上傳失敗，請再試一次。" },
+  "mediaPicker.justUploaded": { en: "Just uploaded", zh: "剛上傳" },
+  "mediaPicker.selected": { en: "selected", zh: "已選" },
+  "mediaPicker.cancel": { en: "Cancel", zh: "取消" },
+  "mediaPicker.confirm": { en: "Add to post", zh: "加入貼文" },
   "social.post.schedule": { en: "Schedule", zh: "排程" },
   "social.post.delete": { en: "Delete", zh: "刪除" },
   "social.post.draft": { en: "Draft", zh: "草稿" },

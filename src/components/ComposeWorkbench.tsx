@@ -22,6 +22,7 @@ import SheetColumnMapper, {
   type ColumnMapping,
   type HeaderEntry,
 } from "@/components/SheetColumnMapper";
+import MediaPicker, { type PickedMedia } from "@/components/MediaPicker";
 import { localToUtcMs } from "@/lib/timezone";
 
 /* ─── Types ──────────────────────────────────────────────────────── */
@@ -164,6 +165,10 @@ export default function ComposeWorkbench() {
   const [filesLoading, setFilesLoading] = useState(false);
   const [filesError, setFilesError] = useState<string | null>(null);
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
+  // Extra slides from generation history or local upload. They share the
+  // carousel slot count (10 max total with Dropbox picks).
+  const [extraSlides, setExtraSlides] = useState<PickedMedia[]>([]);
+  const [extraPickerOpen, setExtraPickerOpen] = useState(false);
   const [caption, setCaption] = useState("");
   const [polishLoading, setPolishLoading] = useState(false);
   const [polishError, setPolishError] = useState<string | null>(null);
@@ -327,6 +332,8 @@ export default function ComposeWorkbench() {
     setFiles(null);
     setFilesError(null);
     setSelectedFileIds(new Set());
+    setExtraSlides([]);
+    setExtraPickerOpen(false);
     setCaption(row.caption);
     setPolishError(null);
     setPublishStatus({ phase: "idle" });
@@ -509,7 +516,9 @@ export default function ComposeWorkbench() {
   /**
    * Transcode every selected file in parallel and return the resulting
    * public-URL + kind pairs IN THE ORDER THE USER PICKED THEM. Skips any
-   * that fail rather than aborting the whole flow.
+   * that fail rather than aborting the whole flow. Extra slides (from
+   * generation history or local upload) are already public fal URLs
+   * so they're appended without re-transcoding.
    */
   async function transcodeAllSelected(): Promise<TranscodedSlide[]> {
     const chosen = (files ?? []).filter((f) => selectedFileIds.has(f.id));
@@ -520,12 +529,17 @@ export default function ComposeWorkbench() {
       if (!u) return;
       slides.push({ url: u, kind: file.kind === "video" ? "video" : "image" });
     });
-    return slides;
+    // Append history / upload picks at the END, preserving the user's
+    // intent that Dropbox picks come first (slide 1 stays the IG cover).
+    for (const extra of extraSlides) {
+      slides.push({ url: extra.url, kind: extra.kind });
+    }
+    return slides.slice(0, 10); // IG carousel cap
   }
 
   async function addToSchedule() {
     if (!selectedRow) return;
-    if (selectedFileIds.size === 0) {
+    if (totalSelected === 0) {
       setPublishStatus({ phase: "error", message: t("compose.selectImage" as TKey) });
       return;
     }
@@ -615,7 +629,7 @@ export default function ComposeWorkbench() {
 
   async function publishNow() {
     if (!selectedRow) return;
-    if (selectedFileIds.size === 0) {
+    if (totalSelected === 0) {
       setPublishStatus({ phase: "error", message: t("compose.selectImage" as TKey) });
       return;
     }
@@ -652,6 +666,8 @@ export default function ComposeWorkbench() {
   /* ── Render ──────────────────────────────────────────────────── */
 
   const both = sheetsConnected === true && dropboxConnected === true;
+  // Count Dropbox picks AND history/upload extras for the publish guard.
+  const totalSelected = selectedFileIds.size + extraSlides.length;
   const hasHeaders = headers.length > 0;
 
   return (
@@ -828,6 +844,12 @@ export default function ComposeWorkbench() {
           filesError={filesError}
           selectedFileIds={selectedFileIds}
           onToggleFile={toggleFile}
+          extraSlides={extraSlides}
+          onOpenExtraPicker={() => setExtraPickerOpen(true)}
+          onRemoveExtra={(url) =>
+            setExtraSlides((prev) => prev.filter((s) => s.url !== url))
+          }
+          totalSelected={totalSelected}
           caption={caption}
           onCaptionChange={setCaption}
           polishLoading={polishLoading}
@@ -843,6 +865,17 @@ export default function ComposeWorkbench() {
           onClose={() => setSelectedRow(null)}
         />
       )}
+
+      <MediaPicker
+        open={extraPickerOpen}
+        multi
+        selectedUrls={extraSlides.map((s) => s.url)}
+        onClose={() => setExtraPickerOpen(false)}
+        onConfirm={(items) => {
+          setExtraPickerOpen(false);
+          setExtraSlides(items);
+        }}
+      />
     </div>
   );
 }
@@ -958,6 +991,11 @@ interface ComposerDrawerProps {
   filesError: string | null;
   selectedFileIds: Set<string>;
   onToggleFile: (id: string) => void;
+  /** Picks from generation history + local upload (already public URLs) */
+  extraSlides: PickedMedia[];
+  onOpenExtraPicker: () => void;
+  onRemoveExtra: (url: string) => void;
+  totalSelected: number;
   caption: string;
   onCaptionChange: (s: string) => void;
   polishLoading: boolean;
@@ -987,6 +1025,10 @@ function ComposerDrawer(props: ComposerDrawerProps) {
     filesError,
     selectedFileIds,
     onToggleFile,
+    extraSlides,
+    onOpenExtraPicker,
+    onRemoveExtra,
+    totalSelected,
     caption,
     onCaptionChange,
     polishLoading,
@@ -1094,6 +1136,55 @@ function ComposerDrawer(props: ComposerDrawerProps) {
             )}
           </section>
 
+          {/* Extra media — generation history + local upload, mixes into
+              the carousel alongside the Dropbox selection above. */}
+          <section className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                {t("compose.extras" as TKey)}
+              </p>
+              <button
+                onClick={onOpenExtraPicker}
+                className="text-[11px] text-foreground hover:underline flex items-center gap-1"
+              >
+                {extraSlides.length > 0
+                  ? t("compose.extrasEdit" as TKey)
+                  : t("compose.extrasAdd" as TKey)}
+              </button>
+            </div>
+            {extraSlides.length === 0 ? (
+              <p className="text-[11px] text-muted">
+                {t("compose.extrasHint" as TKey)}
+              </p>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {extraSlides.map((s) => (
+                  <div
+                    key={s.url}
+                    className="relative aspect-square rounded-lg overflow-hidden border-2 border-foreground/40 group"
+                  >
+                    {s.kind === "video" ? (
+                      <video src={s.url} className="w-full h-full object-cover bg-black" muted playsInline preload="metadata" />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={s.url} alt="" className="w-full h-full object-cover bg-card" />
+                    )}
+                    <span className="absolute bottom-1 left-1 text-[9px] px-1 py-0.5 rounded bg-black/60 text-white">
+                      {s.source === "upload" ? t("compose.extraTagUpload" as TKey) : t("compose.extraTagHistory" as TKey)}
+                    </span>
+                    <button
+                      onClick={() => onRemoveExtra(s.url)}
+                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label="remove"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
           {/* Caption */}
           <section className="space-y-2">
             <div className="flex items-center justify-between">
@@ -1184,7 +1275,7 @@ function ComposerDrawer(props: ComposerDrawerProps) {
                 {publishStatus.message}
               </p>
             )}
-            {selectedFileIds.size === 0 && phase !== "scheduled" && phase !== "published" && (
+            {totalSelected === 0 && phase !== "scheduled" && phase !== "published" && (
               <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-lg flex items-start gap-1.5">
                 <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 {t("compose.selectImage" as TKey)}
@@ -1194,7 +1285,7 @@ function ComposerDrawer(props: ComposerDrawerProps) {
               <button
                 onClick={onAddToSchedule}
                 disabled={
-                  selectedFileIds.size === 0 ||
+                  totalSelected === 0 ||
                   phase === "scheduling" ||
                   phase === "publishing" ||
                   phase === "scheduled"
@@ -1213,7 +1304,7 @@ function ComposerDrawer(props: ComposerDrawerProps) {
               <button
                 onClick={onPublishNow}
                 disabled={
-                  selectedFileIds.size === 0 ||
+                  totalSelected === 0 ||
                   phase === "scheduling" ||
                   phase === "publishing"
                 }
