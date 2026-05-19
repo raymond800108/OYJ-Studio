@@ -259,6 +259,81 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
     }
   });
 
+  /* ── Server schedule sync ──────────────────────────────────────────
+   *
+   * The cron (QStash callback + daily sweep) updates the Redis entry's
+   * status to "published" or "failed" when it processes a scheduled post,
+   * but the UI reads from localStorage and never noticed. This effect
+   * pulls /api/instagram/schedule on mount, on tab focus, and every 30s
+   * while the page is visible — then merges the server-side status back
+   * into localStorage so the blue dot flips to green/red automatically.
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    async function sync() {
+      try {
+        const res = await fetch("/api/instagram/schedule", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          posts?: Array<{
+            postId: string;
+            status: "pending" | "published" | "failed";
+            metaPostId?: string;
+            error?: string;
+          }>;
+        };
+        if (cancelled || !data.posts || data.posts.length === 0) return;
+        const byId = new Map(data.posts.map((p) => [p.postId, p]));
+        setScheduledPosts((prev) => {
+          let dirty = false;
+          const next = prev.map((p) => {
+            const remote = byId.get(p.id);
+            if (!remote) return p;
+            // Map server "pending" → local "scheduled" (UI naming).
+            const target =
+              remote.status === "published"
+                ? "published"
+                : remote.status === "failed"
+                  ? "failed"
+                  : p.status;
+            if (
+              target === p.status &&
+              (remote.metaPostId ?? null) === (p.publishedPostId ?? null)
+            ) {
+              return p;
+            }
+            dirty = true;
+            return {
+              ...p,
+              status: target,
+              publishedPostId: remote.metaPostId ?? p.publishedPostId ?? null,
+            };
+          });
+          return dirty ? next : prev;
+        });
+      } catch {
+        /* network — try again next interval */
+      }
+    }
+
+    void sync();
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") void sync();
+    }, 30_000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") void sync();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", onVis);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", onVis);
+    };
+  }, []);
+
   /* ── Drag state ────────────────────────────────────────────────── */
   const [draggedMediaUrl, setDraggedMediaUrl] = useState<string | null>(null);
   const [draggedMediaType, setDraggedMediaType] = useState<"image" | "video">("image");
