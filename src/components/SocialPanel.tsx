@@ -515,15 +515,28 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
     };
     setEditingPost(updated);
     setScheduledPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+
     if (result.ok) {
       setPublishError(null);
-    } else {
-      setPublishError(
-        `Saved locally but scheduling failed: ${result.error}. Adjust the time or click Save again.`
-      );
+      setEditModalOpen(false);
+      setEditingPost(null);
+      return;
     }
-    setEditModalOpen(false);
-    setEditingPost(null);
+
+    // Failed to schedule. The two cases we care about:
+    //   1. Time is in the past → show specific friendly hint, keep modal
+    //      open so user can adjust the time without re-opening.
+    //   2. Anything else → generic error, keep modal open too.
+    const isPastTime =
+      (result.error || "").toLowerCase().includes("past") ||
+      (result.error || "").toLowerCase().includes("future");
+    setPublishError(
+      isPastTime
+        ? t("schedule.savedButPastTime" as TKey)
+        : t("schedule.savedButError" as TKey).replace("{error}", result.error ?? "")
+    );
+    // NOTE: deliberately leave the modal open so the user can fix
+    // the time and click Save again without losing context.
   }
 
   /* ── Replace media ─────────────────────────────────────────────── */

@@ -468,6 +468,27 @@ const dict = {
     en: "Could not queue this post for scheduled publish.",
     zh: "排程伺服器寫入失敗，請稍後再試。",
   },
+  "schedule.savedButPastTime": {
+    en: "Saved locally. Scheduled time is in the past — adjust and Save to actually publish.",
+    zh: "已儲存草稿，但排程時間已過。請調整時間後再次按「Save」才會真的排程發布。",
+  },
+  "schedule.savedButError": {
+    en: "Saved locally. Scheduling failed: {error}",
+    zh: "已儲存草稿，排程伺服器拒絕：{error}",
+  },
+  "slideTray.tileTitlePrimary": {
+    en: "Slide 1 — cover. Drag to reorder.",
+    zh: "第 1 張 — IG 封面。拖曳可重新排序。",
+  },
+  "slideTray.tileTitleOther": {
+    en: "Slide {n}. Drag to reorder.",
+    zh: "第 {n} 張，拖曳可重新排序。",
+  },
+  "slideTray.replace": { en: "Replace media", zh: "替換媒體" },
+  "slideTray.hint": {
+    en: "{n} slides · drag tiles to reorder · slide 1 is the IG cover",
+    zh: "{n} 張 · 拖曳重新排序 · 第 1 張是 IG 封面",
+  },
   "social.post.schedule": { en: "Schedule", zh: "排程" },
   "social.post.delete": { en: "Delete", zh: "刪除" },
   "social.post.draft": { en: "Draft", zh: "草稿" },
@@ -802,16 +823,22 @@ interface I18nCtx {
   t: (key: TKey, vars?: Record<string, string | number>) => string;
 }
 
+// Default language: Chinese. App is primarily used by 繁中 users —
+// English remains available via the language toggle in the header but
+// every fresh visit / new browser starts in Chinese.
+const DEFAULT_LANG: Lang = "zh";
+
 const I18nContext = createContext<I18nCtx>({
-  lang: "en",
+  lang: DEFAULT_LANG,
   setLang: () => {},
   t: (key) => key,
 });
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>("en");
+  const [lang, setLangState] = useState<Lang>(DEFAULT_LANG);
 
-  // Persist language preference
+  // Persist language preference. Only override the default when the
+  // user has explicitly picked something — first-time visitors see ZH.
   useEffect(() => {
     const saved = localStorage.getItem("ce-lang") as Lang | null;
     if (saved === "en" || saved === "zh") setLangState(saved);

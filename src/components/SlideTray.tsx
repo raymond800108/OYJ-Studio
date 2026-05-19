@@ -2,6 +2,7 @@
 
 import { useState, type RefObject } from "react";
 import { Loader2, Upload, Play, GripVertical } from "lucide-react";
+import { useI18n, type TKey } from "@/lib/i18n";
 
 interface MinimalPost {
   mediaUrl: string;
@@ -52,6 +53,7 @@ export default function SlideTray({
   replaceInputRef,
   onReplaceFile,
 }: SlideTrayProps) {
+  const { t } = useI18n();
   // Build the full slide list with per-slide kinds (so reorder + rendering
   // both know which tiles are videos even after the user swaps things).
   const slides: OrderedSlide[] = [
@@ -116,8 +118,8 @@ export default function SlideTray({
               }`}
               title={
                 isPrimary
-                  ? "Slide 1 — cover. Drag to reorder."
-                  : `Slide ${idx + 1}. Drag to reorder.`
+                  ? t("slideTray.tileTitlePrimary" as TKey)
+                  : t("slideTray.tileTitleOther" as TKey).replace("{n}", String(idx + 1))
               }
             >
               {isVideo ? (
@@ -159,7 +161,7 @@ export default function SlideTray({
                     type="button"
                     onClick={onReplaceClick}
                     disabled={uploadingMedia}
-                    title="Replace media"
+                    title={t("slideTray.replace" as TKey)}
                     className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-100"
                   >
                     {uploadingMedia ? (
@@ -187,7 +189,7 @@ export default function SlideTray({
 
       {slides.length > 1 && (
         <p className="text-[10px] text-muted">
-          {slides.length} slides · drag tiles to reorder · slide 1 is the IG cover
+          {t("slideTray.hint" as TKey).replace("{n}", String(slides.length))}
         </p>
       )}
     </div>
