@@ -69,9 +69,16 @@ export async function GET(req: NextRequest) {
   const filename = path.split("/").pop() || "file";
   const mime = guessMime(filename);
 
-  return new NextResponse(dropboxRes.body, {
+  // Read the whole body into an ArrayBuffer before returning. Next.js 16
+  // on the Vercel Node runtime rejects passing a raw fetch ReadableStream
+  // straight into NextResponse with "TypeError: Cannot convert argument
+  // to a TypedArray", so we materialise the bytes here. Image thumbnails
+  // are small enough that buffering is fine.
+  const buf = await dropboxRes.arrayBuffer();
+  return new NextResponse(buf, {
     headers: {
       "Content-Type": mime,
+      "Content-Length": String(buf.byteLength),
       "Cache-Control": "private, max-age=3600",
     },
   });
