@@ -746,6 +746,14 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
           ? { ...prev, status: "published", publishedPostId: data.postId ?? null }
           : prev
       );
+
+      // If this post was already on the QStash schedule, cancel it so the
+      // delayed callback doesn't fire and try to publish the same media a
+      // second time. Fire-and-forget — the cron callback's status check is
+      // a second safety net.
+      if (post.status === "scheduled") {
+        void cancelSchedule(post.id);
+      }
     } catch (err) {
       setPublishError(err instanceof Error ? err.message : "Publish failed");
       setScheduledPosts((prev) =>
@@ -1284,15 +1292,19 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
                     Save
                   </button>
 
-                  {/* Publish Now — shown for draft/failed posts. Requires
-                      Instagram to be connected (Diagnosis tab → Connect IG). */}
-                  {editingPost.status !== "scheduled" && editingPost.status !== "published" && (
+                  {/* Publish Now — available for any not-yet-published post.
+                      For an already-scheduled post, clicking this means
+                      "I changed my mind, post now instead of at the
+                      scheduled time" — the QStash callback is best-effort
+                      cancelled by the publish flow's status check (it sees
+                      status='published' and skips). Hidden after publish. */}
+                  {editingPost.status !== "published" && (
                     connected ? (
                       <button
                         onClick={() => publishPost(editingPost)}
                         disabled={publishingId === editingPost.id}
                         className="flex items-center gap-2 px-4 py-2 rounded-xl bg-foreground text-background text-sm font-semibold hover:opacity-90 disabled:opacity-40"
-                        title="Publish immediately via Instagram Graph API"
+                        title={t("social.post.publishNowTitle" as TKey)}
                       >
                         {publishingId === editingPost.id ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1305,7 +1317,7 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
                       <button
                         onClick={() => setTab("diagnosis")}
                         className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted/10 text-muted text-sm font-medium hover:bg-muted/20"
-                        title="Connect Instagram in the Diagnosis tab first"
+                        title={t("social.post.publishNowNeedsConnect" as TKey)}
                       >
                         <Send className="w-3.5 h-3.5" />
                         {t("social.post.publishNow" as TKey)}

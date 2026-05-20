@@ -494,6 +494,14 @@ const dict = {
     en: "Saved locally. Scheduling failed: {error}",
     zh: "已儲存草稿，排程伺服器拒絕：{error}",
   },
+  "social.post.publishNowTitle": {
+    en: "Publish immediately via Instagram Graph API",
+    zh: "立刻發布到 IG（覆蓋原本的排程時間）",
+  },
+  "social.post.publishNowNeedsConnect": {
+    en: "Connect Instagram in the Diagnosis tab first",
+    zh: "請先在診斷分頁連結 Instagram",
+  },
   "schedule.dateLabel": { en: "Date", zh: "日期" },
   "schedule.tzLabel": { en: "Timezone", zh: "時區" },
   "slideTray.tileTitlePrimary": {
