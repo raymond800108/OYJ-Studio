@@ -505,6 +505,7 @@ const dict = {
     zh: "第 {n} 張，拖曳可重新排序。",
   },
   "slideTray.replace": { en: "Replace media", zh: "替換媒體" },
+  "slideTray.delete": { en: "Remove this slide", zh: "從貼文移除這張" },
   "slideTray.hint": {
     en: "{n} slides · drag tiles to reorder · slide 1 is the IG cover",
     zh: "{n} 張 · 拖曳重新排序 · 第 1 張是 IG 封面",

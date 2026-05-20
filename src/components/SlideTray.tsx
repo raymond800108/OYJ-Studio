@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type RefObject } from "react";
-import { Loader2, Upload, Play, GripVertical, Plus } from "lucide-react";
+import { Loader2, Upload, Play, GripVertical, Plus, Trash2 } from "lucide-react";
 import { useI18n, type TKey } from "@/lib/i18n";
 import MediaPicker, { type PickedMedia } from "@/components/MediaPicker";
 
@@ -95,6 +95,15 @@ export default function SlideTray({
     onReorder(next);
   }
 
+  function handleDeleteSlide(idx: number) {
+    // Guard: never let the user delete the last remaining slide — an IG
+    // post needs at least one media item. If they really want to drop
+    // everything, the trash icon on the modal's footer deletes the post.
+    if (slides.length <= 1) return;
+    const next = slides.filter((_, i) => i !== idx);
+    onReorder(next);
+  }
+
   return (
     <div className="flex-1 min-w-0 space-y-2">
       <div className="flex flex-wrap gap-2">
@@ -161,6 +170,27 @@ export default function SlideTray({
               <span className="absolute top-1 left-1 text-[10px] font-mono bg-black/70 text-white px-1.5 py-0.5 rounded">
                 {idx + 1}
               </span>
+
+              {/* Delete button — only when removing leaves at least one slide.
+                  stopPropagation so clicking it doesn't also start a drag. */}
+              {slides.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    handleDeleteSlide(idx);
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onDragStart={(e) => e.preventDefault()}
+                  draggable={false}
+                  title={t("slideTray.delete" as TKey)}
+                  aria-label={t("slideTray.delete" as TKey)}
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 hover:bg-red-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
 
               {/* Drag handle hint (multi-slide only) */}
               {slides.length > 1 && (
