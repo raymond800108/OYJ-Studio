@@ -171,8 +171,9 @@ export default function SlideTray({
                 {idx + 1}
               </span>
 
-              {/* Delete button — only when removing leaves at least one slide.
-                  stopPropagation so clicking it doesn't also start a drag. */}
+              {/* Delete button — always visible (subtle) so discoverability
+                  is obvious without hovering. Only shown when removing this
+                  slide leaves at least one media item behind. */}
               {slides.length > 1 && (
                 <button
                   type="button"
@@ -186,7 +187,7 @@ export default function SlideTray({
                   draggable={false}
                   title={t("slideTray.delete" as TKey)}
                   aria-label={t("slideTray.delete" as TKey)}
-                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 hover:bg-red-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 hover:bg-red-600 text-white flex items-center justify-center transition-colors z-10 shadow-sm"
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
