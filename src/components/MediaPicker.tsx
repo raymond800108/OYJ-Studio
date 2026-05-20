@@ -56,15 +56,22 @@ export default function MediaPicker({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
 
-  // Reset local state every time the modal opens
+  // Reset local state only on the open transition (false → true).
+  // The parent passes `selectedUrls={extraSlides.map(s => s.url)}`, which
+  // is a brand-new array every render — including the render triggered
+  // by our own setPicked. If we keyed this effect on selectedUrls we'd
+  // wipe the user's selection back to the prop value on every click.
+  const prevOpenRef = useRef(false);
   useEffect(() => {
-    if (open) {
+    if (open && !prevOpenRef.current) {
       setHistory(readHistory());
       setPicked(new Set(selectedUrls));
       setMeta({});
       setUploadError(null);
     }
-  }, [open, selectedUrls]);
+    prevOpenRef.current = open;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   if (!open) return null;
 
