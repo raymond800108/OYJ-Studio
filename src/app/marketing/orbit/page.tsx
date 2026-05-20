@@ -25,10 +25,28 @@ interface MotionStyle {
   id: string;
   labelKey: TKey;
   descKey: TKey;
-  /** English-only — fed to Kling, not user-visible */
+  /** English-only — fed to Kling/Seedance, not user-visible */
   prompt: string;
+  /**
+   * English-only music prompt fed to fal-ai/mmaudio-v2 when the user
+   * toggles "auto music" on. Always commercial-instrumental — no vocals,
+   * brand-safe — and tonally matched to the motion style.
+   */
+  musicPrompt: string;
   presetWaypoints: OrbitParams[];
 }
+
+/**
+ * Optional "focus pull" intro prepended to the video prompt when the
+ * user toggles 影片開頭模糊聚焦. Same English instruction regardless of
+ * motion style — the style prompt that follows owns the body of the shot.
+ */
+const FOCUS_PULL_INTRO =
+  "The video opens on softly defocused, dreamy bokeh — out-of-focus shapes " +
+  "and gentle blur. Over the first 1 to 1.5 seconds, focus gradually pulls " +
+  "into the product so it emerges crisp and razor-sharp, drawing the " +
+  "viewer's eye into the piece before the camera move begins. Smooth, " +
+  "continuous focus pull — no jump cuts.\n\n";
 
 const MOTION_STYLES: MotionStyle[] = [
   {
@@ -46,6 +64,10 @@ const MOTION_STYLES: MotionStyle[] = [
       "as if suspended on a luxury cinema slider rig. Shallow depth of field with creamy bokeh in background. " +
       "Movement feels gravity-free, deliberate, and premium. Transitions are perfectly continuous — no cuts, no holds, no jumps. " +
       "Consistent studio lighting throughout. Product is perfectly stationary and centered at all times. 4K cinematic quality.",
+    musicPrompt:
+      "Soft, ethereal solo piano with gentle ambient pad swells underneath. Slow, weightless tempo around 60 BPM. " +
+      "Cinematic, dreamy, luxury fine-jewellery or fragrance commercial atmosphere. " +
+      "Light reverb, sparse arrangement, no percussion, no vocals. Brand-safe instrumental.",
   },
   {
     id: "editorial-cut",
@@ -61,6 +83,10 @@ const MOTION_STYLES: MotionStyle[] = [
       "Sharp, deliberate editorial jump cuts between each camera position. " +
       "Each angle holds as a composed still-life frame for 1–2 seconds before an instant hard cut to the next. " +
       "Zero motion blur between cuts. Fashion magazine aesthetic — clinical, confident, intentional.",
+    musicPrompt:
+      "Sharp, modern minimal electronic instrumental. Crisp piano hits punctuated by subtle synth stabs. " +
+      "Confident mid-tempo around 105 BPM, fashion editorial / luxury brand commercial atmosphere. " +
+      "Clean, intentional, no vocals. Brand-safe instrumental.",
   },
   {
     id: "kinetic-orbit",
@@ -75,6 +101,10 @@ const MOTION_STYLES: MotionStyle[] = [
     prompt:
       "High-energy kinetic camera movement. The camera sweeps aggressively through each waypoint with athletic momentum — " +
       "fast arcs, dynamic push-ins, forward-driving pace. Subtle motion blur on fast transitions adds speed sensation.",
+    musicPrompt:
+      "High-energy uplifting electronic instrumental with driving percussion and a steady four-on-the-floor pulse around 125 BPM. " +
+      "Premium sports / fashion launch commercial energy — building tension, forward momentum. " +
+      "No vocals, brand-safe instrumental.",
   },
   {
     id: "slow-reveal",
@@ -90,6 +120,10 @@ const MOTION_STYLES: MotionStyle[] = [
       "Imperceptibly slow camera drift between each keyframe position. " +
       "Movement is so gradual it is barely perceptible — maximum tension, maximum anticipation. " +
       "Full depth of field — every micro-texture, every surface detail in perfect focus.",
+    musicPrompt:
+      "Ultra-slow, sparse solo piano with long sustained ambient swells. Around 50 BPM. " +
+      "Builds quiet tension and anticipation — fine jewellery reveal commercial atmosphere. " +
+      "Restrained, elegant, no percussion, no vocals. Brand-safe instrumental.",
   },
   {
     id: "custom",
@@ -100,6 +134,10 @@ const MOTION_STYLES: MotionStyle[] = [
       "Smooth continuous camera movement through the user-defined keyframe path. " +
       "Maintain consistent studio lighting and product stability throughout. " +
       "Interpolate naturally between each waypoint with deliberate, controlled motion. 4K cinematic quality.",
+    musicPrompt:
+      "Cinematic instrumental commercial soundtrack — refined, premium, neutral mid-tempo around 90 BPM. " +
+      "Subtle piano with light orchestral texture. Works for any luxury product reveal. " +
+      "No vocals, brand-safe instrumental.",
   },
 ];
 
@@ -156,7 +194,14 @@ export default function OrbitPage() {
 
   // Video
   const [videoGenerating, setVideoGenerating] = useState(false);
-  const [videoPhase, setVideoPhase] = useState<"capturing" | "stitching" | null>(null);
+  // "capturing" → still frames; "stitching" → Kling/Seedance render;
+  // "scoring" → MMAudio adds music. UI shows the current step label.
+  const [videoPhase, setVideoPhase] = useState<
+    "capturing" | "stitching" | "scoring" | null
+  >(null);
+  // Optional enhancements toggled by the user
+  const [focusIntro, setFocusIntro] = useState(false);
+  const [addMusic, setAddMusic] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
   // Waypoints + style
@@ -408,7 +453,10 @@ export default function OrbitPage() {
       const pathDesc = activeWaypoints
         .map((w, i) => `W${i + 1}: ${angleLabel(w.params.horizontalAngle)} (${w.params.horizontalAngle}°)`)
         .join(" → ");
-      const fullPrompt = `${activeStyle.prompt}\n\nCamera path: ${pathDesc}.`;
+      // Optional focus-pull intro is prepended verbatim — the style prompt
+      // still owns the body shot. Kling/Seedance interpret both halves.
+      const introPart = focusIntro ? FOCUS_PULL_INTRO : "";
+      const fullPrompt = `${introPart}${activeStyle.prompt}\n\nCamera path: ${pathDesc}.`;
       const waypointUrls = activeWaypoints.map((w) => w.imageUrl);
 
       const videoSubmit = await fetch("/api/kie", {
@@ -435,19 +483,54 @@ export default function OrbitPage() {
         const r = await fetch(`/api/kie?taskId=${encodeURIComponent(submitData.taskId)}&type=video`);
         const poll = (await r.json()) as { status: string; videos?: { url: string }[]; error?: string };
         if (poll.status === "success" && poll.videos?.[0]?.url) {
-          setVideoUrl(poll.videos[0].url);
+          let finalVideoUrl = poll.videos[0].url;
+
+          // Optional step 3 — add commercial music matched to motion style
+          // via fal-ai/mmaudio-v2. Don't fail the whole job if scoring
+          // errors out: ship the silent video as a fallback so the user
+          // still gets something.
+          if (addMusic) {
+            setVideoPhase("scoring");
+            try {
+              const mmRes = await fetch("/api/fal/mmaudio", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  video_url: finalVideoUrl,
+                  prompt: activeStyle.musicPrompt,
+                  duration: 6,
+                }),
+              });
+              const mmData = await mmRes.json();
+              if (mmRes.ok && mmData.url) {
+                finalVideoUrl = mmData.url;
+              } else {
+                console.warn("[orbit] music scoring failed:", mmData.error);
+                setError(
+                  `配樂失敗，已輸出無音樂版本：${mmData.error ?? "unknown"}`
+                );
+              }
+            } catch (e) {
+              console.warn("[orbit] music scoring network error:", e);
+              setError("配樂失敗，已輸出無音樂版本。");
+            }
+          }
+
+          setVideoUrl(finalVideoUrl);
           logUsage?.("video-generate", { status: "success", detail: `orbit-${activeStyle.id}` });
           appendHistory({
             id: crypto.randomUUID(),
             sourceUrl: sourceUrl ?? "",
-            resultUrl: poll.videos[0].url,
+            resultUrl: finalVideoUrl,
             mode: "video",
             settings: {
               rotate: 0,
               forward: 0,
               vertical: 0,
               wide: false,
-              prompt: `Orbit · ${t(activeStyle.labelKey)} · ${activeWaypoints.length} waypoints`,
+              prompt: `Orbit · ${t(activeStyle.labelKey)} · ${activeWaypoints.length} waypoints${
+                focusIntro ? " · focus pull" : ""
+              }${addMusic ? " · scored" : ""}`,
             },
             timestamp: Date.now(),
           });
@@ -691,6 +774,47 @@ export default function OrbitPage() {
             </p>
           </div>
 
+          {/* Optional enhancement toggles */}
+          <div className="space-y-2 mb-4 p-3 rounded-xl bg-muted/5 border border-border">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1.5">
+              {t("orbit.enhance")}
+            </p>
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={focusIntro}
+                onChange={(e) => setFocusIntro(e.target.checked)}
+                className="mt-0.5 accent-foreground"
+                disabled={videoGenerating}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-foreground leading-tight">
+                  {t("orbit.focusPull")}
+                </p>
+                <p className="text-[10px] text-muted mt-0.5 leading-snug">
+                  {t("orbit.focusPullHint")}
+                </p>
+              </div>
+            </label>
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={addMusic}
+                onChange={(e) => setAddMusic(e.target.checked)}
+                className="mt-0.5 accent-foreground"
+                disabled={videoGenerating}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-foreground leading-tight">
+                  {t("orbit.autoMusic")}
+                </p>
+                <p className="text-[10px] text-muted mt-0.5 leading-snug">
+                  {t("orbit.autoMusicHint")}
+                </p>
+              </div>
+            </label>
+          </div>
+
           <button
             onClick={handleGenerateVideo}
             disabled={videoGenerating || loading || recordingWaypoint || !sourceUrl || customBlocked}
@@ -700,6 +824,8 @@ export default function OrbitPage() {
             {videoGenerating
               ? videoPhase === "capturing"
                 ? t("orbit.videoCapturingPhase", { n: activeStyle.presetWaypoints.length || readyWaypoints.length })
+                : videoPhase === "scoring"
+                ? t("orbit.videoScoringPhase")
                 : t("orbit.videoStitchingPhase")
               : customBlocked
               ? t("orbit.waypointsNeedMore", { n: 2 - readyWaypoints.length })

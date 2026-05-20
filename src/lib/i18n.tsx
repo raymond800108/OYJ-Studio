@@ -715,6 +715,27 @@ const dict = {
   "orbit.generateImageHint": { en: "Single still — uses the camera angle above.", zh: "單張圖片 — 使用上方相機角度。" },
   "orbit.videoCapturingPhase": { en: "Capturing {n} waypoints…", zh: "正在拍攝 {n} 個路徑點…" },
   "orbit.videoStitchingPhase": { en: "Stitching with Kling 3.0…", zh: "Kling 3.0 合成影片中…" },
+  "orbit.videoScoringPhase": {
+    en: "Scoring with matched music…",
+    zh: "為影片配上對應風格的音樂…",
+  },
+  "orbit.enhance": { en: "Enhancements", zh: "進階選項" },
+  "orbit.focusPull": {
+    en: "Focus-pull intro",
+    zh: "影片開頭模糊焦距 → 逐漸聚焦",
+  },
+  "orbit.focusPullHint": {
+    en: "Open on soft bokeh, then pull crisp focus into the product over the first 1-1.5 seconds before the camera move begins.",
+    zh: "影片開頭是柔焦的散景，前 1-1.5 秒慢慢拉回到產品上聚焦，再開始相機運鏡。",
+  },
+  "orbit.autoMusic": {
+    en: "Auto music (matched to motion style)",
+    zh: "依風格自動配樂",
+  },
+  "orbit.autoMusicHint": {
+    en: "Generates a commercial-grade instrumental score that matches the selected motion style (slow piano for Cinematic Float, kinetic electronic for Kinetic Orbit, etc.). Adds ~30-60s to the render.",
+    zh: "依選定的運鏡風格自動生成商業級配樂（Cinematic Float → 慢板鋼琴；Kinetic Orbit → 動感電子等），全無人聲。多花 30-60 秒。",
+  },
   "orbit.videoCustom": { en: "Generate custom motion video", zh: "生成自訂動態影片" },
   "orbit.videoPreset": { en: "Generate {style} motion video", zh: "生成 {style} 動態影片" },
   "orbit.videoCustomHint": { en: "Stitches your recorded waypoints into a Kling 3.0 video.", zh: "將錄製的路徑點合成為 Kling 3.0 影片。" },
