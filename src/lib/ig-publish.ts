@@ -49,8 +49,16 @@ async function waitForContainer(
 ): Promise<{ ready: boolean; error?: string }> {
   const maxWaitMs = hasAnyVideo ? 240_000 : 30_000;
   const start = Date.now();
+  // Adaptive polling — IG finishes image containers in 1-3 seconds, video
+  // containers in 30s-3min. Start with a short interval to catch fast
+  // images, back off for stragglers.
+  let attempt = 0;
   while (Date.now() - start < maxWaitMs) {
-    await new Promise((r) => setTimeout(r, 5_000));
+    const interval = hasAnyVideo
+      ? Math.min(5_000, 2_000 + attempt * 500)   // 2s → 2.5s → ... cap 5s
+      : Math.min(2_000, 600 + attempt * 200);    // 0.6s → 0.8s → ... cap 2s
+    await new Promise((r) => setTimeout(r, interval));
+    attempt++;
     const res = await fetch(
       `${IG_GRAPH}/${containerId}?fields=status_code,status&access_token=${token}`
     );
@@ -169,48 +177,74 @@ export async function publishToInstagram(
 
   try {
     if (isCarousel) {
-      const childIds: string[] = [];
-      for (const slide of slides) {
-        const childParams = new URLSearchParams({
-          access_token,
-          is_carousel_item: "true",
-        });
-        if (slide.kind === "video") {
-          childParams.set("media_type", "VIDEO");
-          childParams.set("video_url", slide.url);
-        } else {
-          childParams.set("image_url", slide.url);
-        }
-        const childRes = await fetch(`${IG_GRAPH}/${igUserId}/media`, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: childParams.toString(),
-        });
-        const childData = (await childRes.json()) as {
-          id?: string;
-          error?: { code: number; message: string };
-        };
-        if (childData.error) {
-          if (childData.error.code === 190) {
-            await redis.del(`ig:${req.userId}`);
-            return { ok: false, error: "Token expired", tokenExpired: true };
+      /* Parallel pipeline:
+       * 1. Create all child containers concurrently (POST is cheap; Meta
+       *    rate-limit allows this for normal carousel sizes).
+       * 2. Wait for every child to reach FINISHED concurrently. Image
+       *    children typically clear in 1-3s, video children take longer
+       *    but they overlap, so total time = max(child_times) instead of
+       *    sum(child_times). For a 4-image carousel this drops the
+       *    children stage from ~25s to ~3s.
+       */
+      const createResults = await Promise.all(
+        slides.map(async (slide) => {
+          const childParams = new URLSearchParams({
+            access_token,
+            is_carousel_item: "true",
+          });
+          if (slide.kind === "video") {
+            childParams.set("media_type", "VIDEO");
+            childParams.set("video_url", slide.url);
+          } else {
+            childParams.set("image_url", slide.url);
           }
-          return { ok: false, error: `child[${slide.kind}]: ${childData.error.message}` };
-        }
-        if (!childData.id) return { ok: false, error: "Empty child container response" };
+          const res = await fetch(`${IG_GRAPH}/${igUserId}/media`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: childParams.toString(),
+          });
+          const data = (await res.json()) as {
+            id?: string;
+            error?: { code: number; message: string };
+          };
+          return { slide, data };
+        })
+      );
 
-        // Wait for child to finish before creating parent (else code 2)
-        const childWait = await waitForContainer(
-          childData.id,
-          slide.kind === "video",
-          false,
-          access_token
-        );
-        if (!childWait.ready) {
-          return { ok: false, error: `Carousel ${slide.kind} child not ready: ${childWait.error}` };
+      // Fail-fast on the first child create error
+      const failedCreate = createResults.find((r) => r.data.error);
+      if (failedCreate) {
+        const err = failedCreate.data.error!;
+        if (err.code === 190) {
+          await redis.del(`ig:${req.userId}`);
+          return { ok: false, error: "Token expired", tokenExpired: true };
         }
-        childIds.push(childData.id);
+        return { ok: false, error: `child[${failedCreate.slide.kind}]: ${err.message}` };
       }
+      const missingId = createResults.find((r) => !r.data.id);
+      if (missingId) {
+        return { ok: false, error: "Empty child container response" };
+      }
+
+      // Parallel FINISH wait
+      const waitResults = await Promise.all(
+        createResults.map((r) =>
+          waitForContainer(
+            r.data.id!,
+            r.slide.kind === "video",
+            false,
+            access_token
+          ).then((res) => ({ slide: r.slide, id: r.data.id!, res }))
+        )
+      );
+      const failedWait = waitResults.find((w) => !w.res.ready);
+      if (failedWait) {
+        return {
+          ok: false,
+          error: `Carousel ${failedWait.slide.kind} child not ready: ${failedWait.res.error}`,
+        };
+      }
+      const childIds: string[] = waitResults.map((w) => w.id);
 
       // Create parent — retry up to 3× on code 2 (transient)
       const parentParams = new URLSearchParams({
