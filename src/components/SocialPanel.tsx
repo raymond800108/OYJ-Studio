@@ -247,7 +247,12 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
   const { t } = useI18n();
 
   // Tab state
-  const [tab, setTab] = useState<"schedule" | "diagnosis">("diagnosis");
+  // Calendar is the everyday work surface — diagnosis is a deep-dive
+  // analytics view. Default to schedule on every fresh visit; the IG
+  // OAuth-redirect handlers below still switch to diagnosis when the
+  // user just connected (to immediately run the AI analysis) or when
+  // there's an OAuth error to surface.
+  const [tab, setTab] = useState<"schedule" | "diagnosis">("schedule");
 
   /* ── Calendar state ────────────────────────────────────────────── */
   const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
