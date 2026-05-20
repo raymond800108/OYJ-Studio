@@ -664,7 +664,22 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
       });
       if (res.ok) {
         const { caption } = await res.json();
-        if (caption) setEditCaption(caption);
+        if (caption) {
+          setEditCaption(caption);
+          // Also commit the caption into the underlying CalendarPost
+          // immediately. Without this, if the user clicks Publish Now
+          // (or closes the modal) without first hitting Save, the
+          // newly-generated caption is lost and IG receives an empty
+          // string. Persist to localStorage too so it survives reload.
+          setEditingPost((prev) =>
+            prev ? { ...prev, caption } : prev
+          );
+          setScheduledPosts((prev) =>
+            prev.map((p) =>
+              editingPost && p.id === editingPost.id ? { ...p, caption } : p
+            )
+          );
+        }
       }
     } catch {}
     setGeneratingCaption(false);
@@ -1301,7 +1316,26 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
                   {editingPost.status !== "published" && (
                     connected ? (
                       <button
-                        onClick={() => publishPost(editingPost)}
+                        onClick={() => {
+                          // Commit in-flight modal inputs (caption / time /
+                          // timezone / date) into the post before publishing
+                          // — otherwise unsaved textarea edits would be
+                          // dropped and IG would publish with the stale
+                          // caption / time. Also mirror into editingPost +
+                          // scheduledPosts so the UI reflects the same.
+                          const liveDraft: CalendarPost = {
+                            ...editingPost,
+                            caption: editCaption,
+                            time: editTime,
+                            timezone: editTimezone,
+                            date: editDate || editingPost.date,
+                          };
+                          setEditingPost(liveDraft);
+                          setScheduledPosts((prev) =>
+                            prev.map((p) => (p.id === liveDraft.id ? liveDraft : p))
+                          );
+                          void publishPost(liveDraft);
+                        }}
                         disabled={publishingId === editingPost.id}
                         className="flex items-center gap-2 px-4 py-2 rounded-xl bg-foreground text-background text-sm font-semibold hover:opacity-90 disabled:opacity-40"
                         title={t("social.post.publishNowTitle" as TKey)}
