@@ -160,6 +160,8 @@ interface CalendarPost {
   presetId: string | null;
   presetLabel: string | null;
   status: "draft" | "scheduled" | "published" | "failed";
+  /** Last save/scheduling error, surfaced as a tooltip on the calendar tile. */
+  error?: string;
 }
 
 /* ─── Step config ────────────────────────────────────────────────── */
@@ -342,6 +344,7 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
   const [editingPost, setEditingPost] = useState<CalendarPost | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editTime, setEditTime] = useState("12:00");
+  const [editDate, setEditDate] = useState("");
   const [editTimezone, setEditTimezone] = useState("UTC");
   const [editCaption, setEditCaption] = useState("");
   const [generatingCaption, setGeneratingCaption] = useState(false);
@@ -550,6 +553,7 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
   function openEdit(post: CalendarPost) {
     setEditingPost(post);
     setEditCaption(post.caption);
+    setEditDate(post.date);
     setEditTime(post.time || "12:00");
     setEditTimezone(post.timezone || defaultTimezone);
     setPublishError(null);
@@ -566,6 +570,7 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
     const updatedDraft: CalendarPost = {
       ...editingPost,
       caption: editCaption,
+      date: editDate || editingPost.date,
       time: editTime,
       timezone: editTimezone,
     };
@@ -591,27 +596,30 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
     setEditingPost(updated);
     setScheduledPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
 
-    if (result.ok) {
-      setPublishError(null);
-      setEditModalOpen(false);
-      setEditingPost(null);
-      return;
-    }
-
-    // Failed to schedule. The two cases we care about:
-    //   1. Time is in the past → show specific friendly hint, keep modal
-    //      open so user can adjust the time without re-opening.
-    //   2. Anything else → generic error, keep modal open too.
-    const isPastTime =
-      (result.error || "").toLowerCase().includes("past") ||
-      (result.error || "").toLowerCase().includes("future");
-    setPublishError(
-      isPastTime
+    // Always close — local changes are already persisted to
+    // localStorage above. If scheduling failed (e.g. user picked a past
+    // time and didn't move the date), the post stays as a draft and
+    // an inline warning will show on the calendar tile. Re-opening +
+    // adjusting + Save again will retry the schedule.
+    if (!result.ok) {
+      const isPastTime =
+        (result.error || "").toLowerCase().includes("past") ||
+        (result.error || "").toLowerCase().includes("future");
+      const message = isPastTime
         ? t("schedule.savedButPastTime" as TKey)
-        : t("schedule.savedButError" as TKey).replace("{error}", result.error ?? "")
-    );
-    // NOTE: deliberately leave the modal open so the user can fix
-    // the time and click Save again without losing context.
+        : t("schedule.savedButError" as TKey).replace("{error}", result.error ?? "");
+      setScheduledPosts((prev) =>
+        prev.map((p) => (p.id === updated.id ? { ...p, error: message } : p))
+      );
+    } else {
+      // Clear any stale error from a previous failed attempt
+      setScheduledPosts((prev) =>
+        prev.map((p) => (p.id === updated.id ? { ...p, error: undefined } : p))
+      );
+    }
+    setPublishError(null);
+    setEditModalOpen(false);
+    setEditingPost(null);
   }
 
   /* ── Replace media ─────────────────────────────────────────────── */
@@ -1164,8 +1172,20 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
                     />
                   </div>
 
-                  {/* ③ Time + Timezone */}
-                  <div className="grid grid-cols-2 gap-3">
+                  {/* ③ Date + Time + Timezone — all three editable so the
+                       user can move a draft to a different day too. */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted">
+                        {t("schedule.dateLabel" as TKey)}
+                      </label>
+                      <input
+                        type="date"
+                        value={editDate}
+                        onChange={(e) => setEditDate(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-background border border-border text-sm focus:outline-none focus:border-foreground/30"
+                      />
+                    </div>
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-muted flex items-center gap-1">
                         <Clock className="w-3 h-3" />{t("social.post.time" as TKey)}
@@ -1178,7 +1198,9 @@ export default function SocialPanel({ lang, logUsage, history: appHistory }: Soc
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted">Timezone</label>
+                      <label className="text-xs font-medium text-muted">
+                        {t("schedule.tzLabel" as TKey)}
+                      </label>
                       <select
                         value={editTimezone}
                         onChange={(e) => setEditTimezone(e.target.value)}

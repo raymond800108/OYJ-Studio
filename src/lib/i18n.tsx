@@ -494,6 +494,8 @@ const dict = {
     en: "Saved locally. Scheduling failed: {error}",
     zh: "已儲存草稿，排程伺服器拒絕：{error}",
   },
+  "schedule.dateLabel": { en: "Date", zh: "日期" },
+  "schedule.tzLabel": { en: "Timezone", zh: "時區" },
   "slideTray.tileTitlePrimary": {
     en: "Slide 1 — cover. Drag to reorder.",
     zh: "第 1 張 — IG 封面。拖曳可重新排序。",
